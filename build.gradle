@@ -1,0 +1,61 @@
+plugins {
+    id 'java'
+}
+
+def cameoHome = project.hasProperty('cameoHome')
+    ? project.property('cameoHome')
+    : '/workspace/MSOSA2026xHF1'
+
+def jdk21Home = project.hasProperty('jdk21Home')
+    ? project.property('jdk21Home')
+    : (System.getenv('JDK21_HOME') ?: System.getenv('JAVA21_HOME') ?: '/usr/lib/jvm/java-21-openjdk')
+
+sourceCompatibility = '21'
+targetCompatibility = '21'
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+dependencies {
+    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'core-*.jar'])
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:-deprecation', '-Xlint:-unchecked']
+    if (jdk21Home) {
+        options.fork = true
+        options.forkOptions.javaHome = file(jdk21Home)
+    }
+    options.release = 21
+}
+
+jar {
+    archiveBaseName = 'cameo-http-server'
+    archiveVersion = '1.0.0'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+}
+
+tasks.register('assemblePlugin', Copy) {
+    dependsOn jar
+    from('plugin.xml')
+    from(jar.archiveFile)
+    into(layout.buildDirectory.dir('plugin-dist/com.haarer.httpserver'))
+}
+
+tasks.register('deploy', Copy) {
+    dependsOn assemblePlugin
+    from(layout.buildDirectory.dir('plugin-dist/com.haarer.httpserver'))
+    into("${cameoHome}/plugins/com.haarer.httpserver")
+    doFirst {
+        delete fileTree(
+            dir: "${cameoHome}/plugins/com.haarer.httpserver",
+            include: 'cameo-http-server-*.jar',
+            exclude: jar.archiveFileName.get()
+        )
+    }
+}

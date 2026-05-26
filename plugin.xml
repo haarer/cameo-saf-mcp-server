@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin
+    id="com.haarer.httpserver"
+    name="Cameo HTTP Server"
+    version="1.0.0"
+    provider-name="OpenCode"
+    class="com.haarer.httpserver.CameoHttpServerPlugin">
+    <requires>
+        <api version="1.0"/>
+    </requires>
+    <runtime>
+        <library name="cameo-http-server-1.0.0.jar"/>
+    </runtime>
+</plugin>
