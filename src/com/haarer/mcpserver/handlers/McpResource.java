@@ -1,4 +1,4 @@
-package com.haarer.httpserver.handlers;
+package com.haarer.mcpserver.handlers;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,7 +7,9 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-public @interface HttpEndpoint {
-    String path();
-    String method() default "GET";
+public @interface McpResource {
+    String uri();
+    String name();
+    String description() default "";
+    String mimeType() default "text/plain";
 }

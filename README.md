@@ -1,225 +1,204 @@
-# Cameo HTTP Server Plugin
+# Cameo MCP Server Plugin
 
-A lightweight HTTP server integrated as a plugin within CATIA Magic / Cameo Systems Modeler. This project provides a bridge between external HTTP requests and the Cameo JVM, allowing for automated model manipulation and introspection.
+A lightweight MCP (Model Context Protocol) server integrated as a plugin within CATIA Magic / Cameo Systems Modeler. Enables AI agents to interact with Cameo models via tools, resources, and prompts over HTTP.
+
+The MCP protocol is implemented entirely in-house (~550 lines of hand-written JSON-RPC over HTTP) — no external MCP SDK dependency. This avoids Jackson classloader conflicts with Cameo's bundled Jackson 2.19.1.
 
 ## Capabilities
 
 ### Current Version (v1.0.0)
-- **Dynamic Endpoint Handling**: Request handlers can be defined in Groovy scripts, allowing for logic updates without restarting Cameo.
-- **Hot Reloading**: Groovy scripts are monitored for changes and reloaded automatically on the next request.
-- **Annotated Routing**: Define multiple endpoints per script using the `@HttpEndpoint` annotation on class methods.
-- **Path Variables**: Routes support template variables (`/items/{id}`) extracted into a `Map<String, String>`.
-- **Request Logging**: Built-in capability to log requests and script output directly to the Cameo notification window (GUI Log).
-- **Configurable Port**: The server port can be adjusted via the system property `cameo.http.server.port` (defaults to `18741`).
-- **Configurable Scripts Directory**: The location of Groovy scripts can be adjusted via the system property `cameo.http.server.scripts.dir`. Defaults to the `scripts/` subdirectory of the plugin installation.
+- **MCP Protocol**: Full implementation of JSON-RPC 2.0 MCP methods — `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`.
+- **Dynamic Groovy Handlers**: Define tools, resources, and prompts in Groovy scripts using `@McpTool`, `@McpResource`, `@McpPrompt` annotations — no restart needed.
+- **Hot Reloading**: Groovy scripts are monitored every 2 seconds and reloaded automatically on change.
+- **Streamable HTTP Transport**: Single POST endpoint (`/mcp`) with `Mcp-Session-Id` header for session management.
+- **Health Endpoint**: `GET /` returns server status and active session count.
+- **Configurable Port**: Set via system property `cameo.mcp.server.port` (default `18750`).
+- **Configurable Scripts Directory**: Set via system property `cameo.mcp.server.scripts.dir` (defaults to `scripts/` subdirectory of plugin installation).
 
 ## Internal Architecture
 
 ### Component Overview
-The plugin follows a layered architecture to decouple the Cameo plugin lifecycle from the HTTP server logic:
 
-1.  **Plugin Layer (`CameoHttpServerPlugin`)**:
-    - Extends the Cameo `Plugin` class.
-    - Manages the lifecycle of the server (`init()` and `close()`).
-    - Handles initial configuration and error reporting to the GUI.
+1. **Plugin Layer (`CameoMcpServerPlugin`)**:
+   - Extends Cameo's `Plugin` class.
+   - Manages lifecycle (`init()` / `close()`).
 
-2.  **Server Layer (`CameoHttpServer`)**:
-    - Wraps `com.sun.net.httpserver.HttpServer`.
-    - Manages the server instance, thread pool (FixedThreadPool), and route registration.
-    - Acts as the central dispatcher for incoming requests.
+2. **Server Layer (`CameoMcpServer`)**:
+   - Owns `McpSession.Manager`, `McpProtocolHandler`, `StreamableMcpTransportProvider`, and the hot-reload loop.
+   - `CameoMcpServer` -> `StreamableMcpTransportProvider` (HTTP on port 18750).
+   - `CameoMcpServer` -> `GroovyScriptScanner` (hot-reload every 2s).
 
-3.  **Handler Layer (`HttpHandler` implementations)**:
-    - Implements the `com.sun.net.httpserver.HttpHandler` interface.
-    - **`AnnotatedScriptHandler`**: The primary handler. Uses `GroovyClassLoader` to compile Groovy scripts into classes, scans for `@HttpEndpoint` annotations, builds a routing table with regex-based URL matching (including path variables), and hot-reloads on file changes.
-    - **`HttpEndpoint`**: Annotation used in Groovy scripts to declare routes (`@HttpEndpoint(path = "/foo", method = "GET")`).
+3. **Protocol Layer (`protocol/`)**:
+   - **`McpProtocolHandler`**: Routes JSON-RPC methods. Builds responses using Cameo's `ObjectMapper` — no `convertValue()`, no serializer factory reflection.
+   - **`McpSession`**: Per-session state (tools/resources/prompts) with `ConcurrentHashMap`-backed `Manager`.
+   - **`McpToolDefinition`**: Record with `name`, `description`, `ToolHandler` functional interface.
+   - **`McpResourceDefinition`**: Record with `uri`, `name`, `description`, `mimeType`, `ResourceHandler`.
+   - **`McpPromptDefinition`**: Record with `name`, `description`, `PromptHandler`.
+
+4. **Transport Layer (`StreamableMcpTransportProvider`)**:
+   - HTTP server via `com.sun.net.httpserver.HttpServer`.
+   - Thread pool via `Executors.newCachedThreadPool()`.
+   - POST `/mcp` -> JSON-RPC handled by `McpProtocolHandler`.
+   - GET `/` -> health check JSON.
+   - CORS headers for cross-origin clients.
+   - Session ID returned in `Mcp-Session-Id` response header on `initialize`.
+
+5. **Handler Layer (`handlers/`)**:
+   - **`GroovyScriptScanner`**: Compiles `*.groovy` files with `GroovyClassLoader`, scans `@McpTool`/`@McpResource`/`@McpPrompt` annotations, returns plain `McpToolDefinition`/`McpResourceDefinition`/`McpPromptDefinition` lists.
+   - Annotations: `@McpTool(name, description)`, `@McpResource(uri, name, description, mimeType)`, `@McpPrompt(name, description)`.
 
 ### Data Flow
-`HTTP Request` $\rightarrow$ `HttpServer` $\rightarrow$ `AnnotatedScriptHandler` $\rightarrow$ `Groovy @HttpEndpoint method` $\rightarrow$ `Cameo API / GUI Log`
-
-## Main Functions & Interfaces
-
-### Core Classes
-- `CameoHttpServerPlugin`: The entry point for Cameo. Responsible for bootstrapping the server.
-- `CameoHttpServer`: The engine that maintains the HTTP listener and maps URIs to handlers.
-- `AnnotatedScriptHandler`: Compiles Groovy scripts, scans `@HttpEndpoint` annotations, builds and manages the routing table with hot-reload.
-
-### Key Interfaces
-- `com.sun.net.httpserver.HttpHandler`: The primary interface used to define endpoint behavior.
-- `com.haarer.httpserver.handlers.HttpEndpoint`: Annotation for declaring routes on Groovy class methods.
-- `com.nomagic.magicdraw.plugins.Plugin`: The interface required for integration with the Cameo plugin architecture.
+```
+Client (AI Agent)
+  │ POST /mcp {"jsonrpc":"2.0", "method":"tools/call", ...}
+  │ Mcp-Session-Id: <uuid>
+  ▼
+StreamableMcpTransportProvider (HTTP)
+  │
+  ▼
+McpProtocolHandler.handleRequest()
+  │  routes by method name
+  ▼
+McpSession.getTools() / McpToolDefinition.ToolHandler.call()
+  │
+  ▼
+Groovy method invoked via reflection
+  │
+  ▼
+Cameo API / Model
+```
 
 ## Architecture Decisions
 
-### 1. Use of `com.sun.net.httpserver.HttpServer`
-**Decision**: Utilize the built-in JDK HTTP server instead of a heavyweight framework like Spring Boot or Jetty.
-**Reasoning**: 
-- **Minimal Dependencies**: Reduces the risk of classpath conflicts within the complex Cameo JVM environment.
-- **Performance**: Sufficient for the intended low-latency, lightweight signaling and model manipulation tasks.
-- **Simplicity**: Eases deployment and build process.
+### 1. In-House MCP Protocol (no MCP SDK)
+**Decision**: Implement MCP JSON-RPC protocol in plain Java instead of using `io.modelcontextprotocol.sdk:mcp`.
+**Reasoning**:
+- **Classloader Conflict**: The MCP SDK internally uses `JacksonMcpJsonMapper.convertValue()` which triggers `BasicSerializerFactory.buildMapSerializer` to reflectively access `JsonFormat$Shape.POJO` on Cameo's bundled Jackson 2.19.1 class, which doesn't have that field (added in Jackson 3). This causes `NoSuchFieldError` at runtime.
+- **Zero Dependencies**: No bundled Jackson, no fat JAR, no classpath pollution.
+- **Minimal Surface**: ~550 lines of protocol code vs pulling in a full SDK + its transitive dependencies.
 
-### 2. Dynamic Groovy Endpoints
-**Decision**: Implement a mechanism to load endpoint logic from external `.groovy` files.
-**Reasoning**: 
-- **Fast Iteration**: Developing against the Cameo API typically requires frequent restarts of a large application. Groovy allows for "hot-swapping" logic.
-- **Stability**: Keeps the Java core stable and minimal, while pushing volatile business logic to scripts.
+### 2. Use of `com.sun.net.httpserver.HttpServer`
+**Decision**: Use the built-in JDK HTTP server instead of a heavyweight framework.
+**Reasoning**: Minimal dependencies, sufficient performance, simple deployment.
 
-### 3. Port Selection
-**Decision**: Default port set to `18741`.
-**Reasoning**: To avoid conflict with other common Cameo plugins, specifically the Cameo MCP Bridge which defaults to `18740`.
+### 3. Dynamic Groovy Endpoints via Annotations
+**Decision**: Load endpoint logic from external `.groovy` files with annotation scanning.
+**Reasoning**:
+- Fast iteration without restarting Cameo.
+- Keeps Java core stable and minimal.
+
+### 4. Port Selection
+**Decision**: Default port `18750`.
+**Reasoning**: Avoids conflict with other Cameo plugins and bridges.
+
+## Example Scripts
+
+The `scripts/` directory ships with several Groovy handlers:
+
+### `echo.groovy` — Echo tool
+- `@McpTool(name="echo")` — Returns the input arguments as text.
+
+### `hello_prompt.groovy` — Hello prompt
+- `@McpPrompt(name="hello")` — Returns a greeting message.
+
+### `logging_demo.groovy` — GUI Log integration
+- `@McpTool(name="logging_demo")` — Writes messages to the Cameo notification window.
+
+### `model_info.groovy` — Model introspection
+- `@McpTool(name="get_model_name")` — Returns the name of the currently open model.
+- `@McpResource(uri="cameo://model/summary", mimeType="application/json")` — Returns a JSON summary of the open model.
+
+## Python Client Example
+
+```python
+import httpx
+
+# Create session
+r = httpx.post("http://localhost:18750/mcp", json={
+    "jsonrpc": "2.0", "method": "initialize", "id": 1
+})
+session_id = r.headers.get("Mcp-Session-Id")
+
+# List tools
+r = httpx.post("http://localhost:18750/mcp", json={
+    "jsonrpc": "2.0", "method": "tools/list", "id": 2
+}, headers={"Mcp-Session-Id": session_id})
+print(r.json())
+
+# Call a tool
+r = httpx.post("http://localhost:18750/mcp", json={
+    "jsonrpc": "2.0", "method": "tools/call", "id": 3,
+    "params": {"name": "echo", "arguments": {"message": "hello"}}
+}, headers={"Mcp-Session-Id": session_id})
+print(r.json())
+```
 
 ## Test Suite
 
-An integration test suite is available under `tests/`. It exercises the HTTP API against a running Cameo instance.
+Integration tests are in `tests/`. They exercise the MCP protocol against a running Cameo instance.
 
-### Deployment Topology
+**Important**: The test suite runs from inside a Podman container. Cameo runs on the **host machine**, not inside the container. The test scripts cannot check for Cameo processes, listening ports, or filesystem state on the host — they only communicate via HTTP(S). Always start Cameo on the host first, then run tests from the container.
 
-```
-Host machine
-┌──────────────────────────────────────────┐
-│  Cameo + HTTP plugin                     │
-│  127.0.0.1:18741                         │
-│                                          │
-│  socat TCP:18750 ──► localhost:18741     │
-└──────────────────────┬───────────────────┘
-                       │ host.containers.internal:18750
-                       ▼
-           ┌─────────────────────┐
-           │ OpenCode container  │
-           │ uv run pytest       │
-           │ SERVER_URL=         │
-           │ host.containers     │
-           │ .internal:18750     │
-           └─────────────────────┘
-```
+Use `host.containers.internal` to reach the host from inside the container. It resolves to `169.254.1.2`.
 
-Cameo and the HTTP plugin run on the host machine, binding to `127.0.0.1:18741`. A `socat` bridge on the host forwards `TCP:18750` → `localhost:18741` to expose the port to containers. Tests (and opencode) run from inside a Podman container and reach the server via `host.containers.internal:18750`.
+The `/workspace` directory is **shared** between the container and the host via a bind mount. Changes made in the container to files under `/workspace` (including build output, scripts, and plugin JARs) are immediately visible on the host filesystem, and vice versa.
 
 ### Prerequisites
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
-- A running Cameo instance with the plugin loaded
+- Python 3 with `httpx` (`pip install httpx` or use `uv`)
+- A running Cameo instance on the host with the plugin loaded
 
 ### Running
 
 ```bash
 cd tests
-uv run pytest -v
+python diag_mcp_step.py
 ```
 
-Override the server URL:
-
+Overrides:
 ```bash
-SERVER_URL=http://host.containers.internal:18750 uv run pytest -v
-```
-
-See `tests/README.md` for details.
-
-## Example Scripts
-
-The `scripts/` directory ships with several Groovy endpoint handlers that demonstrate the plugin's capabilities.
-
-### `test.groovy` — Minimal endpoint
-
-```groovy
-@HttpEndpoint(path = "/test", method = "GET")
-void handle(HttpExchange exchange) {
-    ...
-}
-```
-
-A trivial health-check endpoint. Returns `200 OK` with body `"OK"`.
-
-### `logging_demo.groovy` — GUI Log integration
-
-```groovy
-@HttpEndpoint(path = "/logging_demo", method = "GET")
-void demo(HttpExchange exchange) {
-    Application.getInstance().getGUILog().log("...")
-    ...
-}
-```
-
-Writes messages to the Cameo notification window and returns a confirmation to the caller.
-
-### `list_opscon_elements.groovy` — Model introspection
-
-```
-GET /list_elements/{elementName}
-```
-
-Scans the primary model for a top-level Package matching `elementName`, then recursively collects all contained elements into a JSON array. Each entry includes `name`, `type`, `path`, and `stereotypes`.
-
-Demonstrates path variable routing (`@HttpEndpoint(path = "/list_elements/{elementName}")`) and parsing the model via the Cameo API.
-
-### Python client example
-
-The endpoint can be queried from any HTTP client. Below is a Python script that uses the `/list_elements` endpoint to build a package tree (showing only branch nodes):
-
-```python
-import httpx
-from collections import defaultdict
-
-r = httpx.get("http://host.containers.internal:18750/list_elements/1-OpsCon")
-data = r.json()
-
-children = defaultdict(set)
-for e in data:
-    parts = e["path"].split("::")
-    for i in range(1, len(parts)):
-        children["::".join(parts[:i])].add(parts[i])
-
-def print_tree(node, prefix, path):
-    name = path.split("::")[-1] if "::" in path else path
-    kids = sorted(children.get(path, set()))
-    if not kids:
-        return
-    print(f"{prefix}{name}/")
-    for i, child in enumerate(kids):
-        child_path = path + "::" + child
-        is_last = i == len(kids) - 1
-        ext = "└── " if is_last else "├── "
-        print_tree(child, prefix + ("    " if is_last else "│   "), child_path)
-
-for root in sorted(children):
-    if "::" not in root:
-        print_tree(None, "", root)
-```
-
-Output (real result from the SAF FFDS Example Model):
-
-```
-Model/
-    1-OpsCon/
-    │   Capabilities/
-    │   │   FDN Capability/
-    │   │   SAR Capability/
-    │   Exchange Types/
-    │   │   Fire Detection and Notification Context/
-    │       Search and Rescue Context/
-    │   Glossary/
-    │   Operational Context/
-    │   │   Performer/
-        Operational Stories/
-        │   FDN Process/
-        │   SAR Process/
-        │   Sketch/
+SERVER_URL=http://host.containers.internal:18750 python diag_mcp_step.py
 ```
 
 ## Build and Deployment
-The project uses Gradle for building.
 
-### Development Environment
-To develop and build this plugin, the following tools are required:
-- **OpenJDK 21**: The project is built for and targets Java 21.
-- **Gradle**: Used for dependency management and plugin assembly.
-- **Cameo Automaton Plugin**: Required at runtime to provide the Groovy script engine.
+The project uses Gradle. Built and tested with OpenJDK 21.
 
-On Alpine Linux, these can be installed via:
-`apk add openjdk21 gradle`
+```bash
+# Build and deploy
+gradle deploy -PcameoHome="/path/to/Cameo"
 
-- **Build**: `./gradlew assemblePlugin`
-- **Deploy**: `./gradlew deploy -PcameoHome="/path/to/Cameo"`
+# Build only (JAR + plugin.xml in build/plugin-dist/)
+gradle assemblePlugin
+```
+
+Alternatively, run `install.sh` which does the same (JAR + scripts copy) with configurable `CAMEO_HOME`:
+
+```bash
+CAMEO_HOME=/path/to/Cameo bash install.sh
+```
+
+The plugin JAR is a thin JAR — all dependencies (Jackson) come from Cameo's classpath at runtime.
+
+## Deployment Topology
+
+The HTTP server binds to `0.0.0.0:18750`, so it is reachable from both the host loopback and external IPs (including the Podman container's `host.containers.internal`).
+
+```
+Host machine
+┌──────────────────────────────────────────┐
+│  Cameo + MCP plugin                     │
+│  0.0.0.0:18750                          │
+└──────────────────────┬───────────────────┘
+                       │ host.containers.internal:18750
+                       ▼
+            ┌─────────────────────┐
+            │ OpenCode container  │
+            │ test scripts        │
+            │ SERVER_URL=         │
+            │ host.containers     │
+            │ .internal:18750     │
+            └─────────────────────┘
+```
 
 ## License
-This project is licensed under the Apache License 2.0.
-
-Copyright © Alexander Haarer
+Apache License 2.0 — Copyright © Alexander Haarer

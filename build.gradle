@@ -21,8 +21,15 @@ sourceSets {
     }
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
-    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'core-*.jar'])
+    // MCP protocol implemented in-house — no external MCP library dependency
+    // Uses Jackson from Cameo's classpath for JSON I/O only
+
+    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'core-*.jar', 'jackson-*.jar'])
     compileOnly fileTree(dir: "${cameoHome}/plugins/com.nomagic.magicdraw.automaton/lib", include: ['groovy-*.jar'])
 }
 
@@ -36,26 +43,30 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
-    archiveBaseName = 'cameo-http-server'
+    archiveBaseName = 'cameo-mcp-server'
     archiveVersion = '1.0.0'
     destinationDirectory = layout.buildDirectory.dir('libs')
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 tasks.register('assemblePlugin', Copy) {
     dependsOn jar
     from('plugin.xml')
     from(jar.archiveFile)
-    into(layout.buildDirectory.dir('plugin-dist/com.haarer.httpserver'))
+    into(layout.buildDirectory.dir('plugin-dist/com.haarer.mcpserver'))
 }
 
 tasks.register('deploy', Copy) {
     dependsOn assemblePlugin
-    from(layout.buildDirectory.dir('plugin-dist/com.haarer.httpserver'))
-    into("${cameoHome}/plugins/com.haarer.httpserver")
+    from(layout.buildDirectory.dir('plugin-dist/com.haarer.mcpserver'))
+    into("${cameoHome}/plugins/com.haarer.mcpserver")
     doFirst {
         delete fileTree(
-            dir: "${cameoHome}/plugins/com.haarer.httpserver",
-            include: 'cameo-http-server-*.jar',
+            dir: "${cameoHome}/plugins/com.haarer.mcpserver",
+            include: 'cameo-mcp-server-*.jar',
             exclude: jar.archiveFileName.get()
         )
     }
