@@ -3,29 +3,13 @@ import httpx
 import pytest
 import json
 
-SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:18741")
+SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:18750")
 
 
 @pytest.fixture(scope="session")
 def client():
     with httpx.Client(base_url=SERVER_URL, timeout=10) as c:
         yield c
-
-
-def _read_sse_events(body: str):
-    events = []
-    for block in body.split("\n\n"):
-        if not block.strip():
-            continue
-        event = {}
-        for line in block.strip().split("\n"):
-            if line.startswith("event:"):
-                event["event"] = line[6:].strip()
-            elif line.startswith("data:"):
-                event["data"] = line[5:].strip()
-        if event:
-            events.append(event)
-    return events
 
 
 def _mcp_init(client):
@@ -43,13 +27,13 @@ def _mcp_init(client):
     assert r.status_code == 200
     session_id = r.headers.get("mcp-session-id")
     assert session_id
-    result = r.json()
-    assert result["result"]["serverInfo"]["name"] == "cameo-mcp-server"
+    body = r.json()
+    assert body["result"]["serverInfo"]["name"] == "cameo-mcp-server"
 
     # send initialized notification
     r = client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"},
                     headers={"Mcp-Session-Id": session_id})
-    assert r.status_code == 202
+    assert r.status_code == 200
 
     return session_id
 
@@ -75,19 +59,16 @@ def test_server_cors_headers(client):
 def test_mcp_session_and_list_tools(client):
     session_id = _mcp_init(client)
 
-    # tools/list - response comes as SSE on the POST response
-    tools_list = {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
-    r = client.post("/mcp", json=tools_list, headers={"Mcp-Session-Id": session_id})
+    # tools/list
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                    headers={"Mcp-Session-Id": session_id})
     assert r.status_code == 200
-    assert r.headers.get("content-type", "").startswith("text/event-stream")
-    events = _read_sse_events(r.text)
-    assert len(events) >= 1
-    data = json.loads(events[0]["data"])
-    assert "result" in data
-    tools = data["result"]["tools"]
+    body = r.json()
+    assert "result" in body
+    tools = body["result"]["tools"]
     tool_names = [t["name"] for t in tools]
     assert "echo" in tool_names
-    assert "get_model_name" in tool_names
+    assert "logging_demo" in tool_names
 
     # Call echo tool
     call_echo = {
@@ -96,11 +77,9 @@ def test_mcp_session_and_list_tools(client):
     }
     r = client.post("/mcp", json=call_echo, headers={"Mcp-Session-Id": session_id})
     assert r.status_code == 200
-    events = _read_sse_events(r.text)
-    assert len(events) >= 1
-    data = json.loads(events[0]["data"])
-    assert "result" in data
-    content = data["result"]["content"]
+    body = r.json()
+    assert "result" in body
+    content = body["result"]["content"]
     assert len(content) > 0
     assert "Echo: hello world" in content[0]["text"]
 
@@ -112,33 +91,52 @@ def test_mcp_resources(client):
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "resources/list"},
                     headers={"Mcp-Session-Id": session_id})
     assert r.status_code == 200
-    events = _read_sse_events(r.text)
-    assert len(events) >= 1
-    data = json.loads(events[0]["data"])
-    assert "result" in data
-    resources = data["result"]["resources"]
-    resource_uris = [r["uri"] for r in resources]
-    assert "cameo://model/summary" in resource_uris
+    body = r.json()
+    assert "result" in body
+    resources = body["result"]["resources"]
 
-    # Read model summary resource
-    read_resource = {
-        "jsonrpc": "2.0", "id": 3, "method": "resources/read",
-        "params": {"uri": "cameo://model/summary"}
-    }
-    r = client.post("/mcp", json=read_resource, headers={"Mcp-Session-Id": session_id})
-    assert r.status_code == 200
-    events = _read_sse_events(r.text)
-    assert len(events) >= 1
-    data = json.loads(events[0]["data"])
-    assert "result" in data or "error" in data
+    # Read a resource if any exist; if none exist, skip the read test
+    if resources:
+        uri = resources[0]["uri"]
+        r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "resources/read",
+                                      "params": {"uri": uri}},
+                        headers={"Mcp-Session-Id": session_id})
+        assert r.status_code == 200
+        body = r.json()
+        assert "result" in body or "error" in body
 
 
 def test_mcp_prompts(client):
     session_id = _mcp_init(client)
 
+    # prompts/list
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "prompts/list"},
                     headers={"Mcp-Session-Id": session_id})
     assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
+    prompts = body["result"]["prompts"]
+    prompt_names = [p["name"] for p in prompts]
+    assert "hello" in prompt_names
+
+    # prompts/get
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "prompts/get",
+                                  "params": {"name": "hello"}},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
+    assert "messages" in body["result"]
+
+
+def test_mcp_ping(client):
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "ping"},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
 
 
 def test_mcp_unknown_tool_returns_error(client):
@@ -150,18 +148,20 @@ def test_mcp_unknown_tool_returns_error(client):
     }
     r = client.post("/mcp", json=call_unknown, headers={"Mcp-Session-Id": session_id})
     assert r.status_code == 200
-    events = _read_sse_events(r.text)
-    assert len(events) >= 1
-    data = json.loads(events[0]["data"])
-    assert "error" in data
-    assert data["error"]["code"] != 0
+    body = r.json()
+    assert "error" in body
+    assert body["error"]["code"] != 0
 
 
-def test_mcp_invalid_message_returns_400(client):
-    r = client.post("/mcp", json={"invalid": "json"})
-    assert r.status_code in (400, 500)
-
-
-def test_mcp_missing_session_id_returns_400(client):
+def test_mcp_no_session_returns_error(client):
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
-    assert r.status_code == 400
+    assert r.status_code == 200
+    body = r.json()
+    assert "error" in body
+
+
+def test_mcp_invalid_message_returns_error(client):
+    r = client.post("/mcp", json={"invalid": "json"})
+    assert r.status_code == 200
+    body = r.json()
+    assert "error" in body

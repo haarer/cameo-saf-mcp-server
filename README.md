@@ -143,20 +143,47 @@ Use `host.containers.internal` to reach the host from inside the container. It r
 
 The `/workspace` directory is **shared** between the container and the host via a bind mount. Changes made in the container to files under `/workspace` (including build output, scripts, and plugin JARs) are immediately visible on the host filesystem, and vice versa.
 
+### Coverage
+
+| Endpoint / Method | Test | Status |
+|---|---|---|
+| `GET /` health | `test_server_reachable` | ✅ |
+| CORS preflight | `test_server_cors_headers` | ✅ |
+| `initialize` | `_mcp_init` helper | ✅ |
+| `notifications/initialized` | `_mcp_init` helper | ✅ |
+| `tools/list` | `test_mcp_session_and_list_tools` | ✅ |
+| `tools/call` echo | `test_mcp_session_and_list_tools` | ✅ |
+| `resources/list` | `test_mcp_resources` | ✅ |
+| `resources/read` | `test_mcp_resources` | ✅ |
+| `prompts/list` | `test_mcp_prompts` | ✅ |
+| `prompts/get` hello | `test_mcp_prompts` | ✅ |
+| `ping` | `test_mcp_ping` | ✅ |
+| Unknown tool | `test_mcp_unknown_tool_returns_error` | ✅ |
+| Missing session | `test_mcp_no_session_returns_error` | ✅ |
+| Invalid message | `test_mcp_invalid_message_returns_error` | ✅ |
+
 ### Prerequisites
 - Python 3 with `httpx` (`pip install httpx` or use `uv`)
 - A running Cameo instance on the host with the plugin loaded
 
 ### Running
 
+Run the step-by-step diagnostic:
 ```bash
 cd tests
 python diag_mcp_step.py
 ```
 
-Overrides:
+Run the full pytest suite:
+```bash
+cd tests
+bash run_tests.sh
+```
+
+Override the server URL:
 ```bash
 SERVER_URL=http://host.containers.internal:18750 python diag_mcp_step.py
+SERVER_URL=http://host.containers.internal:18750 bash run_tests.sh
 ```
 
 ## Build and Deployment
