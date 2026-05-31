@@ -57,6 +57,11 @@ This project started as a fork of the `cameo-http-server` plugin (com.haarer.htt
 - [ ] Add `@McpResourceTemplate` support for dynamic resource URIs.
 - [ ] Add completion support for prompts.
 
+### Iteration 3b: JSON Output from Groovy Handlers (Completed)
+- [x] In `GroovyScriptScanner`'s `ToolHandler`/`ResourceHandler`/`PromptHandler`, detect `Map`/`List`/`Collection` return values from the Groovy method and serialize them with the Jackson `ObjectMapper` instead of calling `.toString()`. This eliminates the need for Groovy scripts to bundle their own JSON serialization (and avoids the missing `groovy-json` module problem in Cameo's bundled Groovy).
+- [x] Updated `model_info.groovy` and `model_query.groovy` to return native `Map`/`List` objects instead of manually concatenated JSON strings.
+
+
 ### Iteration 4: Transport Expansion (Pending)
 - [ ] Add SSE transport option for server-initiated notifications.
 - [ ] Add WebSocket transport option.

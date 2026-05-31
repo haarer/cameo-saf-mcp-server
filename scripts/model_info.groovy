@@ -1,14 +1,31 @@
 import com.haarer.mcpserver.handlers.McpTool
 import com.haarer.mcpserver.handlers.McpResource
-import com.nomagic.magicdraw.core.Application
-import groovy.json.JsonOutput
 
 class ModelInfo {
 
-    @McpTool(name = "get_model_name", description = "Get the name of the currently open model")
-    String getModelName() {
-        def project = Application.getInstance().getProject()
-        return project != null ? project.getName() : "No model open"
+    @McpTool(name = "get_model_info", description = "Get model name and overview of used packages and profiles")
+    Map getModelInfo() {
+        def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
+        if (project == null) {
+            return [error: "No model open"]
+        }
+        def model = project.getPrimaryModel()
+        def pkgs = []
+        def profiles = []
+        if (model != null) {
+            for (child in model.getOwnedElement()) {
+                if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Package) {
+                    pkgs.add(child.getName())
+                }
+            }
+            try {
+                for (pa in model.getProfileApplication()) {
+                    def p = pa.getAppliedProfile()
+                    if (p != null) profiles.add(p.getName())
+                }
+            } catch (ignored) {}
+        }
+        return [modelName: project.getName(), packages: pkgs, profiles: profiles]
     }
 
     @McpResource(
@@ -17,22 +34,7 @@ class ModelInfo {
         description = "Summary of the currently open Cameo model",
         mimeType = "application/json"
     )
-    String modelSummary() {
-        def project = Application.getInstance().getProject()
-        if (project == null) {
-            return JsonOutput.toJson([error: "No model open"])
-        }
-        def model = project.getPrimaryModel()
-        def elementCount = 0
-        if (model != null) {
-            for (child in model.getOwnedElement()) {
-                if (child != null) elementCount++
-            }
-        }
-        return JsonOutput.toJson([
-            name: project.getName(),
-            primaryModel: model?.getName(),
-            topLevelElementCount: elementCount
-        ])
+    Map modelSummary() {
+        return getModelInfo()
     }
 }

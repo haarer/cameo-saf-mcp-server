@@ -2,7 +2,7 @@
 
 A lightweight MCP (Model Context Protocol) server integrated as a plugin within CATIA Magic / Cameo Systems Modeler. Enables AI agents to interact with Cameo models via tools, resources, and prompts over HTTP.
 
-The MCP protocol is implemented entirely in-house (~550 lines of hand-written JSON-RPC over HTTP) — no external MCP SDK dependency. This avoids Jackson classloader conflicts with Cameo's bundled Jackson 2.19.1.
+The MCP protocol is implemented entirely in-house (~980 lines of hand-written Java) — no external MCP SDK dependency. This avoids Jackson classloader conflicts with Cameo's bundled Jackson 2.19.1.
 
 ## Capabilities
 
@@ -62,8 +62,10 @@ McpProtocolHandler.handleRequest()
 McpSession.getTools() / McpToolDefinition.ToolHandler.call()
   │
   ▼
-Groovy method invoked via reflection
-  │
+GroovyScriptScanner handler lambda
+  │  invokes Groovy method via reflection
+  │  if return value is Map/List → serialize with Jackson ObjectMapper
+  │  else → toString()
   ▼
 Cameo API / Model
 ```
@@ -105,8 +107,12 @@ The `scripts/` directory ships with several Groovy handlers:
 - `@McpTool(name="logging_demo")` — Writes messages to the Cameo notification window.
 
 ### `model_info.groovy` — Model introspection
-- `@McpTool(name="get_model_name")` — Returns the name of the currently open model.
-- `@McpResource(uri="cameo://model/summary", mimeType="application/json")` — Returns a JSON summary of the open model.
+- `@McpTool(name="get_model_info")` — Returns the model name and a list of top-level packages and applied profiles.
+- `@McpResource(uri="cameo://model/summary", mimeType="application/json")` — Returns a JSON summary of the open model (same payload as `get_model_info`).
+
+### `model_query.groovy` — Element querying
+- `@McpTool(name="find_elements")` — Find elements by name pattern and/or stereotype name. Returns name, qualifiedName, element type, and applied stereotypes.
+- `@McpTool(name="get_element_info")` — Get detailed info about an element by its qualifiedName. Returns name, type, stereotypes, owned elements, and relationships (dependencies, generalizations, typed properties).
 
 ## Python Client Example
 
@@ -153,6 +159,9 @@ The `/workspace` directory is **shared** between the container and the host via 
 | `notifications/initialized` | `_mcp_init` helper | ✅ |
 | `tools/list` | `test_mcp_session_and_list_tools` | ✅ |
 | `tools/call` echo | `test_mcp_session_and_list_tools` | ✅ |
+| `tools/call` get_model_info | `test_mcp_model_info` | ✅ |
+| `tools/call` find_elements | `test_mcp_find_elements` | ✅ |
+| `tools/call` get_element_info | `test_mcp_get_element_info` | ✅ |
 | `resources/list` | `test_mcp_resources` | ✅ |
 | `resources/read` | `test_mcp_resources` | ✅ |
 | `prompts/list` | `test_mcp_prompts` | ✅ |

@@ -33,7 +33,7 @@ public class CameoMcpServer {
 
         transportProvider = new StreamableMcpTransportProvider(port, protocolHandler, sessionManager);
 
-        scanner = new GroovyScriptScanner(scriptsDir);
+        scanner = new GroovyScriptScanner(scriptsDir, mapper);
 
         hotReloadThread = new Thread(this::hotReloadLoop, "mcp-hot-reload");
         hotReloadThread.setDaemon(true);

@@ -1,5 +1,6 @@
 package com.haarer.mcpserver.handlers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.haarer.mcpserver.protocol.McpPromptDefinition;
 import com.haarer.mcpserver.protocol.McpResourceDefinition;
 import com.haarer.mcpserver.protocol.McpToolDefinition;
@@ -9,6 +10,7 @@ import groovy.lang.GroovyClassLoader;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,10 +21,12 @@ public class GroovyScriptScanner {
     private static final Logger LOG = Logger.getLogger(GroovyScriptScanner.class.getName());
 
     private final String scriptsDirPath;
+    private final ObjectMapper mapper;
     private final ConcurrentHashMap<String, Long> fileCache = new ConcurrentHashMap<>();
 
-    public GroovyScriptScanner(String scriptsDirPath) {
+    public GroovyScriptScanner(String scriptsDirPath, ObjectMapper mapper) {
         this.scriptsDirPath = scriptsDirPath;
+        this.mapper = mapper;
     }
 
     public boolean hasChanges() {
@@ -93,7 +97,7 @@ public class GroovyScriptScanner {
                     } else {
                         result = method.invoke(instance, arguments != null ? arguments : Map.of());
                     }
-                    var text = result != null ? result.toString() : "";
+                    var text = serialize(result);
                     return new McpToolDefinition.ToolResult(
                         List.of(new McpToolDefinition.TextContent(text)),
                         false
@@ -126,7 +130,7 @@ public class GroovyScriptScanner {
                     } else {
                         result = method.invoke(instance, Map.of());
                     }
-                    var text = result != null ? result.toString() : "";
+                    var text = serialize(result);
                     return new McpResourceDefinition.ResourceResult(text);
                 } catch (Exception e) {
                     var cause = e.getCause() != null ? e.getCause() : e;
@@ -153,7 +157,7 @@ public class GroovyScriptScanner {
                     } else {
                         result = method.invoke(instance, arguments != null ? arguments : Map.of());
                     }
-                    var text = result != null ? result.toString() : "";
+                    var text = serialize(result);
                     return new McpPromptDefinition.PromptResult(List.of(text));
                 } catch (Exception e) {
                     var cause = e.getCause() != null ? e.getCause() : e;
@@ -164,6 +168,19 @@ public class GroovyScriptScanner {
 
         prompts.add(new McpPromptDefinition(ann.name(), ann.description(), handler));
         LOG.info("Registered prompt: " + ann.name());
+    }
+
+    private String serialize(Object result) {
+        if (result == null) return "";
+        if (result instanceof Map || result instanceof Collection || result instanceof Object[]) {
+            try {
+                return mapper.writeValueAsString(result);
+            } catch (Exception e) {
+                LOG.warning("Failed to serialize result with Jackson: " + e.getMessage());
+                return result.toString();
+            }
+        }
+        return result.toString();
     }
 
     public record ScanResult(

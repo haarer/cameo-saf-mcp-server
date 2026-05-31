@@ -69,6 +69,7 @@ def test_mcp_session_and_list_tools(client):
     tool_names = [t["name"] for t in tools]
     assert "echo" in tool_names
     assert "logging_demo" in tool_names
+    assert "get_model_info" in tool_names
 
     # Call echo tool
     call_echo = {
@@ -84,6 +85,83 @@ def test_mcp_session_and_list_tools(client):
     assert "Echo: hello world" in content[0]["text"]
 
 
+def test_mcp_model_info(client):
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                                  "params": {"name": "get_model_info", "arguments": {}}},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
+    content = body["result"]["content"]
+    assert len(content) > 0
+    text = content[0]["text"]
+    import json as _json
+    data = _json.loads(text)
+    assert "modelName" in data
+    assert isinstance(data["modelName"], str) and len(data["modelName"]) > 0
+    assert "packages" in data
+    assert isinstance(data["packages"], list)
+    assert "profiles" in data
+    assert isinstance(data["profiles"], list)
+
+
+def test_mcp_find_elements(client):
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                                  "params": {"name": "find_elements", "arguments": {}}},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
+    assert not body["result"].get("isError", False)
+    content = body["result"]["content"]
+    assert len(content) > 0
+    import json as _json
+    data = _json.loads(content[0]["text"])
+    assert isinstance(data, list)
+    if len(data) > 0:
+        item = data[0]
+        assert "name" in item
+        assert "qualifiedName" in item
+        assert "type" in item
+        assert "stereotypes" in item
+
+
+def test_mcp_get_element_info(client):
+    session_id = _mcp_init(client)
+
+    # First discover a valid qualifiedName from find_elements
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                                  "params": {"name": "find_elements", "arguments": {}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    content = body["result"]["content"]
+    import json as _json
+    data = _json.loads(content[0]["text"])
+    assert len(data) > 0, "Need at least one element to test get_element_info"
+    qn = data[0]["qualifiedName"]
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                                  "params": {"name": "get_element_info",
+                                             "arguments": {"qualifiedName": qn}}},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
+    content = body["result"]["content"]
+    assert len(content) > 0
+    info = _json.loads(content[0]["text"])
+    assert "name" in info
+    assert "qualifiedName" in info
+    assert "type" in info
+    assert "stereotypes" in info
+    assert "ownedElements" in info
+    assert "relationships" in info
+
+
 def test_mcp_resources(client):
     session_id = _mcp_init(client)
 
@@ -94,16 +172,20 @@ def test_mcp_resources(client):
     body = r.json()
     assert "result" in body
     resources = body["result"]["resources"]
+    resource_uris = [r["uri"] for r in resources]
+    assert "cameo://model/summary" in resource_uris
 
-    # Read a resource if any exist; if none exist, skip the read test
-    if resources:
-        uri = resources[0]["uri"]
-        r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "resources/read",
-                                      "params": {"uri": uri}},
-                        headers={"Mcp-Session-Id": session_id})
-        assert r.status_code == 200
-        body = r.json()
-        assert "result" in body or "error" in body
+    # Read model summary resource
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "resources/read",
+                                  "params": {"uri": "cameo://model/summary"}},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body
+    text = body["result"]["contents"][0]["text"]
+    import json as _json
+    data = _json.loads(text)
+    assert "modelName" in data
 
 
 def test_mcp_prompts(client):
