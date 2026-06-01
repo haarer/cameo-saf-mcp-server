@@ -114,6 +114,28 @@ The `scripts/` directory ships with several Groovy handlers:
 - `@McpTool(name="find_elements")` — Find elements by name pattern and/or stereotype name. Returns name, qualifiedName, element type, and applied stereotypes.
 - `@McpTool(name="get_element_info")` — Get detailed info about an element by its qualifiedName. Returns name, type, stereotypes, owned elements, and relationships (dependencies, generalizations, typed properties).
 
+### `saf_tools.groovy` — Model Structure and SAF Viewpoints (v1.0.0)
+SAF profile support for Cameo models. Provides tools for creating SAF-typed elements, querying viewpoints, building traceability chains, and exporting structured IR.
+
+#### SAF Concept Map
+| SAF Kind | SysML Type | SAF Stereotype |
+|---|---|---|
+| `system_requirement` | Class | SAF_SystemRequirement |
+| `conceptual_system` | Block | SAF_ConceptualSystem |
+| `physical_system` | Block | SAF_PhysicalSystem |
+| `operational_performer` | Block | SAF_OperationalPerformer |
+
+#### Tools
+- `@McpTool(name="saf_create_element")` — Create an element by SAF concept kind, name, and parent ID. Applies the correct stereotype.
+- `@McpTool(name="saf_set_requirement_tags")` — Set requirement ID and text tagged values on a SAF_SystemRequirement element.
+- `@McpTool(name="saf_create_relationship")` — Create a relationship between two elements using SAF types (satisfy, derive, trace, refine, verify, allocate, etc.).
+- `@McpTool(name="saf_query_viewpoint")` — Query elements filtered by SAF domain and aspect. Returns filtered elements with their SAF kinds.
+- `@McpTool(name="saf_find_elements_by_type")` — Find elements by SysML type and/or stereotype. Returns matching elements with ID, name, type, stereotypes, SAF kind, and SAF domain.
+- `@McpTool(name="saf_get_element_details")` — Get detailed SAF information about an element by ID. Returns name, type, SAF kind, domain, tagged values, owned elements, and traceability relationships.
+- `@McpTool(name="saf_build_traceability_chain")` — Build a traceability chain from an element following satisfy, derive, trace, refine, and verify relationships. Returns a graph of connected elements with relationship types.
+- `@McpTool(name="saf_check_consistency")` — Check SAF model consistency: verify requirement satisfaction chains, cross-domain alignment, and stereotype compliance. Returns list of issues and summary.
+- `@McpTool(name="saf_export_viewpoint")` — Export a single SAF viewpoint as structured IR. Returns all elements in the viewpoint with their SAF metadata, relationships, and tagged values.
+
 ## Python Client Example
 
 ```python
