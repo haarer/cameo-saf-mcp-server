@@ -23,7 +23,7 @@ import zipfile
 RESOURCE_ID = "99001"
 PLUGIN_ID = "com.haarer.saf.mcpserver"
 PLUGIN_NAME = "Cameo SAF MCP Server"
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_VERSION_DEFAULT = "0.1.0-dev"
 PROVIDER_NAME = "Alexander Haarer"
 
 DESCRIPTOR_DIR = "data/resourcemanager"
@@ -35,7 +35,7 @@ DESCRIPTOR_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     critical="false"
     date="{date}"
     description="MCP (Model Context Protocol) server plugin for Cameo Systems Modeler. Enables AI agents to interact with Cameo models via tools, resources, and prompts over HTTP."
-    homePage="https://github.com/AlexanderHaarer/cameo-saf-mcp-server"
+    homePage="https://github.com/haarer/cameo-saf-mcp-server"
     id="{resource_id}"
     mdVersionMax="higher"
     mdVersionMin="2026x"
@@ -46,7 +46,7 @@ DESCRIPTOR_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <version human="{version}" internal="{internal_version}" resource="{resource_version}"/>
     <provider
         email=""
-        homePage="https://github.com/AlexanderHaarer/cameo-saf-mcp-server"
+        homePage="https://github.com/haarer/cameo-saf-mcp-server"
         name="{provider_name}"/>
     <edition>Reader</edition>
     <edition>Community</edition>
@@ -75,12 +75,30 @@ def _build_installation_entries(files: list[str]) -> str:
 
 def _internal_version(version: str) -> str:
     """Build a numeric internal version from semver.
-    1.0.0 → 100000, 1.2.3 → 102003, etc.
+    1.0.0 → 100000, 1.2.3 → 102003, v2.0.0-rc1 → 200000, etc.
+    Strips leading 'v' and pre-release suffix.
     """
-    parts = version.split(".")
-    if len(parts) >= 2:
-        return f"{int(parts[0]):d}{int(parts[1]):02d}{int(parts[2]) if len(parts) > 2 else 0:03d}"
-    return "100000"
+    clean = version.lstrip("v")
+    parts = clean.split(".")[:3]
+    major = int(parts[0]) if len(parts) >= 1 else 1
+    minor = int(parts[1]) if len(parts) >= 2 else 0
+    patch_str = parts[2] if len(parts) >= 3 else "0"
+    patch = int(patch_str.split("-")[0].split("+")[0])
+    return f"{major:d}{minor:02d}{patch:03d}"
+
+
+def _detect_version() -> str:
+    """Detect version from git tag, or return default."""
+    try:
+        tag = subprocess.run(
+            ["git", "describe", "--tags", "--exact-match", "HEAD"],
+            capture_output=True, text=True, timeout=5
+        )
+        if tag.returncode == 0 and tag.stdout.strip():
+            return tag.stdout.strip()
+    except Exception:
+        pass
+    return PLUGIN_VERSION_DEFAULT
 
 
 def main() -> None:
@@ -92,15 +110,21 @@ def main() -> None:
         default=None,
         help="Path to Cameo installation (sets -PcameoHome for Gradle)",
     )
+    parser.add_argument(
+        "--version",
+        default=None,
+        help="Plugin version (default: auto-detected from git tag, or 1.0.0-dev). "
+             "In CI, use github.ref_name (the git tag).",
+    )
     args = parser.parse_args()
-
+    plugin_version = args.version or _detect_version()
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     # ------------------------------------------------------------------
     # Step 1: Build JAR + plugin.xml via Gradle
     # ------------------------------------------------------------------
-    print("--- Step 1: Gradle assemblePlugin ---")
-    gradle_cmd = ["gradle", "assemblePlugin", "--no-daemon"]
+    print(f"--- Step 1: Gradle assemblePlugin (version={plugin_version}) ---")
+    gradle_cmd = ["gradle", "assemblePlugin", "--no-daemon", f"-PpluginVersion={plugin_version}"]
     if args.cameo_home:
         gradle_cmd.append(f"-PcameoHome={args.cameo_home}")
     subprocess.run(gradle_cmd, cwd=project_root, check=True)
@@ -131,12 +155,12 @@ def main() -> None:
 
     # Build descriptor XML
     today = datetime.date.today().strftime("%Y-%m-%d")
-    internal_ver = _internal_version(PLUGIN_VERSION)
+    internal_ver = _internal_version(plugin_version)
     descriptor_xml = DESCRIPTOR_TEMPLATE.format(
         date=today,
         resource_id=RESOURCE_ID,
         plugin_name=PLUGIN_NAME,
-        version=PLUGIN_VERSION,
+        version=plugin_version,
         internal_version=internal_ver,
         resource_version=f"{internal_ver}0",
         provider_name=PROVIDER_NAME,

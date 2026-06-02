@@ -44,7 +44,7 @@ jobs:
         run: bash scripts/prepare-ci-libs.sh
 
       - name: Build plugin distribution
-        run: python scripts/build-plugin.py --cameo-home ${{ github.workspace }}/ci-libs
+        run: python scripts/build-plugin.py --cameo-home ${{ github.workspace }}/ci-libs --version ${{ github.ref_name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

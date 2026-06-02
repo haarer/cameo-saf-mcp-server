@@ -44,9 +44,13 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 21
 }
 
+def pluginVersion = project.hasProperty('pluginVersion')
+    ? project.property('pluginVersion')
+    : '1.0.0-dev'
+
 jar {
     archiveBaseName = 'cameo-saf-mcp-server'
-    archiveVersion = '1.0.0'
+    archiveVersion = pluginVersion
     destinationDirectory = layout.buildDirectory.dir('libs')
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
@@ -56,9 +60,14 @@ jar {
 
 tasks.register('assemblePlugin', Copy) {
     dependsOn jar
-    from('plugin.xml')
+    from('plugin.xml') {
+        expand(version: pluginVersion)
+    }
     from(jar.archiveFile)
     into(layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver'))
+    doFirst {
+        delete layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver')
+    }
 }
 
 tasks.register('deploy', Copy) {

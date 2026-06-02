@@ -206,13 +206,23 @@ The plugin runs inside Cameo Systems Modeler and uses Cameo's own classpath at r
 
 #### Local Build (with real Cameo SDK)
 
-```bash
-# Point cameoHome at your Cameo installation directory
-gradle deploy -PcameoHome="/path/to/Cameo"
+Build and deploy directly:
 
-# Build only (JAR + plugin.xml in build/plugin-dist/)
-gradle assemblePlugin
+```bash
+# Build + deploy to Cameo (set plugin version explicitly)
+gradle deploy -PcameoHome="/path/to/Cameo" -PpluginVersion=0.1.0
+
+# Build only (JAR + filtered plugin.xml in build/plugin-dist/)
+gradle assemblePlugin -PcameoHome="/path/to/Cameo" -PpluginVersion=0.1.0
 ```
+
+Full Resource Manager zip (recommended for distribution):
+
+```bash
+python scripts/build-plugin.py --cameo-home /path/to/Cameo --version 0.1.0
+```
+
+When `--version` is omitted, the script auto-detects the current git tag or falls back to `0.1.0-dev`.
 
 The `cameoHome` property must point to a directory containing `lib/` with Cameo SDK jars matching the glob patterns in `build.gradle`:
 - `com.nomagic.magicdraw.foundation-*.jar`
@@ -237,7 +247,10 @@ GitHub CI cannot access proprietary Cameo SDK jars. Instead, `scripts/prepare-ci
 1. **Real open-source jars** — Jackson (`jackson-core`, `jackson-databind`, `jackson-annotations`) and Apache Groovy downloaded from Maven Central.
 2. **Cameo SDK stubs** — Minimal Java classes (`Plugin`, `Application`, `GUILog`) compiled into `core-stubs.jar`. These satisfy the compiler with empty method bodies — no proprietary Cameo code is included.
 
-The CI workflow (`.github/workflows/ci.yml`) runs `prepare-ci-libs.sh` then `gradle compileJava -PcameoHome=ci-libs`.
+The CI workflow (`.github/workflows/ci.yml`) has two jobs:
+
+1. **`compile`** (on push/PR to `main`): Runs `prepare-ci-libs.sh` then `gradle compileJava -PcameoHome=ci-libs` to verify Java compilation with stubs.
+2. **`release`** (on tag push `v*`): Runs `build-plugin.py --cameo-home ci-libs --version ${{ github.ref_name }}` which builds the JAR, injects the git tag into `plugin.xml` and the resource descriptor, then packages a Resource Manager zip attached to the GitHub release.
 
 **Why stubs are sufficient**: Only 2 Cameo classes appear in the Java source, with trivial overrides (`init()`, `close()`, `isSupported()`) and one static call (`Application.getInstance().getGUILog().log()`). The compiler only needs the method signatures, not the runtime implementation.
 

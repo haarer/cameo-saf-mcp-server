@@ -2,7 +2,7 @@
 <plugin
     id="com.haarer.saf.mcpserver"
     name="Cameo SAF MCP Server"
-    version="1.0.0"
+    version="${version}"
     provider-name="Alexander Haarer"
     class="com.haarer.saf.mcpserver.CameoMcpServerPlugin">
     <requires>
@@ -10,6 +10,6 @@
         <required-plugin id="AutomatonPlugin" name="Automaton" version="2026x"/>
     </requires>
     <runtime>
-        <library name="cameo-saf-mcp-server-1.0.0.jar"/>
+        <library name="cameo-saf-mcp-server-${version}.jar"/>
     </runtime>
 </plugin>
