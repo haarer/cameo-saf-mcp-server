@@ -4,12 +4,12 @@ set -e
 # Default CAMEO_HOME if not provided as environment variable
 CAMEO_HOME=${CAMEO_HOME:-"/workspace/MSOSA2026xHF2"}
 
-echo "Installing Cameo MCP Server Plugin..."
+echo "Installing Cameo SAF MCP Server Plugin..."
 echo "CAMEO_HOME: $CAMEO_HOME"
 
 # 1. Define target directory
-TARGET_DIR="$CAMEO_HOME/plugins/com.haarer.mcpserver"
-BUILD_DIST="build/plugin-dist/com.haarer.mcpserver"
+TARGET_DIR="$CAMEO_HOME/plugins/com.haarer.saf.mcpserver"
+BUILD_DIST="build/plugin-dist/com.haarer.saf.mcpserver"
 
 # 2. Create target directory if it doesn't exist
 mkdir -p "$TARGET_DIR"

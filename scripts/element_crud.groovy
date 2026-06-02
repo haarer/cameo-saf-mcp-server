@@ -1,4 +1,4 @@
-import com.haarer.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpTool
 import com.nomagic.magicdraw.core.Application
 import com.nomagic.magicdraw.openapi.uml.ModelElementsManager
 import com.nomagic.magicdraw.openapi.uml.SessionManager
@@ -76,7 +76,7 @@ class ElementCrud {
         }
     }
 
-    @McpTool(name = "create_element", description = "Create a model element with type, name, parent, and optional stereotype. Returns the new element ID.")
+    @McpTool(name = "create_element", description = "[GENERIC SYSML] Create a model element using raw SysML types (Class, Package, Activity, etc.). Use this for plain SysML modeling without SAF conventions. Returns the new element ID.")
     Map createElement(Map<String, Object> args) {
         def type = (args.get("type") ?: "Class") as String
         def name = args.get("name") as String
@@ -91,10 +91,11 @@ class ElementCrud {
         def parent = resolveElement(parentId)
         if (parent == null) return [error: "Parent element not found: " + parentId]
 
+        def created = null
         def sm = SessionManager.getInstance()
         sm.createSession(project, "create_element")
         try {
-            def created = createByType(type)
+            created = createByType(type)
             if (created instanceof NamedElement) {
                 ((NamedElement) created).setName(name)
             }
@@ -131,7 +132,7 @@ class ElementCrud {
         ]
     }
 
-    @McpTool(name = "set_tagged_values", description = "Set tagged values on a stereotyped element. Requires element ID, stereotype name, and a map of tag names to values.")
+    @McpTool(name = "set_tagged_values", description = "[GENERIC SYSML] Set tagged values on any stereotyped element. Requires element ID, stereotype name, and a map of tag names to values. For SAF requirement tags, use saf_set_requirement_tags instead.")
     Map setTaggedValues(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         def stereotypeName = args.get("stereotype") as String
@@ -179,7 +180,7 @@ class ElementCrud {
         return [elementId: elementId, stereotype: stereotypeName, tagsSet: setCount]
     }
 
-    @McpTool(name = "create_relationship", description = "Create a relationship between two elements. Supports: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector. Returns the new relationship ID.")
+    @McpTool(name = "create_relationship", description = "[GENERIC SYSML] Create a relationship using raw SysML types (dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector). Does NOT apply SAF stereotypes. For SAF relationships (satisfy, derive, trace, etc.), use saf_create_relationship instead. Returns the new relationship ID.")
     Map createRelationship(Map<String, Object> args) {
         def type = (args.get("type") ?: "dependency") as String
         def sourceId = args.get("sourceId") as String
@@ -318,32 +319,32 @@ class ElementCrud {
         ]
     }
 
-    @McpTool(name = "modify_element", description = "Modify element name and/or documentation. Returns updated element info.")
+    @McpTool(name = "modify_element", description = "[GENERIC SYSML] Modify a model element's name and/or documentation by element ID. Works on any element type. Returns updated element info.")
     Map modifyElement(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
-        def name = args.get("name") as String
-        def documentation = args.get("documentation") as String
+        def newName = args.get("name") as String
+        def newDoc = args.get("documentation") as String
 
         if (!elementId) return [error: "elementId is required"]
 
         def project = getProject()
-        def element = resolveElement(elementId)
+        def element = (Element) project.getElementByID(elementId)
         if (element == null) return [error: "Element not found: " + elementId]
 
         def sm = SessionManager.getInstance()
         sm.createSession(project, "modify_element")
         try {
-            if (name != null && !name.isEmpty() && element instanceof NamedElement) {
-                ((NamedElement) element).setName(name)
+            if (newName != null && element instanceof NamedElement) {
+                ((NamedElement) element).setName(newName)
             }
-            if (documentation != null && !documentation.isEmpty()) {
-                def existingComments = element.getOwnedElement().findAll { it instanceof Comment }
-                if (existingComments.isEmpty()) {
-                    def comment = getFactory().createCommentInstance()
-                    comment.setBody(documentation)
-                    ModelElementsManager.getInstance().addElement(comment, element)
+            if (newDoc != null) {
+                def comments = element.getOwnedComment()
+                if (comments != null && !comments.isEmpty()) {
+                    comments.iterator().next().setBody(newDoc)
                 } else {
-                    ((Comment) existingComments.get(0)).setBody(documentation)
+                    def comment = getFactory().createCommentInstance()
+                    comment.setBody(newDoc)
+                    ModelElementsManager.getInstance().addElement(comment, element)
                 }
             }
             sm.closeSession(project)
@@ -356,7 +357,36 @@ class ElementCrud {
         return [id: elementId, name: elemName, modified: true]
     }
 
-    @McpTool(name = "find_elements_by_type", description = "Find elements by SysML type and/or stereotype. Returns matching elements with ID, name, type, and stereotypes.")
+    @McpTool(name = "delete_element", description = "[GENERIC SYSML] Delete any model element by ID. Permanently removes it and all owned sub-elements. Attached relationships are also removed. Use with caution — this is a hard delete with no undo.")
+    Map deleteElement(Map<String, Object> args) {
+        def elementId = args.get("elementId") as String
+
+        if (elementId == null || elementId.isEmpty()) return [error: "elementId is required"]
+
+        def project = getProject()
+        def element = (Element) project.getElementByID(elementId)
+        if (element == null) return [error: "Element not found: " + elementId]
+
+        def name = (element instanceof NamedElement) ? element.getName() : null
+        def type = element.getHumanType()
+
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "delete_element")
+        try {
+            ModelElementsManager.getInstance().removeElement(element)
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: "Failed to delete element: " + e.getMessage()]
+        }
+
+        def result = [deleted: true, elementId: elementId]
+        if (name != null) result.name = name
+        result.type = type
+        return result
+    }
+
+    @McpTool(name = "find_elements_by_type", description = "[GENERIC SYSML] Find elements by raw SysML type name (e.g. Class, Package, Activity) and/or stereotype. Returns results with element ID. For SAF-aware search (with safKind/safDomain), use saf_find_elements_by_type.")
     List findElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
@@ -399,7 +429,7 @@ class ElementCrud {
         } catch (ignored) {}
     }
 
-    @McpTool(name = "get_element_details", description = "Get detailed info about an element by ID. Returns name, type, stereotypes, owned elements, and relationships.")
+    @McpTool(name = "get_element_details", description = "[GENERIC SYSML] Get detailed info about an element by its element ID (UUID). Returns name, type, stereotypes, owned elements, and relationships. For SAF-specific details (kind, domain, traceability), use saf_get_element_details. To look up by qualifiedName instead of ID, use get_element_info.")
     Map getElementDetails(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         if (!elementId) return [error: "elementId is required"]

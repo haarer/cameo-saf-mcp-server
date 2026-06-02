@@ -1,9 +1,9 @@
-# Cameo MCP Server Plugin Plan
+# Cameo SAF MCP Server Plugin Plan
 
 ## Overview
 Implementation of an MCP (Model Context Protocol) server as a plugin within Cameo Systems Modeler, enabling AI agents to interact with Cameo models via tools, resources, and prompts over HTTP.
 
-The MCP protocol is implemented in-house in plain Java (~550 lines) — no external MCP SDK dependency. This avoids Jackson classloader conflicts caused by the MCP SDK's Jackson 3 internals conflicting with Cameo's bundled Jackson 2.19.1.
+The MCP protocol is implemented in-house in plain Java (~410 lines) — no external MCP SDK dependency. This avoids Jackson classloader conflicts caused by the MCP SDK's Jackson 3 internals conflicting with Cameo's bundled Jackson 2.19.1.
 
 ## Origins
 

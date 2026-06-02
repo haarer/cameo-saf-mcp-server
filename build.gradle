@@ -43,7 +43,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
-    archiveBaseName = 'cameo-mcp-server'
+    archiveBaseName = 'cameo-saf-mcp-server'
     archiveVersion = '1.0.0'
     destinationDirectory = layout.buildDirectory.dir('libs')
     from {
@@ -56,17 +56,17 @@ tasks.register('assemblePlugin', Copy) {
     dependsOn jar
     from('plugin.xml')
     from(jar.archiveFile)
-    into(layout.buildDirectory.dir('plugin-dist/com.haarer.mcpserver'))
+    into(layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver'))
 }
 
 tasks.register('deploy', Copy) {
     dependsOn assemblePlugin
-    from(layout.buildDirectory.dir('plugin-dist/com.haarer.mcpserver'))
-    into("${cameoHome}/plugins/com.haarer.mcpserver")
+    from(layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver'))
+    into("${cameoHome}/plugins/com.haarer.saf.mcpserver")
     doFirst {
         delete fileTree(
-            dir: "${cameoHome}/plugins/com.haarer.mcpserver",
-            include: 'cameo-mcp-server-*.jar',
+            dir: "${cameoHome}/plugins/com.haarer.saf.mcpserver",
+            include: 'cameo-saf-mcp-server-*.jar',
             exclude: jar.archiveFileName.get()
         )
     }

@@ -1,8 +1,8 @@
-import com.haarer.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpTool
 
 class ModelQuery {
 
-    @McpTool(name = "find_elements", description = "Find elements by name pattern and/or stereotype name. Returns name, qualifiedName, element type, and applied stereotypes.")
+    @McpTool(name = "find_elements", description = "[GENERIC SYSML] Find elements by name pattern and/or stereotype name using qualifiedName-based search. Returns name, qualifiedName, type, and stereotypes — does NOT include element ID. For element-ID-based lookup, use find_elements_by_type. For SAF-aware search, use saf_find_elements_by_type.")
     List findElements(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [[error: "No model open"]]
@@ -20,7 +20,7 @@ class ModelQuery {
         }
     }
 
-    @McpTool(name = "get_element_info", description = "Get detailed info about an element by its qualifiedName. Returns name, type, stereotypes, owned elements, and relationships.")
+    @McpTool(name = "get_element_info", description = "[GENERIC SYSML] Get detailed element info by qualifiedName (e.g. 'MyModel::MyPackage::MyBlock'). Returns name, qualifiedName, type, stereotypes, owned elements, and relationships. Use this when you know the qualified path but NOT the element ID. To look up by element ID, use get_element_details.")
     Map getElementInfo(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [error: "No model open"]

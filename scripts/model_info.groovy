@@ -1,9 +1,9 @@
-import com.haarer.mcpserver.handlers.McpTool
-import com.haarer.mcpserver.handlers.McpResource
+import com.haarer.saf.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpResource
 
 class ModelInfo {
 
-    @McpTool(name = "get_model_info", description = "Get model name and overview of used packages and profiles")
+    @McpTool(name = "get_model_info", description = "[GENERIC SYSML] Get the currently open model name and overview of top-level packages and applied profiles. A lightweight starting point before drilling into specific elements.")
     Map getModelInfo() {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) {

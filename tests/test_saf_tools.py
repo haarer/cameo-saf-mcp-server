@@ -28,7 +28,7 @@ def _mcp_init(client):
     session_id = r.headers.get("mcp-session-id")
     assert session_id
     body = r.json()
-    assert body["result"]["serverInfo"]["name"] == "cameo-mcp-server"
+    assert body["result"]["serverInfo"]["name"] == "cameo-saf-mcp-server"
 
     r = client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"},
                     headers={"Mcp-Session-Id": session_id})

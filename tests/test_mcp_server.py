@@ -28,7 +28,7 @@ def _mcp_init(client):
     session_id = r.headers.get("mcp-session-id")
     assert session_id
     body = r.json()
-    assert body["result"]["serverInfo"]["name"] == "cameo-mcp-server"
+    assert body["result"]["serverInfo"]["name"] == "cameo-saf-mcp-server"
 
     # send initialized notification
     r = client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -45,7 +45,7 @@ def test_server_reachable(client):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "ok"
-    assert data["server"] == "cameo-mcp-server"
+    assert data["server"] == "cameo-saf-mcp-server"
 
 
 def test_server_cors_headers(client):
@@ -70,6 +70,8 @@ def test_mcp_session_and_list_tools(client):
     assert "echo" in tool_names
     assert "logging_demo" in tool_names
     assert "get_model_info" in tool_names
+    assert "create_element" in tool_names
+    assert "delete_element" in tool_names
 
     # Call echo tool
     call_echo = {
@@ -247,3 +249,107 @@ def test_mcp_invalid_message_returns_error(client):
     assert r.status_code == 200
     body = r.json()
     assert "error" in body
+
+
+# -- Element CRUD tools --
+
+def test_mcp_delete_element_registered(client):
+    """delete_element tool appears in tools/list."""
+    session_id = _mcp_init(client)
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    tool_names = [t["name"] for t in body["result"]["tools"]]
+    assert "delete_element" in tool_names
+    assert "create_element" in tool_names
+
+
+def test_mcp_delete_element_create_then_delete(client):
+    """Create an element, verify it exists, delete it, verify it's gone."""
+    session_id = _mcp_init(client)
+
+    # 1. Find a package to use as parent
+    import json as _json
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 10, "method": "tools/call",
+                                  "params": {"name": "find_elements_by_type",
+                                             "arguments": {"type": "Package"}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert not body["result"].get("isError", False), f"find_elements_by_type failed: {body}"
+    found = _json.loads(body["result"]["content"][0]["text"])
+    assert len(found) > 0, "Need at least one Package to host test element"
+    parent_id = found[0]["id"]
+
+    # 2. Create a test element
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 11, "method": "tools/call",
+                                  "params": {"name": "create_element",
+                                             "arguments": {"type": "Class",
+                                                           "name": "TempDeleteTest",
+                                                           "parentId": parent_id}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert not body["result"].get("isError", False), f"Create failed: {body}"
+    created = _json.loads(body["result"]["content"][0]["text"])
+    elem_id = created["id"]
+    assert elem_id
+
+    # 3. Verify element exists
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 12, "method": "tools/call",
+                                  "params": {"name": "get_element_details",
+                                             "arguments": {"elementId": elem_id}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert not body["result"].get("isError", False)
+    details = _json.loads(body["result"]["content"][0]["text"])
+    assert details["name"] == "TempDeleteTest"
+
+    # 4. Delete the element
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 13, "method": "tools/call",
+                                  "params": {"name": "delete_element",
+                                             "arguments": {"elementId": elem_id}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert not body["result"].get("isError", False), f"Delete failed: {body}"
+    result = _json.loads(body["result"]["content"][0]["text"])
+    assert result["deleted"] is True
+    assert result["elementId"] == elem_id
+    assert result["name"] == "TempDeleteTest"
+    if "type" in result:
+        assert result["type"] is not None
+
+    # 5. Verify element no longer exists (get_element_details should return error text)
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 14, "method": "tools/call",
+                                  "params": {"name": "get_element_details",
+                                             "arguments": {"elementId": elem_id}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    content = _json.loads(body["result"]["content"][0]["text"])
+    # The tool should return an error map (not found)
+    assert "error" in content or "not found" in str(content).lower()
+
+
+def test_mcp_delete_element_invalid_id(client):
+    """delete_element returns error for nonexistent ID."""
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
+                                  "params": {"name": "delete_element",
+                                             "arguments": {"elementId": "nonexistent-id"}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    import json as _json
+    content = _json.loads(body["result"]["content"][0]["text"])
+    assert "error" in content
+
+
+def test_mcp_delete_element_missing_id(client):
+    """delete_element returns error when elementId is missing."""
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
+                                  "params": {"name": "delete_element", "arguments": {}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    import json as _json
+    content = _json.loads(body["result"]["content"][0]["text"])
+    assert "error" in content

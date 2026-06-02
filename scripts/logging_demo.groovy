@@ -1,9 +1,9 @@
-import com.haarer.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpTool
 import com.nomagic.magicdraw.core.Application
 
 class LoggingDemo {
 
-    @McpTool(name = "logging_demo", description = "Write log messages to the Cameo notification window")
+    @McpTool(name = "logging_demo", description = "[GENERIC SYSML] Write log messages to the Cameo notification window. Useful for live debugging during Cameo plugin development.")
     String demo(Map<String, Object> args) {
         def guiLog = Application.getInstance().getGUILog()
         guiLog.log("=== Logging Demo Tool ===")

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - name: Prepare stub libraries (Cameo SDK stubs + real OSS jars from Maven Central)
+        run: bash scripts/prepare-ci-libs.sh
+
+      - name: Compile Java source against stubs
+        run: gradle compileJava -PcameoHome=${{ github.workspace }}/ci-libs --no-daemon
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [compile]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - name: Prepare stub libraries
+        run: bash scripts/prepare-ci-libs.sh
+
+      - name: Build plugin distribution
+        run: python scripts/build-plugin.py --cameo-home ${{ github.workspace }}/ci-libs
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Cameo SAF MCP Server ${{ github.ref_name }} — Alexander Haarer
+          files: dist/cameo-saf-mcp-server.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true

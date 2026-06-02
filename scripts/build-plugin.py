@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Build the Cameo SAF MCP Server plugin distribution zip for Resource Manager installation.
+
+Usage:
+    python scripts/build-plugin.py [--cameo-home PATH]
+
+Steps:
+    1. Run 'gradle assemblePlugin' to compile Java and produce the JAR + plugin.xml.
+    2. Generate a resource descriptor XML listing all plugin files.
+    3. Package descriptor + JAR + plugin.xml + Groovy scripts into a plugin zip
+       that can be installed via Cameo's Resource Manager (File → Resource Manager → Install).
+
+Output:
+    dist/cameo-saf-mcp-server.zip
+"""
+
+import argparse
+import datetime
+import os
+import subprocess
+import zipfile
+
+RESOURCE_ID = "99001"
+PLUGIN_ID = "com.haarer.saf.mcpserver"
+PLUGIN_NAME = "Cameo SAF MCP Server"
+PLUGIN_VERSION = "1.0.0"
+PROVIDER_NAME = "Alexander Haarer"
+
+DESCRIPTOR_DIR = "data/resourcemanager"
+DESCRIPTOR_FILENAME = f"MDR_Plugin_{PLUGIN_NAME}_{RESOURCE_ID}_descriptor.xml"
+PLUGIN_DIR = f"plugins/{PLUGIN_ID}"
+
+DESCRIPTOR_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<resourceDescriptor
+    critical="false"
+    date="{date}"
+    description="MCP (Model Context Protocol) server plugin for Cameo Systems Modeler. Enables AI agents to interact with Cameo models via tools, resources, and prompts over HTTP."
+    homePage="https://github.com/AlexanderHaarer/cameo-saf-mcp-server"
+    id="{resource_id}"
+    mdVersionMax="higher"
+    mdVersionMin="2026x"
+    name="{plugin_name}"
+    product="{plugin_name}"
+    restartMagicdraw="true"
+    type="Plugin">
+    <version human="{version}" internal="{internal_version}" resource="{resource_version}"/>
+    <provider
+        email=""
+        homePage="https://github.com/AlexanderHaarer/cameo-saf-mcp-server"
+        name="{provider_name}"/>
+    <edition>Reader</edition>
+    <edition>Community</edition>
+    <edition>Standard</edition>
+    <edition>Professional Java</edition>
+    <edition>Professional C++</edition>
+    <edition>Professional C#</edition>
+    <edition>Professional</edition>
+    <edition>Architect</edition>
+    <edition>Enterprise</edition>
+    <requiredResource id="1440" name="SysML v1">
+        <minVersion internal="202600000" human="2026x"/>
+    </requiredResource>
+    <installation>
+{installation_entries}
+    </installation>
+</resourceDescriptor>'''
+
+
+def _build_installation_entries(files: list[str]) -> str:
+    lines = []
+    for path in sorted(files):
+        lines.append(f'        <file from="{path}" to="{path}"/>')
+    return "\n".join(lines)
+
+
+def _internal_version(version: str) -> str:
+    """Build a numeric internal version from semver.
+    1.0.0 → 100000, 1.2.3 → 102003, etc.
+    """
+    parts = version.split(".")
+    if len(parts) >= 2:
+        return f"{int(parts[0]):d}{int(parts[1]):02d}{int(parts[2]) if len(parts) > 2 else 0:03d}"
+    return "100000"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Build Cameo SAF MCP Server plugin zip for Resource Manager"
+    )
+    parser.add_argument(
+        "--cameo-home",
+        default=None,
+        help="Path to Cameo installation (sets -PcameoHome for Gradle)",
+    )
+    args = parser.parse_args()
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # ------------------------------------------------------------------
+    # Step 1: Build JAR + plugin.xml via Gradle
+    # ------------------------------------------------------------------
+    print("--- Step 1: Gradle assemblePlugin ---")
+    gradle_cmd = ["gradle", "assemblePlugin", "--no-daemon"]
+    if args.cameo_home:
+        gradle_cmd.append(f"-PcameoHome={args.cameo_home}")
+    subprocess.run(gradle_cmd, cwd=project_root, check=True)
+
+    # ------------------------------------------------------------------
+    # Step 2: Collect all plugin files and generate descriptor XML
+    # ------------------------------------------------------------------
+    print("--- Step 2: Generate resource descriptor ---")
+    plugin_dist = os.path.join(
+        project_root, "build", "plugin-dist", PLUGIN_ID
+    )
+    scripts_src = os.path.join(project_root, "scripts")
+    dist_dir = os.path.join(project_root, "dist")
+    os.makedirs(dist_dir, exist_ok=True)
+
+    # Collect files that go into the plugin zip
+    plugin_files: list[str] = []
+
+    # JAR + plugin.xml
+    for item in sorted(os.listdir(plugin_dist)):
+        plugin_files.append(f"{PLUGIN_DIR}/{item}")
+
+    # Groovy scripts
+    for entry in sorted(os.listdir(scripts_src)):
+        if not entry.endswith(".groovy"):
+            continue
+        plugin_files.append(f"{PLUGIN_DIR}/scripts/{entry}")
+
+    # Build descriptor XML
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    internal_ver = _internal_version(PLUGIN_VERSION)
+    descriptor_xml = DESCRIPTOR_TEMPLATE.format(
+        date=today,
+        resource_id=RESOURCE_ID,
+        plugin_name=PLUGIN_NAME,
+        version=PLUGIN_VERSION,
+        internal_version=internal_ver,
+        resource_version=f"{internal_ver}0",
+        provider_name=PROVIDER_NAME,
+        installation_entries=_build_installation_entries(plugin_files),
+    )
+
+    # ------------------------------------------------------------------
+    # Step 3: Package plugin zip
+    # ------------------------------------------------------------------
+    print("--- Step 3: Package plugin zip ---")
+    zip_path = os.path.join(dist_dir, "cameo-saf-mcp-server.zip")
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Descriptor XML
+        descriptor_arc = f"{DESCRIPTOR_DIR}/{DESCRIPTOR_FILENAME}"
+        zf.writestr(descriptor_arc, descriptor_xml)
+        print(f"  Added: {descriptor_arc}")
+
+        # Plugin files (JAR, plugin.xml, scripts)
+        for item in sorted(os.listdir(plugin_dist)):
+            item_path = os.path.join(plugin_dist, item)
+            arc_path = f"{PLUGIN_DIR}/{item}"
+            zf.write(item_path, arc_path)
+            print(f"  Added: {arc_path}")
+
+        for entry in sorted(os.listdir(scripts_src)):
+            if not entry.endswith(".groovy"):
+                continue
+            entry_path = os.path.join(scripts_src, entry)
+            arc_path = f"{PLUGIN_DIR}/scripts/{entry}"
+            zf.write(entry_path, arc_path)
+            print(f"  Added: {arc_path}")
+
+    print(f"\nCreated: {zip_path}")
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        total = len(zf.infolist())
+        size = os.path.getsize(zip_path)
+    print(f"  {total} files, {size / 1024:.0f} KB")
+    print(f"\nInstall via Cameo: File → Resource Manager → Install → {zip_path}")
+
+
+if __name__ == "__main__":
+    main()
