@@ -8,7 +8,7 @@ def cameoHome = project.hasProperty('cameoHome')
 
 def jdk21Home = project.hasProperty('jdk21Home')
     ? project.property('jdk21Home')
-    : (System.getenv('JDK21_HOME') ?: System.getenv('JAVA21_HOME') ?: '/usr/lib/jvm/java-21-openjdk')
+    : (System.getenv('JAVA_HOME') ?: System.getenv('JDK21_HOME') ?: System.getenv('JAVA21_HOME') ?: '/usr/lib/jvm/java-21-openjdk')
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
