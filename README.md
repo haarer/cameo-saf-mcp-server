@@ -76,15 +76,15 @@ SAF profile support for Cameo models. Provides tools for creating SAF-typed elem
 ##### SAF Concept Map
 
 | SAF Kind | SysML Type | SAF Stereotype |
-|---|---|---|
+|---|---|---|---|
 | [System Requirement](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520012975_812587_44177) | Class | SAF_SystemRequirement |
 | [Conceptual System](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_845719_91080) | Class | SAF_ConceptualSystem |
+| [System Function](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524161_394471_91009) | Activity | SAF_Function |
 | [Physical System](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_824595_91079) | Class | SAF_PhysicalSystem |
 | [Operational Performer](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562316412621_925297_43615) | Class | SAF_OperationalPerformer |
 | [Operational Capability](https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581665911562_310714_48925) | Class | SAF_OperationalCapability |
 | [System Capability](https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617463709646_290604_336) | Class | SAF_SystemCapability |
 | [Operational Story](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1561750989144_963009_48675) | Class | SAF_OperationalStory |
-| [System Function](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524161_394471_91009) | Class | SAF_Function |
 
 > **Note**: This table will be expanded to match the full SAF specification — see `.scratch/saf-concept-map-alignment/issues/01-align-concept-map.md`.
 
@@ -249,8 +249,8 @@ GitHub CI cannot access proprietary Cameo SDK jars. Instead, `scripts/prepare-ci
 
 The CI workflow (`.github/workflows/ci.yml`) has two jobs:
 
-1. **`compile`** (on push/PR to `main`): Runs `prepare-ci-libs.sh` then `gradle compileJava -PcameoHome=ci-libs` to verify Java compilation with stubs.
-2. **`release`** (on tag push `v*`): Runs `build-plugin.py --cameo-home ci-libs --version ${{ github.ref_name }}` which builds the JAR, injects the git tag into `plugin.xml` and the resource descriptor, then packages a Resource Manager zip attached to the GitHub release.
+1. **`compile`** (on tag push `v*`): Runs `prepare-ci-libs.sh` then `gradle compileJava -PcameoHome=ci-libs` to verify Java compilation with stubs.
+2. **`release`** (on tag push `v*`, after `compile`): Runs `build-plugin.py --cameo-home ci-libs --version ${{ github.ref_name }}` which builds the JAR, injects the git tag into `plugin.xml` and the resource descriptor, then packages a Resource Manager zip attached to the GitHub release.
 
 **Why stubs are sufficient**: Only 2 Cameo classes appear in the Java source, with trivial overrides (`init()`, `close()`, `isSupported()`) and one static call (`Application.getInstance().getGUILog().log()`). The compiler only needs the method signatures, not the runtime implementation.
 
