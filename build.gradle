@@ -2,17 +2,46 @@ plugins {
     id 'java'
 }
 
+// --- Multi-target Cameo configuration ---
+def target = project.findProperty('target') ?: '2026x'
+
+def targets = [
+    '2026x': [
+        cameoHome:      '/workspace/MSOSA2026xHF2',
+        jdkHome:        '/usr/lib/jvm/java-21-openjdk',
+        release:        21,
+        automatonVer:   '2026x',
+        mdVersionMin:   '2026x',
+        internalMinVer: '202600000',
+    ],
+    '2024x': [
+        cameoHome:      '/workspace/msosa2024',
+        jdkHome:        '/usr/lib/jvm/java-17-openjdk',
+        release:        17,
+        automatonVer:   '2024x Refresh3',
+        mdVersionMin:   '2024x',
+        internalMinVer: '202400000',
+    ]
+]
+
+def cfg = targets[target]
+if (!cfg) {
+    throw new GradleException("Unknown target '${target}'. Valid: ${targets.keySet().join(', ')}")
+}
+
 def cameoHome = project.hasProperty('cameoHome')
     ? project.property('cameoHome')
-    : '/workspace/MSOSA2026xHF2'
+    : cfg.cameoHome
 
-def jdk21Home = project.hasProperty('jdk21Home')
-    ? project.property('jdk21Home')
-    : (System.getenv('JAVA_HOME') ?: System.getenv('JDK21_HOME') ?: System.getenv('JAVA21_HOME') ?: '/usr/lib/jvm/java-21-openjdk')
+def jdkHome = project.hasProperty('jdkHome')
+    ? project.property('jdkHome')
+    : cfg.jdkHome
+
+def javaRelease = cfg.release
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.toVersion(javaRelease)
+    targetCompatibility = JavaVersion.toVersion(javaRelease)
 }
 
 sourceSets {
@@ -28,20 +57,15 @@ repositories {
 }
 
 dependencies {
-    // MCP protocol implemented in-house — no external MCP library dependency
-    // Uses Jackson from Cameo's classpath for JSON I/O only
-
     compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'core-*.jar', 'jackson-*.jar'])
     compileOnly fileTree(dir: "${cameoHome}/plugins/com.nomagic.magicdraw.automaton/lib", include: ['groovy-*.jar'])
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ['-Xlint:-deprecation', '-Xlint:-unchecked']
-    if (jdk21Home) {
-        options.fork = true
-        options.forkOptions.javaHome = file(jdk21Home)
-    }
-    options.release = 21
+    options.fork = true
+    options.forkOptions.javaHome = file(jdkHome)
+    options.release = javaRelease
 }
 
 def pluginVersion = project.hasProperty('pluginVersion')
@@ -61,7 +85,7 @@ jar {
 tasks.register('assemblePlugin', Copy) {
     dependsOn jar
     from('plugin.xml') {
-        expand(version: pluginVersion)
+        expand(version: pluginVersion, automatonVersion: cfg.automatonVer)
     }
     from(jar.archiveFile)
     into(layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver'))

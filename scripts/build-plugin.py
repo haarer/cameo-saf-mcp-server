@@ -2,7 +2,7 @@
 """Build the Cameo SAF MCP Server plugin distribution zip for Resource Manager installation.
 
 Usage:
-    python scripts/build-plugin.py [--cameo-home PATH]
+    python scripts/build-plugin.py [--cameo-home PATH] [--target 2026x|2024x]
 
 Steps:
     1. Run 'gradle assemblePlugin' to compile Java and produce the JAR + plugin.xml.
@@ -30,6 +30,17 @@ DESCRIPTOR_DIR = "data/resourcemanager"
 DESCRIPTOR_FILENAME = f"MDR_Plugin_{PLUGIN_NAME}_{RESOURCE_ID}_descriptor.xml"
 PLUGIN_DIR = f"plugins/{PLUGIN_ID}"
 
+TARGETS = {
+    "2026x": {
+        "mdVersionMin": "2026x",
+        "internalMinVer": "202600000",
+    },
+    "2024x": {
+        "mdVersionMin": "2024x",
+        "internalMinVer": "202400000",
+    },
+}
+
 DESCRIPTOR_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <resourceDescriptor
     critical="false"
@@ -38,7 +49,7 @@ DESCRIPTOR_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     homePage="https://github.com/haarer/cameo-saf-mcp-server"
     id="{resource_id}"
     mdVersionMax="higher"
-    mdVersionMin="2026x"
+    mdVersionMin="{md_version_min}"
     name="{plugin_name}"
     product="{plugin_name}"
     restartMagicdraw="true"
@@ -58,7 +69,7 @@ DESCRIPTOR_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <edition>Architect</edition>
     <edition>Enterprise</edition>
     <requiredResource id="1440" name="SysML v1">
-        <minVersion internal="202600000" human="2026x"/>
+        <minVersion internal="{internal_min_ver}" human="{md_version_min}"/>
     </requiredResource>
     <installation>
 {installation_entries}
@@ -111,6 +122,12 @@ def main() -> None:
         help="Path to Cameo installation (sets -PcameoHome for Gradle)",
     )
     parser.add_argument(
+        "--target",
+        default="2026x",
+        choices=list(TARGETS.keys()),
+        help="Cameo target version (default: 2026x)",
+    )
+    parser.add_argument(
         "--version",
         default=None,
         help="Plugin version (default: auto-detected from git tag, or 1.0.0-dev). "
@@ -118,13 +135,14 @@ def main() -> None:
     )
     args = parser.parse_args()
     plugin_version = args.version or _detect_version()
+    target_cfg = TARGETS[args.target]
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     # ------------------------------------------------------------------
     # Step 1: Build JAR + plugin.xml via Gradle
     # ------------------------------------------------------------------
-    print(f"--- Step 1: Gradle assemblePlugin (version={plugin_version}) ---")
-    gradle_cmd = ["gradle", "assemblePlugin", "--no-daemon", f"-PpluginVersion={plugin_version}"]
+    print(f"--- Step 1: Gradle assemblePlugin (target={args.target}, version={plugin_version}) ---")
+    gradle_cmd = ["gradle", "assemblePlugin", "--no-daemon", f"-PpluginVersion={plugin_version}", f"-Ptarget={args.target}"]
     if args.cameo_home:
         gradle_cmd.append(f"-PcameoHome={args.cameo_home}")
     subprocess.run(gradle_cmd, cwd=project_root, check=True)
@@ -164,6 +182,8 @@ def main() -> None:
         internal_version=internal_ver,
         resource_version=f"{internal_ver}0",
         provider_name=PROVIDER_NAME,
+        md_version_min=target_cfg["mdVersionMin"],
+        internal_min_ver=target_cfg["internalMinVer"],
         installation_entries=_build_installation_entries(plugin_files),
     )
 

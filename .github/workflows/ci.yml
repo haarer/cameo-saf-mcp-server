@@ -7,21 +7,29 @@ on:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [2024x, 2026x]
+        include:
+          - target: 2024x
+            jdk: 17
+          - target: 2026x
+            jdk: 21
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.jdk }}
         uses: actions/setup-java@v4
         with:
-          java-version: 21
+          java-version: ${{ matrix.jdk }}
           distribution: temurin
 
       - name: Prepare stub libraries (Cameo SDK stubs + real OSS jars from Maven Central)
         run: bash scripts/prepare-ci-libs.sh
 
       - name: Compile Java source against stubs
-        run: gradle compileJava -PcameoHome=${{ github.workspace }}/ci-libs --no-daemon
+        run: gradle compileJava -Ptarget=${{ matrix.target }} -PcameoHome=${{ github.workspace }}/ci-libs --no-daemon
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -29,26 +37,47 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      matrix:
+        target: [2024x, 2026x]
+        include:
+          - target: 2024x
+            jdk: 17
+          - target: 2026x
+            jdk: 21
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.jdk }}
         uses: actions/setup-java@v4
         with:
-          java-version: 21
+          java-version: ${{ matrix.jdk }}
           distribution: temurin
 
       - name: Prepare stub libraries
         run: bash scripts/prepare-ci-libs.sh
 
-      - name: Build plugin distribution
-        run: python scripts/build-plugin.py --cameo-home ${{ github.workspace }}/ci-libs --version ${{ github.ref_name }}
+      - name: Build plugin distribution for ${{ matrix.target }}
+        run: python scripts/build-plugin.py --target ${{ matrix.target }} --cameo-home ${{ github.workspace }}/ci-libs --version ${{ github.ref_name }}
+
+      - name: Set output artifact name
+        id: artifact
+        shell: bash
+        run: |
+          if [ "${{ matrix.target }}" = "2024x" ]; then
+            echo "name=cameo-saf-mcp-server-2024x.zip" >> $GITHUB_OUTPUT
+          else
+            echo "name=cameo-saf-mcp-server-2026x.zip" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rename artifact
+        run: mv dist/cameo-saf-mcp-server.zip dist/${{ steps.artifact.outputs.name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Cameo SAF MCP Server ${{ github.ref_name }} — Alexander Haarer
-          files: dist/cameo-saf-mcp-server.zip
+          files: dist/${{ steps.artifact.outputs.name }}
           fail_on_unmatched_files: true
-          generate_release_notes: true
+          generate_release_notes: ${{ matrix.target == '2026x' }}
