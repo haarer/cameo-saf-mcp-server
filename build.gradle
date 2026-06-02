@@ -31,11 +31,11 @@ if (!cfg) {
 
 def cameoHome = project.hasProperty('cameoHome')
     ? project.property('cameoHome')
-    : cfg.cameoHome
+    : (System.getenv('CAMEO_HOME') ?: cfg.cameoHome)
 
 def jdkHome = project.hasProperty('jdkHome')
     ? project.property('jdkHome')
-    : cfg.jdkHome
+    : (System.getenv('JAVA_HOME') ?: cfg.jdkHome)
 
 def javaRelease = cfg.release
 
