@@ -77,4 +77,6 @@ GitHub Actions builds both targets on every tag push and uploads two assets per 
 - `cameo-saf-mcp-server-2024x.zip`
 - `cameo-saf-mcp-server-2026x.zip`
 
+The `prepare-ci-libs.sh` script compiles stubs matching the active JDK. Override with `STUBS_RELEASE=17` or `STUBS_RELEASE=21` env var.
+
 See `.github/workflows/ci.yml` for the matrix configuration.

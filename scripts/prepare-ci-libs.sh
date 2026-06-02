@@ -16,6 +16,12 @@ CI_LIBS="$(cd "$(dirname "$0")/.." && pwd)/ci-libs"
 STUBS_SRC=$(mktemp -d)
 trap 'rm -rf "$STUBS_SRC"' EXIT
 
+# Stubs release version — auto-detect from JDK on PATH, or override via env var
+STUBS_RELEASE="${STUBS_RELEASE:-}"
+if [ -z "$STUBS_RELEASE" ]; then
+  STUBS_RELEASE=$(java -version 2>&1 | head -1 | sed -n 's/.*version "\(.*\)".*/\1/p' | cut -d. -f1)
+fi
+
 JACKSON_VERSION="2.19.1"
 GROOVY_VERSION="5.0.0"
 
@@ -129,7 +135,7 @@ JAVA
 
 # Compile stubs
 echo "--- Compiling stubs ---"
-javac --release 21 -d "$STUBS_SRC/classes" \
+javac --release "$STUBS_RELEASE" -d "$STUBS_SRC/classes" \
   "$STUBS_SRC/com/nomagic/magicdraw/plugins/Plugin.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/Application.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/GUILog.java" \
