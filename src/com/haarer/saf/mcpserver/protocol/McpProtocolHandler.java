@@ -13,7 +13,7 @@ import java.util.UUID;
 public class McpProtocolHandler {
 
     private static final String SERVER_NAME = "cameo-saf-mcp-server";
-    private static final String SERVER_VERSION = "1.0.0";
+    private static final String SERVER_VERSION = "0.1.1";
     private static final String PROTOCOL_VERSION = "2024-11-05";
 
     private final ObjectMapper mapper;
@@ -86,14 +86,17 @@ public class McpProtocolHandler {
             var node = mapper.createObjectNode();
             node.put("name", tool.name());
             node.put("description", tool.description());
-            var schema = mapper.createObjectNode();
-            schema.put("type", "object");
-            node.set("inputSchema", schema);
+            node.set("inputSchema", mapToNode(tool.inputSchema()));
             toolsArray.add(node);
         }
         var result = mapper.createObjectNode();
         result.set("tools", toolsArray);
         return buildSuccessResponse(id, result);
+    }
+
+    private JsonNode mapToNode(Map<String, Object> map) throws Exception {
+        if (map == null) return mapper.createObjectNode().put("type", "object");
+        return mapper.valueToTree(map);
     }
 
     private HandleResult handleToolsCall(McpSession session, JsonNode request, Object id) throws Exception {

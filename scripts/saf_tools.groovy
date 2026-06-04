@@ -1,4 +1,5 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpToolArgument
 import com.nomagic.magicdraw.core.Application
 import com.nomagic.magicdraw.openapi.uml.ModelElementsManager
 import com.nomagic.magicdraw.openapi.uml.SessionManager
@@ -93,7 +94,11 @@ class SafTools {
         "association":   ["association",    null],
     ]
 
-    @McpTool(name = "saf_create_element", description = "[SAF] Create an element using SAF concept kinds (system_requirement, conceptual_system, physical_system, operational_performer, etc.). Maps the kind to the correct SysML type AND applies the appropriate SAF stereotype. For raw SysML types without SAF, use create_element instead. Returns the created element ID.")
+    @McpTool(name = "saf_create_element", description = "Create a SAF-typed element by concept kind. Each kind maps to a SysML type and SAF stereotype (e.g. 'system_requirement' -> Class + SAF_SystemRequirement). Returns the created element's ID. Valid kinds: system_requirement, conceptual_system, system_function, physical_system, operational_performer, operational_capability, system_capability, operational_story, stakeholder, concern, mission, proxy_port, port, connector, exchange_type, activity_partition, comment, and more. For raw SysML types, use create_element.")
+    @McpToolArgument(name = "kind", type = "string", description = "SAF concept kind (e.g. system_requirement, conceptual_system, physical_system, operational_performer, stakeholder, concern)", required = true)
+    @McpToolArgument(name = "name", type = "string", description = "Name for the new element", required = true)
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent package to contain the element", required = true)
+    @McpToolArgument(name = "documentation", type = "string", description = "Optional documentation text stored as a comment")
     Map safCreateElement(Map<String, Object> args) {
         def kind = (args.get("kind") ?: "") as String
         def name = args.get("name") as String
@@ -159,7 +164,10 @@ class SafTools {
         ]
     }
 
-    @McpTool(name = "saf_set_requirement_tags", description = "[SAF] Set 'id' and 'text' tagged values on a SAF_SystemRequirement element. For setting arbitrary tagged values on any stereotyped element, use set_tagged_values instead.")
+    @McpTool(name = "saf_set_requirement_tags", description = "Set the 'id' and 'text' tagged values on a SAF_SystemRequirement element. If the element does not yet have the SAF_SystemRequirement stereotype, it will be applied automatically. For setting arbitrary tagged values on non-requirement elements, use set_tagged_values.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the requirement element", required = true)
+    @McpToolArgument(name = "reqId", type = "string", description = "Requirement identifier (e.g. 'REQ-001')", required = true)
+    @McpToolArgument(name = "text", type = "string", description = "Requirement statement text", required = true)
     Map safSetRequirementTags(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         def reqId = args.get("reqId") as String
@@ -202,7 +210,10 @@ class SafTools {
         return [elementId: elementId, reqId: reqId, text: text, tagsSet: 2]
     }
 
-    @McpTool(name = "saf_create_relationship", description = "[SAF] Create a relationship using SAF semantics (satisfy, derive, trace, refine, verify, allocate). Maps each SAF type to the correct SysML relationship + SAF stereotype. Also supports raw types (composition, dependency, generalization, etc.) for mixed use. For raw SysML-only relationships, use create_relationship instead.")
+    @McpTool(name = "saf_create_relationship", description = "Create a relationship between two elements using SAF semantics. SAF types (satisfy, derive, trace, refine, verify, allocate) automatically apply the correct SysML base type and SAF stereotype. Also supports raw types (composition, dependency, generalization, association, controlflow, objectflow, connector). Returns the relationship ID.")
+    @McpToolArgument(name = "type", type = "string", description = "Relationship type: satisfy, derive, trace, refine, verify, allocate, composition, dependency, generalization, association, controlflow, objectflow, connector")
+    @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source", required = true)
+    @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the target", required = true)
     Map safCreateRelationship(Map<String, Object> args) {
         def type = (args.get("type") ?: "dependency") as String
         def sourceId = args.get("sourceId") as String
@@ -308,7 +319,10 @@ class SafTools {
         return [id: rel.getID(), type: type, sysmlType: sysmlType, stereotype: stereotypeName, sourceId: sourceId, targetId: targetId]
     }
 
-    @McpTool(name = "saf_query_viewpoint", description = "[SAF] Query elements filtered by SAF domain (architecture_management, operational, conceptual, physical) and aspect (requirement, structure, behavior, interface, context, traceability). Returns matching elements with their SAF kind and domain metadata. For unfiltered element search, use find_elements or find_elements_by_type.")
+    @McpTool(name = "saf_query_viewpoint", description = "Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.")
+    @McpToolArgument(name = "domain", type = "string", description = "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all domains.")
+    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all aspects.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
     List safQueryViewpoint(Map<String, Object> args) {
         def domain = (args.get("domain") ?: "") as String
         def aspect = (args.get("aspect") ?: "") as String
@@ -482,7 +496,11 @@ class SafTools {
         "comment": "architecture_management",
     ]
 
-    @McpTool(name = "saf_find_elements_by_type", description = "[SAF] Find elements by SysML type and/or stereotype. Returns results enriched with SAF kind and SAF domain metadata. For plain element search without SAF enrichment, use find_elements_by_type. For qualifiedName-based search, use find_elements.")
+    @McpTool(name = "saf_find_elements_by_type", description = "Recursively search for elements by type, stereotype, and/or name substring. Same as find_elements_by_type but returns additional safKind and safDomain fields for each result. All filters are optional.")
+    @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against stereotype names (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
     List safFindElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
@@ -518,7 +536,8 @@ class SafTools {
         return results
     }
 
-    @McpTool(name = "saf_get_element_details", description = "[SAF] Get detailed SAF information about an element by ID. Returns name, type, SAF kind, SAF domain, tagged values, owned elements, and traceability relationships. For plain SysML details without SAF metadata, use get_element_details. For qualifiedName lookup, use get_element_info.")
+    @McpTool(name = "saf_get_element_details", description = "Get full SAF-enriched details about an element by ID. Returns name, type, stereotypes, safKind, safDomain, tagged values, owned elements, and traceability relationships. For plain SysML details, use get_element_details.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to inspect", required = true)
     Map safGetElementDetails(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         if (elementId == null || elementId.isEmpty()) return [error: "elementId is required"]
@@ -593,7 +612,9 @@ class SafTools {
         ]
     }
 
-    @McpTool(name = "saf_build_traceability_chain", description = "[SAF] Build a traceability chain graph starting from a requirement element. Follows satisfy, derive, trace, refine, and verify relationships using BFS traversal. Returns nodes and edges with SAF metadata. Only available in the SAF toolset — use this for impact analysis and requirement coverage.")
+    @McpTool(name = "saf_build_traceability_chain", description = "Build a traceability graph from a starting element by following satisfy, derive, trace, refine, and verify relationships via BFS. Returns a graph with nodes (elements) and edges (relationships). Useful for impact analysis and checking requirement coverage.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID to start the traceability chain from", required = true)
+    @McpToolArgument(name = "maxDepth", type = "integer", description = "Maximum BFS traversal depth (default: 3)")
     Map safBuildTraceabilityChain(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         def maxDepth = (args.get("maxDepth") as Integer) ?: 3
@@ -619,7 +640,9 @@ class SafTools {
         ]
     }
 
-    @McpTool(name = "saf_check_consistency", description = "[SAF] Run SAF model consistency checks including orphan requirements detection, broken traceability chains, stereotype compliance, and cross-domain alignment (conceptual↔physical refinement). Returns a structured issue list and summary statistics.")
+    @McpTool(name = "saf_check_consistency", description = "Run SAF model consistency checks. Detects: orphan_requirements (requirements with no traceability links), broken_chains (links to non-existent elements), stereotype_compliance (elements missing expected stereotypes), cross_domain_alignment (conceptual systems without physical refinement). Returns structured issue list and summary counts.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to check within. Omit to check the entire primary model.")
+    @McpToolArgument(name = "checks", type = "array", description = "List of checks to run. Default: all. Options: orphan_requirements, broken_chains, stereotype_compliance, cross_domain_alignment")
     Map safCheckConsistency(Map<String, Object> args) {
         def parentId = args.get("parentId") as String
         def checks = (args.get("checks") as List) ?: ["orphan_requirements", "broken_chains", "stereotype_compliance", "cross_domain_alignment"]
@@ -724,7 +747,11 @@ class SafTools {
         ]
     }
 
-    @McpTool(name = "saf_get_viewpoint_views", description = "[SAF] Find diagrams that conform to a SAF viewpoint. Search by short code (AM, OV, CV, PV) or name. Returns diagrams ranked by conformance score based on how much of their content matches the viewpoint's element kinds.")
+    @McpTool(name = "saf_get_viewpoint_views", description = "Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by short code (AM=architecture_management, OV=operational, CV=conceptual, PV=physical) or by full domain name. Returns diagrams sorted by conformance score. Optionally include diagram element content.")
+    @McpToolArgument(name = "viewpointCode", type = "string", description = "Viewpoint short code: AM, OV, CV, or PV. Mutually exclusive with viewpointName.")
+    @McpToolArgument(name = "viewpointName", type = "string", description = "Viewpoint domain name: architecture_management, operational, conceptual, physical. Mutually exclusive with viewpointCode.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search diagrams within. Omit to search the entire model.")
+    @McpToolArgument(name = "includeContent", type = "boolean", description = "If true, include diagram element details in results (default: false)")
     Map safGetViewpointViews(Map<String, Object> args) {
         def viewpointCode = args.get("viewpointCode") as String
         def viewpointName = args.get("viewpointName") as String
@@ -880,7 +907,10 @@ class SafTools {
         } catch (ignored) {}
     }
 
-    @McpTool(name = "saf_export_viewpoint", description = "[SAF] Export a SAF viewpoint as a structured intermediate representation (IR). Returns all viewpoint-relevant elements with SAF metadata, tagged values, and intra-viewpoint relationships. For downloading/reporting rather than ad-hoc queries.")
+    @McpTool(name = "saf_export_viewpoint", description = "Export a SAF viewpoint as structured data. Returns all matching elements with safKind, safDomain, tagged values, and intra-viewpoint relationship edges. Filter by domain (architecture_management, operational, conceptual, physical) and/or aspect (requirement, structure, behavior, interface, context, traceability). Useful for reporting and downloading.")
+    @McpToolArgument(name = "domain", type = "string", description = "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all.")
+    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to export from. Omit to export from the entire primary model.")
     Map safExportViewpoint(Map<String, Object> args) {
         def domain = (args.get("domain") ?: "") as String
         def aspect = (args.get("aspect") ?: "") as String

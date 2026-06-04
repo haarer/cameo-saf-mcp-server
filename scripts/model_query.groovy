@@ -1,8 +1,11 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpToolArgument
 
 class ModelQuery {
 
-    @McpTool(name = "find_elements", description = "[GENERIC SYSML] Find elements by name pattern and/or stereotype name using qualifiedName-based search. Returns name, qualifiedName, type, and stereotypes — does NOT include element ID. For element-ID-based lookup, use find_elements_by_type. For SAF-aware search, use saf_find_elements_by_type.")
+    @McpTool(name = "find_elements", description = "Search for model elements by name substring and/or stereotype name. Scans top-level elements of the open model. Returns name, qualifiedName, type, and stereotypes (no element IDs). For ID-based queries use find_elements_by_type. For SAF-enriched search use saf_find_elements_by_type.")
+    @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.")
     List findElements(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [[error: "No model open"]]
@@ -20,7 +23,8 @@ class ModelQuery {
         }
     }
 
-    @McpTool(name = "get_element_info", description = "[GENERIC SYSML] Get detailed element info by qualifiedName (e.g. 'MyModel::MyPackage::MyBlock'). Returns name, qualifiedName, type, stereotypes, owned elements, and relationships. Use this when you know the qualified path but NOT the element ID. To look up by element ID, use get_element_details.")
+    @McpTool(name = "get_element_info", description = "Get detailed info about a model element by its qualified name (e.g. 'MyModel::MyPackage::MyBlock'). Returns name, qualifiedName, type, stereotypes, owned elements, and relationships (dependencies, generalizations, properties). Use this when you know the element's qualified path. For lookup by element ID, use get_element_details.")
+    @McpToolArgument(name = "qualifiedName", type = "string", description = "Fully qualified name of the element (e.g. 'Model::Package::Element')", required = true)
     Map getElementInfo(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [error: "No model open"]

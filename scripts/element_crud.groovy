@@ -1,4 +1,5 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
+import com.haarer.saf.mcpserver.handlers.McpToolArgument
 import com.nomagic.magicdraw.core.Application
 import com.nomagic.magicdraw.openapi.uml.ModelElementsManager
 import com.nomagic.magicdraw.openapi.uml.SessionManager
@@ -76,7 +77,12 @@ class ElementCrud {
         }
     }
 
-    @McpTool(name = "create_element", description = "[GENERIC SYSML] Create a model element using raw SysML types (Class, Package, Activity, etc.). Use this for plain SysML modeling without SAF conventions. Returns the new element ID.")
+    @McpTool(name = "create_element", description = "Create a new SysML model element (Class, Package, Activity, Port, etc.) as a child of an existing parent element. Optionally apply a stereotype and set documentation. Returns the created element's ID. For SAF-typed elements, use saf_create_element instead.")
+    @McpToolArgument(name = "type", type = "string", description = "SysML type: Class, Package, Interface, Activity, Port, ProxyPort, Connector, Comment, Dependency, Abstraction, Association, Generalization, ControlFlow, ObjectFlow, DataType, Enumeration, Signal, State, StateMachine, Transition, Constraint, etc.")
+    @McpToolArgument(name = "name", type = "string", description = "Name for the new element", required = true)
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent to contain the new element", required = true)
+    @McpToolArgument(name = "stereotype", type = "string", description = "Optional stereotype name to apply to the element")
+    @McpToolArgument(name = "documentation", type = "string", description = "Optional documentation text stored as a comment")
     Map createElement(Map<String, Object> args) {
         def type = (args.get("type") ?: "Class") as String
         def name = args.get("name") as String
@@ -132,7 +138,10 @@ class ElementCrud {
         ]
     }
 
-    @McpTool(name = "set_tagged_values", description = "[GENERIC SYSML] Set tagged values on any stereotyped element. Requires element ID, stereotype name, and a map of tag names to values. For SAF requirement tags, use saf_set_requirement_tags instead.")
+    @McpTool(name = "set_tagged_values", description = "Set tagged values (stereotype properties) on an element. The element must have the specified stereotype applied; if not, it will be applied automatically. Pass a map of tag names to values. For SAF requirement id/text, use saf_set_requirement_tags instead.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the target element", required = true)
+    @McpToolArgument(name = "stereotype", type = "string", description = "Name of the stereotype whose tagged values to set", required = true)
+    @McpToolArgument(name = "values", type = "object", description = "Map of tag name to value (e.g. {\"id\": \"REQ-001\", \"priority\": \"high\"})", required = true)
     Map setTaggedValues(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         def stereotypeName = args.get("stereotype") as String
@@ -180,7 +189,12 @@ class ElementCrud {
         return [elementId: elementId, stereotype: stereotypeName, tagsSet: setCount]
     }
 
-    @McpTool(name = "create_relationship", description = "[GENERIC SYSML] Create a relationship using raw SysML types (dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector). Does NOT apply SAF stereotypes. For SAF relationships (satisfy, derive, trace, etc.), use saf_create_relationship instead. Returns the new relationship ID.")
+    @McpTool(name = "create_relationship", description = "Create a SysML relationship between two elements. Supported types: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector. Optionally apply a stereotype. For SAF relationships (satisfy, derive, trace, refine, verify, allocate), use saf_create_relationship instead. Returns the relationship ID.")
+    @McpToolArgument(name = "type", type = "string", description = "Relationship type: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector")
+    @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source", required = true)
+    @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the target", required = true)
+    @McpToolArgument(name = "stereotype", type = "string", description = "Optional stereotype to apply to the relationship")
+    @McpToolArgument(name = "ownerId", type = "string", description = "Optional parent element ID to own the relationship")
     Map createRelationship(Map<String, Object> args) {
         def type = (args.get("type") ?: "dependency") as String
         def sourceId = args.get("sourceId") as String
@@ -319,7 +333,10 @@ class ElementCrud {
         ]
     }
 
-    @McpTool(name = "modify_element", description = "[GENERIC SYSML] Modify a model element's name and/or documentation by element ID. Works on any element type. Returns updated element info.")
+    @McpTool(name = "modify_element", description = "Update the name and/or documentation of an existing element by its ID. At least one of 'name' or 'documentation' must be provided. Returns updated element info.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to modify", required = true)
+    @McpToolArgument(name = "name", type = "string", description = "New name for the element")
+    @McpToolArgument(name = "documentation", type = "string", description = "New documentation text (stored as comment)")
     Map modifyElement(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         def newName = args.get("name") as String
@@ -357,7 +374,8 @@ class ElementCrud {
         return [id: elementId, name: elemName, modified: true]
     }
 
-    @McpTool(name = "delete_element", description = "[GENERIC SYSML] Delete any model element by ID. Permanently removes it and all owned sub-elements. Attached relationships are also removed. Use with caution — this is a hard delete with no undo.")
+    @McpTool(name = "delete_element", description = "Permanently delete a model element by ID. Removes the element, all owned sub-elements, and attached relationships. This is a hard delete with no undo.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to delete", required = true)
     Map deleteElement(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
 
@@ -386,7 +404,11 @@ class ElementCrud {
         return result
     }
 
-    @McpTool(name = "find_elements_by_type", description = "[GENERIC SYSML] Find elements by raw SysML type name (e.g. Class, Package, Activity) and/or stereotype. Returns results with element ID. For SAF-aware search (with safKind/safDomain), use saf_find_elements_by_type.")
+    @McpTool(name = "find_elements_by_type", description = "Recursively search for model elements by type name substring, stereotype substring, and/or name substring. Returns matching elements with their IDs, names, types, and stereotypes. All filters are optional — omit to get all elements. For SAF-enriched results, use saf_find_elements_by_type.")
+    @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type name (case-insensitive). Leave empty to match all types.")
+    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
     List findElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
@@ -429,7 +451,8 @@ class ElementCrud {
         } catch (ignored) {}
     }
 
-    @McpTool(name = "get_element_details", description = "[GENERIC SYSML] Get detailed info about an element by its element ID (UUID). Returns name, type, stereotypes, owned elements, and relationships. For SAF-specific details (kind, domain, traceability), use saf_get_element_details. To look up by qualifiedName instead of ID, use get_element_info.")
+    @McpTool(name = "get_element_details", description = "Get full details about a model element by ID, including name, type, stereotypes, owned sub-elements, and relationships (dependencies, generalizations). For SAF-enriched details (kind, domain, tagged values, traceability), use saf_get_element_details. For lookup by qualified name, use get_element_info.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to inspect", required = true)
     Map getElementDetails(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         if (!elementId) return [error: "elementId is required"]

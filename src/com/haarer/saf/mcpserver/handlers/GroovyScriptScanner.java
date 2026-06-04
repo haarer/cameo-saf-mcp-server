@@ -11,6 +11,7 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -112,8 +113,39 @@ public class GroovyScriptScanner {
             }
         };
 
-        tools.add(new McpToolDefinition(ann.name(), ann.description(), handler));
+        var schema = buildInputSchema(method);
+        tools.add(new McpToolDefinition(ann.name(), ann.description(), schema, handler));
         LOG.info("Registered tool: " + ann.name());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildInputSchema(Method method) {
+        var schema = new LinkedHashMap<String, Object>();
+        schema.put("type", "object");
+
+        var properties = new LinkedHashMap<String, Object>();
+        var required = new ArrayList<String>();
+
+        for (var arg : method.getAnnotationsByType(McpToolArgument.class)) {
+            var prop = new LinkedHashMap<String, Object>();
+            prop.put("type", arg.type());
+            if (!arg.description().isEmpty()) {
+                prop.put("description", arg.description());
+            }
+            properties.put(arg.name(), prop);
+            if (arg.required()) {
+                required.add(arg.name());
+            }
+        }
+
+        if (!properties.isEmpty()) {
+            schema.put("properties", properties);
+        }
+        if (!required.isEmpty()) {
+            schema.put("required", required);
+        }
+
+        return schema;
     }
 
     private void buildResource(List<McpResourceDefinition> resources, Object instance, Method method) {
