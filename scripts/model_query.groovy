@@ -3,26 +3,6 @@ import com.haarer.saf.mcpserver.handlers.McpToolArgument
 
 class ModelQuery {
 
-    @McpTool(name = "find_elements", description = "Search for model elements by name substring and/or stereotype name. Scans top-level elements of the open model. Returns name, qualifiedName, type, and stereotypes (no element IDs). For ID-based queries use find_elements_by_type. For SAF-enriched search use saf_find_elements_by_type.")
-    @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
-    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.")
-    List findElements(Map<String, Object> args) {
-        def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
-        if (project == null) return [[error: "No model open"]]
-        def nameFilter = (args.getOrDefault("name", "") as String).toLowerCase()
-        def stereoFilter = (args.getOrDefault("stereotype", "") as String).toLowerCase()
-        def results = []
-        def model = project.getPrimaryModel()
-        if (model == null) return [[error: "No primary model"]]
-        def topLevel = model.getOwnedElement()
-        for (elem in topLevel) {
-            addIfMatch(elem, nameFilter, stereoFilter, results)
-        }
-        return results.collect { r ->
-            [name: r.name, qualifiedName: r.qn, type: r.type, stereotypes: r.stereos]
-        }
-    }
-
     @McpTool(name = "get_element_info", description = "Get detailed info about a model element by its qualified name (e.g. 'MyModel::MyPackage::MyBlock'). Returns name, qualifiedName, type, stereotypes, owned elements, and relationships (dependencies, generalizations, properties). Use this when you know the element's qualified path. For lookup by element ID, use get_element_details.")
     @McpToolArgument(name = "qualifiedName", type = "string", description = "Fully qualified name of the element (e.g. 'Model::Package::Element')", required = true)
     Map getElementInfo(Map<String, Object> args) {
@@ -54,25 +34,6 @@ class ModelQuery {
             }
         } catch (ignored) {}
         return names
-    }
-
-    void addIfMatch(def elem, String nameFilter, String stereoFilter, List results) {
-        String name = safeName(elem)
-        if (name.isEmpty()) return
-        String elemQn = qn(elem)
-        String elemType = elem.getClass().getName()
-        List elemStereos = stereos(elem)
-        boolean nameMatch = nameFilter.isEmpty() || name.toLowerCase().contains(nameFilter)
-        boolean stereoMatch = stereoFilter.isEmpty() || elemStereos.any { it.toLowerCase().contains(stereoFilter) }
-        if (nameMatch && stereoMatch) {
-            results.add([name: name, qn: elemQn, type: elemType, stereos: elemStereos])
-        }
-        try {
-            def children = elem.getOwnedElement()
-            for (child in children) {
-                addIfMatch(child, nameFilter, stereoFilter, results)
-            }
-        } catch (ignored) {}
     }
 
     def findByQName(def elem, String targetQn) {

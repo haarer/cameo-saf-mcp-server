@@ -2,7 +2,7 @@
 """Build the Cameo SAF MCP Server plugin distribution zip for Resource Manager installation.
 
 Usage:
-    python scripts/build-plugin.py [--cameo-home PATH] [--target 2026x|2024x]
+    python ci/build-plugin.py [--cameo-home PATH] [--target 2026x|2024x]
 
 Steps:
     1. Run 'gradle assemblePlugin' to compile Java and produce the JAR + plugin.xml.

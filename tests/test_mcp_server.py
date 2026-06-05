@@ -107,6 +107,8 @@ def test_mcp_model_info(client):
     assert isinstance(data["packages"], list)
     assert "profiles" in data
     assert isinstance(data["profiles"], list)
+    assert "usedProjects" in data
+    assert isinstance(data["usedProjects"], list)
 
 
 def test_mcp_find_elements(client):

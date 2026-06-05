@@ -2,7 +2,7 @@
 
 ## Multi-Target Build
 
-The project builds for Cameo 2026x (JDK 21) and Cameo 2024x (JDK 17) from a single codebase. All target-specific configuration lives in `build.gradle` and `scripts/build-plugin.py`.
+The project builds for Cameo 2026x (JDK 21) and Cameo 2024x (JDK 17) from a single codebase. All target-specific configuration lives in `build.gradle` and `ci/build-plugin.py`.
 
 ### Target Configuration
 
@@ -17,13 +17,13 @@ The project builds for Cameo 2026x (JDK 21) and Cameo 2024x (JDK 17) from a sing
 
 ```bash
 # Build 2026x (default)
-python scripts/build-plugin.py --version 1.0.0
+python ci/build-plugin.py --version 1.0.0
 
 # Build 2024x
-python scripts/build-plugin.py --target 2024x --cameo-home /workspace/msosa2024 --version 1.0.0
+python ci/build-plugin.py --target 2024x --cameo-home /workspace/msosa2024 --version 1.0.0
 
 # Build with custom JDK
-python scripts/build-plugin.py --target 2024x --cameo-home /path/to/cameo \
+python ci/build-plugin.py --target 2024x --cameo-home /path/to/cameo \
   --version 1.0.0 -PjdkHome=/path/to/jdk17
 ```
 
@@ -41,7 +41,7 @@ gradle deploy -Ptarget=2024x -PcameoHome=/workspace/msosa2024 -PpluginVersion=1.
 
 ### Adding a New Target
 
-Add an entry to the `targets` map in `build.gradle` and the `TARGETS` dict in `scripts/build-plugin.py`:
+Add an entry to the `targets` map in `build.gradle` and the `TARGETS` dict in `ci/build-plugin.py`:
 
 ```groovy
 // build.gradle
@@ -60,7 +60,7 @@ def targets = [
 ```
 
 ```python
-# scripts/build-plugin.py
+# ci/build-plugin.py
 TARGETS = {
     "2026x": { ... },
     "2024x": { ... },

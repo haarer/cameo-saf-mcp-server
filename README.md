@@ -219,7 +219,7 @@ gradle assemblePlugin -PcameoHome="/path/to/Cameo" -PpluginVersion=0.1.0
 Full Resource Manager zip (recommended for distribution):
 
 ```bash
-python scripts/build-plugin.py --cameo-home /path/to/Cameo --version 0.1.0
+python ci/build-plugin.py --cameo-home /path/to/Cameo --version 0.1.0
 ```
 
 When `--version` is omitted, the script auto-detects the current git tag or falls back to `0.1.0-dev`.
@@ -242,7 +242,7 @@ The plugin JAR is a thin JAR — all dependencies (Jackson, Groovy) come from Ca
 
 #### CI Build (without real Cameo SDK)
 
-GitHub CI cannot access proprietary Cameo SDK jars. Instead, `scripts/prepare-ci-libs.sh` creates a `ci-libs/` directory with:
+GitHub CI cannot access proprietary Cameo SDK jars. Instead, `ci/prepare-ci-libs.sh` creates a `ci-libs/` directory with:
 
 1. **Real open-source jars** — Jackson (`jackson-core`, `jackson-databind`, `jackson-annotations`) and Apache Groovy downloaded from Maven Central.
 2. **Cameo SDK stubs** — Minimal Java classes (`Plugin`, `Application`, `GUILog`) compiled into `core-stubs.jar`. These satisfy the compiler with empty method bodies — no proprietary Cameo code is included.

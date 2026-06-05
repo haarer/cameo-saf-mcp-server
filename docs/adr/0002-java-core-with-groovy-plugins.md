@@ -133,7 +133,7 @@ runtime where all Cameo jars are already on the classpath. This means:
 
 4. **CI can compile Java without the full Cameo SDK**. The Java source
    references only `Plugin` and `Application` from Cameo, so CI stubs
-   are manageable. See `scripts/prepare-ci-libs.sh` and `ci.yml`.
+   are manageable. See `ci/prepare-ci-libs.sh` and `ci.yml`.
 
 ## Related
 

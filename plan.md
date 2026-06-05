@@ -52,10 +52,10 @@ This project started as a fork of the `cameo-http-server` plugin (com.haarer.htt
 - [x] Build, deploy, verify compilation succeeds.
 - [x] Integration test passes: tools/list returns echo and logging_demo, tools/call echo works.
 
-### Iteration 3: MCP Schema Enhancement (Pending)
-- [ ] Add `@McpToolArgument` / `@McpPromptArgument` annotations for typed JSON Schema generation (inputSchema with properties).
+### Iteration 3: MCP Schema Enhancement (Done, except prompt completion)
+- [x] Add `@McpToolArgument` annotation with typed JSON Schema generation (inputSchema with properties).
 - [ ] Add `@McpResourceTemplate` support for dynamic resource URIs.
-- [ ] Add completion support for prompts.
+- [x] Prompt argument completion — rejected. See `docs/adr/0006-skip-prompt-argument-completion.md`.
 
 ### Iteration 3b: JSON Output from Groovy Handlers (Completed)
 - [x] In `GroovyScriptScanner`'s `ToolHandler`/`ResourceHandler`/`PromptHandler`, detect `Map`/`List`/`Collection` return values from the Groovy method and serialize them with the Jackson `ObjectMapper` instead of calling `.toString()`. This eliminates the need for Groovy scripts to bundle their own JSON serialization (and avoids the missing `groovy-json` module problem in Cameo's bundled Groovy).

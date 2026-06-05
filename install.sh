@@ -23,5 +23,10 @@ echo "Deploying scripts to $TARGET_DIR/scripts..."
 mkdir -p "$TARGET_DIR/scripts"
 cp -r scripts/* "$TARGET_DIR/scripts/"
 
+# 5. Copy _data (hot-reloadable alongside scripts)
+echo "Deploying _data to $TARGET_DIR/_data..."
+mkdir -p "$TARGET_DIR/_data"
+cp -r _data/* "$TARGET_DIR/_data/"
+
 echo "Installation successful!"
 echo "Please restart Cameo to load the plugin."

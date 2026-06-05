@@ -8,7 +8,7 @@ set -euo pipefail
 #   - Stub jar for Cameo proprietary classes (Plugin, Application, GUILog)
 #
 # Usage:
-#   ./scripts/prepare-ci-libs.sh
+#   ./ci/prepare-ci-libs.sh
 #
 # Output: ci-libs/  (suitable for -PcameoHome=ci-libs)
 

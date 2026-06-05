@@ -3,6 +3,7 @@ import com.haarer.saf.mcpserver.handlers.McpToolArgument
 import com.nomagic.magicdraw.core.Application
 import com.nomagic.magicdraw.openapi.uml.ModelElementsManager
 import com.nomagic.magicdraw.openapi.uml.SessionManager
+import com.nomagic.magicdraw.uml.Finder as Finder
 import com.nomagic.uml2.impl.ElementsFactory
 import com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper
 import com.nomagic.uml2.ext.magicdraw.classes.mdkernel.*
@@ -404,7 +405,7 @@ class ElementCrud {
         return result
     }
 
-    @McpTool(name = "find_elements_by_type", description = "Recursively search for model elements by type name substring, stereotype substring, and/or name substring. Returns matching elements with their IDs, names, types, and stereotypes. All filters are optional — omit to get all elements. For SAF-enriched results, use saf_find_elements_by_type.")
+    @McpTool(name = "find_elements_by_type", description = "Recursively search for model elements by type name substring, stereotype substring, and/or name substring using Finder.byTypeRecursively. Returns matching elements with their IDs, names, types, and stereotypes. All filters are optional — omit to get all elements. For SAF-enriched results, use saf_find_elements_by_type.")
     @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type name (case-insensitive). Leave empty to match all types.")
     @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.")
     @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
@@ -419,36 +420,35 @@ class ElementCrud {
         def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
         if (root == null) return [[error: "Root not found"]]
 
-        def results = []
-        collectMatching(root, typeFilter.toLowerCase(), stereoFilter.toLowerCase(), nameFilter.toLowerCase(), results, 0)
-        return results
-    }
+        def fi = Finder.byTypeRecursively()
+        def all = fi.find(root, null)
 
-    void collectMatching(parent, String typeFilter, String stereoFilter, String nameFilter, List results, int depth) {
-        if (depth > 20) return
-        try {
-            for (child in parent.getOwnedElement()) {
-                if (child instanceof NamedElement) {
-                    def name = child.getName() ?: ""
-                    def cname = child.getClass().getName()
-                    def stereos = StereotypesHelper.getStereotypes(child).collect { it.getName() }
-                    def typeMatch = typeFilter.isEmpty() || cname.toLowerCase().contains(typeFilter)
-                    def stereoMatch = stereoFilter.isEmpty() || stereos.any { it.toLowerCase().contains(stereoFilter) }
-                    def nameMatch = nameFilter.isEmpty() || name.toLowerCase().contains(nameFilter)
-
-                    if (typeMatch && stereoMatch && nameMatch) {
-                        results.add([
-                            id: child.getID(),
-                            name: name,
-                            type: cname,
-                            stereotypes: stereos,
-                            parentId: child.getOwner() != null ? child.getOwner().getID() : ""
-                        ])
-                    }
+        return all.stream()
+            .filter { obj -> obj instanceof NamedElement }
+            .filter { obj ->
+                def match = true
+                if (match && !typeFilter.isEmpty()) {
+                    match = (obj.getClass().getName() ?: "").toLowerCase().contains(typeFilter.toLowerCase())
                 }
-                collectMatching(child, typeFilter, stereoFilter, nameFilter, results, depth + 1)
+                if (match && !stereoFilter.isEmpty()) {
+                    def stereos = StereotypesHelper.getStereotypes(obj)
+                    match = stereos.any { st -> (st.getName() ?: "").toLowerCase().contains(stereoFilter.toLowerCase()) }
+                }
+                if (match && !nameFilter.isEmpty()) {
+                    match = (obj.getName() ?: "").toLowerCase().contains(nameFilter.toLowerCase())
+                }
+                return match
             }
-        } catch (ignored) {}
+            .map { obj ->
+                [
+                    id: obj.getID(),
+                    name: obj.getName() ?: "",
+                    type: obj.getClass().getName(),
+                    stereotypes: StereotypesHelper.getStereotypes(obj).collect { it.getName() },
+                    parentId: obj.getOwner() != null ? obj.getOwner().getID() : ""
+                ]
+            }
+            .toList()
     }
 
     @McpTool(name = "get_element_details", description = "Get full details about a model element by ID, including name, type, stereotypes, owned sub-elements, and relationships (dependencies, generalizations). For SAF-enriched details (kind, domain, tagged values, traceability), use saf_get_element_details. For lookup by qualified name, use get_element_info.")

@@ -7,6 +7,7 @@ import com.nomagic.uml2.impl.ElementsFactory
 import com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper
 import com.nomagic.uml2.ext.magicdraw.classes.mdkernel.*
 import com.nomagic.uml2.ext.magicdraw.mdprofiles.Stereotype
+import com.fasterxml.jackson.databind.ObjectMapper
 
 class SafTools {
 
@@ -35,20 +36,38 @@ class SafTools {
                     if (st.getName() == name) return st
                 }
             }
-            // Fallback: case-insensitive search
             if (all != null) {
                 for (st in all) {
                     if (st.getName() != null && st.getName().equalsIgnoreCase(name)) return st
                 }
             }
         } catch (Exception e) {
-            // ignore, return null
         }
         return null
     }
 
-    // SAF concept → [SysML type, stereotype, profile]
-    static final CONCEPT_MAP = [
+    // Concept → SysML type mapping for ClassType values in concepts.json
+    private static final CLASSTYPE_TO_SYSML = [
+        "Class": "Class",
+        "Activity": "Activity",
+        "CallBehaviorAction": "CallBehaviorAction",
+        "ProxyPort": "ProxyPort",
+        "Port": "Port",
+        "Connector": "Connector",
+        "ValueType": "ValueType",
+        "Comment": "Comment",
+        "ActivityPartition": "ActivityPartition",
+        "DataType": "DataType",
+        "Interface": "Interface",
+    ]
+
+    // Runtime maps — populated from _data/ JSON, fallback to hardcoded defaults
+    static Map CONCEPT_MAP = [:]
+    static Map STEREO_TO_KIND = [:]
+    static Map KIND_TO_DOMAIN = [:]
+
+    // Fallback maps for when dynamic loading fails
+    private static final FALLBACK_CONCEPT_MAP = [
         "system_requirement":            ["Class",     "SAF_SystemRequirement"],
         "conceptual_system":             ["Class",     "SAF_ConceptualSystem"],
         "system_function":               ["Activity",  "SAF_Function"],
@@ -76,6 +95,228 @@ class SafTools {
         "comment":                       ["Comment",   null],
     ]
 
+    private static final FALLBACK_STEREO_TO_KIND = [:]
+    private static final FALLBACK_KIND_TO_DOMAIN = [
+        "stakeholder": "architecture_management",
+        "concern":     "architecture_management",
+        "system_requirement": "architecture_management",
+        "requirement": "architecture_management",
+        "operational_performer": "operational",
+        "operational_capability": "operational",
+        "system_capability": "conceptual",
+        "operational_story": "operational",
+        "system_function": "conceptual",
+        "operational_process": "operational",
+        "operational_activity": "operational",
+        "mission": "operational",
+        "conceptual_system": "conceptual",
+        "conceptual_function": "conceptual",
+        "conceptual_function_action": "conceptual",
+        "system_process": "conceptual",
+        "conceptual_interface": "conceptual",
+        "exchange_type": "conceptual",
+        "physical_system": "physical",
+        "physical_product": "physical",
+        "proxy_port": "conceptual",
+        "port": "conceptual",
+        "connector": "conceptual",
+        "activity_partition": "conceptual",
+        "comment": "architecture_management",
+    ]
+
+    static {
+        FALLBACK_CONCEPT_MAP.each { kind, mapping ->
+            def stereoName = mapping[1] as String
+            if (stereoName != null) {
+                FALLBACK_STEREO_TO_KIND[stereoName] = kind
+            }
+        }
+
+        try {
+            buildMaps(loadData())
+        } catch (Exception e) {
+            System.err.println("[SafTools] Dynamic concept load failed: " + e.message)
+            useFallbackMaps()
+        }
+
+        if (CONCEPT_MAP.isEmpty()) {
+            useFallbackMaps()
+        }
+    }
+
+    private static void useFallbackMaps() {
+        CONCEPT_MAP.putAll(FALLBACK_CONCEPT_MAP)
+        STEREO_TO_KIND.putAll(FALLBACK_STEREO_TO_KIND)
+        KIND_TO_DOMAIN.putAll(FALLBACK_KIND_TO_DOMAIN)
+    }
+
+    /** Resolve _data/ directory path. Tries system property, plugin JAR location, then CWD-relative paths. */
+    private static String resolveDataDir() {
+        def sysProp = System.getProperty("cameo.mcp.server.data.dir")
+        if (sysProp != null) {
+            def f = new File(sysProp)
+            if (f.exists()) return f.absolutePath
+        }
+
+        try {
+            def cl = com.haarer.saf.mcpserver.CameoMcpServerPlugin.class
+            def jarPath = cl.protectionDomain.codeSource.location.path
+            def pluginDir = new File(jarPath).parent
+            def dataDir = new File(pluginDir, "_data").absolutePath
+            if (new File(dataDir).exists()) return dataDir
+        } catch (Exception ignored) {}
+
+        for (root in ["plugins/com.haarer.saf.mcpserver/_data", "../_data", "./_data", "_data", "scripts/../_data"]) {
+            def f = new File(root)
+            if (f.exists()) return f.absolutePath
+        }
+
+        return null
+    }
+
+    /** Load JSON data from filesystem or classpath. Returns [concepts, realizeMappings, viewpointsStream] */
+    private static Object[] loadData() {
+        def mapper = new ObjectMapper()
+        def dataDir = resolveDataDir()
+        if (dataDir != null) {
+            def cFile = new File(dataDir, "concepts.json")
+            def rFile = new File(dataDir, "realizeconcept.json")
+            if (cFile.exists() && rFile.exists()) {
+                def vpFile = new File(dataDir, "viewpoints.json")
+                return [mapper.readTree(cFile), mapper.readTree(rFile), vpFile.exists() ? mapper.readTree(vpFile) : null]
+            }
+        }
+
+        def cl = SafTools.class.getClassLoader()
+        def conceptsStream = cl.getResourceAsStream("_data/concepts.json")
+        def realizeStream = cl.getResourceAsStream("_data/realizeconcept.json")
+        if (conceptsStream == null || realizeStream == null) {
+            throw new RuntimeException("_data JSON resources not found in filesystem or classpath")
+        }
+        def vpStream = cl.getResourceAsStream("_data/viewpoints.json")
+        return [mapper.readTree(conceptsStream), mapper.readTree(realizeStream), vpStream != null ? mapper.readTree(vpStream) : null]
+    }
+
+    private static void buildMaps(Object[] data) {
+        def concepts = data[0] as com.fasterxml.jackson.databind.JsonNode
+        def realizeMappings = data[1] as com.fasterxml.jackson.databind.JsonNode
+        def viewpoints = data[2] as com.fasterxml.jackson.databind.JsonNode
+
+        // Build concept_name → stereotype_name from realizeconcept.json
+        def stereoForConcept = [:]
+        for (rm in realizeMappings) {
+            def rc = rm.get("RealizedConcept")
+            def roc = rm.get("RealizationOfConcept")
+            if (rc == null || roc == null) continue
+            def conceptName = rc.get("Name")?.asText()
+            def stereoName = roc.get("Name")?.asText()
+            if (conceptName && stereoName && !conceptName.isEmpty() && !stereoName.isEmpty()) {
+                stereoForConcept[conceptName] = stereoName
+            }
+        }
+
+        // Build viewpoint_id → domain_name map from viewpoints.json
+        def vpDomain = [:]
+        if (viewpoints != null) {
+            for (vp in viewpoints) {
+                def vpId = vp.get("ID")?.asText()
+                def domain = vp.get("Domain")?.asText()
+                if (vpId && domain) {
+                    def norm = domain.toLowerCase().replaceAll(/ /, "_")
+                    switch (norm) {
+                        case "architecture_management": norm = "architecture_management"; break
+                        case "operational": norm = "operational"; break
+                        case "conceptual": norm = "conceptual"; break
+                        case "physical": norm = "physical"; break
+                        default: norm = null
+                    }
+                    if (norm != null) {
+                        vpDomain[vpId] = norm
+                    }
+                }
+            }
+        }
+
+        // Build CONCEPT_MAP from concepts.json
+        def dynConceptMap = [:]
+        def dynStereoToKind = [:]
+
+        for (c in concepts) {
+            def name = c.get("Name")?.asText()
+            def classType = c.get("ClassType")?.asText()
+            if (!name || !classType) continue
+
+            def sysmlType = CLASSTYPE_TO_SYSML[classType]
+            if (sysmlType == null) continue
+
+            def kindKey = name.toLowerCase()
+                .replaceAll(/[^a-z0-9 ]/, "")
+                .replaceAll(/ /, "_")
+                .replaceAll(/_+/, "_")
+                .replaceAll(/^_|_$/, "")
+
+            if (kindKey.isEmpty()) continue
+            if (dynConceptMap.containsKey(kindKey)) continue
+
+            def stereoName = stereoForConcept[name]
+            dynConceptMap[kindKey] = [sysmlType, stereoName]
+            if (stereoName != null) {
+                dynStereoToKind[stereoName] = kindKey
+            }
+        }
+
+        // Build KIND_TO_DOMAIN from InViewpoint on concepts
+        def dynKindToDomain = [:]
+
+        def domainPriority = ["architecture_management": 0, "operational": 1, "conceptual": 2, "physical": 3]
+        def conceptNameToKind = [:]
+
+        for (c in concepts) {
+            def name = c.get("Name")?.asText()
+            if (!name) continue
+            def kindKey = name.toLowerCase()
+                .replaceAll(/[^a-z0-9 ]/, "")
+                .replaceAll(/ /, "_")
+                .replaceAll(/_+/, "_")
+                .replaceAll(/^_|_$/, "")
+            conceptNameToKind[name] = kindKey
+        }
+
+        for (c in concepts) {
+            def name = c.get("Name")?.asText()
+            if (!name) continue
+            def kindKey = conceptNameToKind[name]
+            if (kindKey == null || !dynConceptMap.containsKey(kindKey)) continue
+
+            def inViewpoints = c.get("InViewpoint")
+            if (inViewpoints != null && inViewpoints.size() > 0) {
+                def bestDomain = null
+                def bestPriority = 999
+                for (vpRef in inViewpoints) {
+                    def vpId = vpRef.get("ID")?.asText()
+                    if (vpId == null) continue
+                    def domain = vpDomain[vpId]
+                    if (domain != null) {
+                        def pri = domainPriority[domain] ?: 999
+                        if (pri < bestPriority) {
+                            bestPriority = pri
+                            bestDomain = domain
+                        }
+                    }
+                }
+                if (bestDomain != null) {
+                    dynKindToDomain[kindKey] = bestDomain
+                }
+            }
+        }
+
+        if (!dynConceptMap.isEmpty()) {
+            CONCEPT_MAP = Collections.unmodifiableMap(dynConceptMap)
+            STEREO_TO_KIND = Collections.unmodifiableMap(dynStereoToKind)
+            KIND_TO_DOMAIN = Collections.unmodifiableMap(dynKindToDomain)
+        }
+    }
+
     // Relationship types that are SAF-aware
     static final SAF_RELATIONSHIP_TYPES = [
         "satisfy":   ["abstraction", "Satisfy"],
@@ -94,7 +335,7 @@ class SafTools {
         "association":   ["association",    null],
     ]
 
-    @McpTool(name = "saf_create_element", description = "Create a SAF-typed element by concept kind. Each kind maps to a SysML type and SAF stereotype (e.g. 'system_requirement' -> Class + SAF_SystemRequirement). Returns the created element's ID. Valid kinds: system_requirement, conceptual_system, system_function, physical_system, operational_performer, operational_capability, system_capability, operational_story, stakeholder, concern, mission, proxy_port, port, connector, exchange_type, activity_partition, comment, and more. For raw SysML types, use create_element.")
+    @McpTool(name = "saf_create_element", description = "Create a SAF-typed element by concept kind. Kinds are dynamically loaded from the SAF spec data at startup — all ~90+ SAF concepts are supported. Each kind maps to a SysML type and optional SAF stereotype (e.g. 'system_requirement' -> Class + SAF_SystemRequirement). Returns the created element's ID. For raw SysML types, use create_element.")
     @McpToolArgument(name = "kind", type = "string", description = "SAF concept kind (e.g. system_requirement, conceptual_system, physical_system, operational_performer, stakeholder, concern)", required = true)
     @McpToolArgument(name = "name", type = "string", description = "Name for the new element", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent package to contain the element", required = true)
@@ -454,49 +695,7 @@ class SafTools {
         }
     }
 
-    /* ---- SAF IR tools ---- */
-
-    // Map stereotype name -> SAF kind
-    static final STEREO_TO_KIND = [:]
-    static {
-        CONCEPT_MAP.each { kind, mapping ->
-            def stereoName = mapping[1] as String
-            if (stereoName != null) {
-                STEREO_TO_KIND[stereoName] = kind
-            }
-        }
-    }
-
-    // Map SAF kind -> domain
-    static final KIND_TO_DOMAIN = [
-        "stakeholder": "architecture_management",
-        "concern":     "architecture_management",
-        "system_requirement": "architecture_management",
-        "requirement": "architecture_management",
-        "operational_performer": "operational",
-        "operational_capability": "operational",
-        "system_capability": "conceptual",
-        "operational_story": "operational",
-        "system_function": "conceptual",
-        "operational_process": "operational",
-        "operational_activity": "operational",
-        "mission": "operational",
-        "conceptual_system": "conceptual",
-        "conceptual_function": "conceptual",
-        "conceptual_function_action": "conceptual",
-        "system_process": "conceptual",
-        "conceptual_interface": "conceptual",
-        "exchange_type": "conceptual",
-        "physical_system": "physical",
-        "physical_product": "physical",
-        "proxy_port": "conceptual",
-        "port": "conceptual",
-        "connector": "conceptual",
-        "activity_partition": "conceptual",
-        "comment": "architecture_management",
-    ]
-
-    @McpTool(name = "saf_find_elements_by_type", description = "Recursively search for elements by type, stereotype, and/or name substring. Same as find_elements_by_type but returns additional safKind and safDomain fields for each result. All filters are optional.")
+    @McpTool(name = "saf_find_elements_by_type", description = "Recursively search for elements by type, stereotype, and/or name substring using Finder.byTypeRecursively. Returns results enriched with safKind and safDomain fields. All filters are optional.")
     @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type (case-insensitive). Leave empty to match all.")
     @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against stereotype names (case-insensitive). Leave empty to match all.")
     @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
@@ -504,36 +703,45 @@ class SafTools {
     List safFindElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
-        def parentId = args.get("parentId") as String
         def nameFilter = (args.get("name") ?: "") as String
+        def parentId = args.get("parentId") as String
 
         def project = getProject()
         def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
         if (root == null) return [[error: "Root not found"]]
 
-        def results = []
-        def searchResults = []
-        collectAll(root, searchResults, 0)
+        def fi = com.nomagic.magicdraw.uml.Finder.byTypeRecursively()
+        def all = fi.find(root, null)
 
-        searchResults.each { elem ->
-            boolean match = true
-            if (!typeFilter.isEmpty() && !elem.type.toLowerCase().contains(typeFilter.toLowerCase())) match = false
-            if (!stereoFilter.isEmpty() && !elem.stereotypes.any { it.toLowerCase().contains(stereoFilter.toLowerCase()) }) match = false
-            if (!nameFilter.isEmpty() && !elem.name.toLowerCase().contains(nameFilter.toLowerCase())) match = false
-            if (match) {
-                results.add([
-                    id: elem.id,
-                    name: elem.name,
-                    type: elem.type,
-                    stereotypes: elem.stereotypes,
-                    safKind: resolveSafKind(elem.stereotypes),
-                    safDomain: resolveSafDomain(elem.stereotypes),
-                    parentId: elem.parentId
-                ])
+        return all.stream()
+            .filter { obj -> obj instanceof NamedElement }
+            .filter { obj ->
+                def match = true
+                if (match && !typeFilter.isEmpty()) {
+                    match = (obj.getHumanType() ?: "").toLowerCase().contains(typeFilter.toLowerCase())
+                }
+                if (match && !stereoFilter.isEmpty()) {
+                    def stereos = StereotypesHelper.getStereotypes(obj)
+                    match = stereos.any { st -> (st.getName() ?: "").toLowerCase().contains(stereoFilter.toLowerCase()) }
+                }
+                if (match && !nameFilter.isEmpty()) {
+                    match = (obj.getName() ?: "").toLowerCase().contains(nameFilter.toLowerCase())
+                }
+                return match
             }
-        }
-
-        return results
+            .map { obj ->
+                def stereosList = StereotypesHelper.getStereotypes(obj).collect { it.getName() }
+                [
+                    id: obj.getID(),
+                    name: obj.getName() ?: "",
+                    type: obj.getHumanType(),
+                    stereotypes: stereosList,
+                    safKind: resolveSafKind(stereosList),
+                    safDomain: resolveSafDomain(stereosList),
+                    parentId: obj.getOwner() != null ? obj.getOwner().getID() : ""
+                ]
+            }
+            .toList()
     }
 
     @McpTool(name = "saf_get_element_details", description = "Get full SAF-enriched details about an element by ID. Returns name, type, stereotypes, safKind, safDomain, tagged values, owned elements, and traceability relationships. For plain SysML details, use get_element_details.")
