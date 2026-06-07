@@ -1,5 +1,6 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
 import com.haarer.saf.mcpserver.handlers.McpToolArgument
+import com.haarer.saf.mcpserver.data.SafDataStore
 import com.nomagic.magicdraw.core.Application
 import com.nomagic.magicdraw.openapi.uml.ModelElementsManager
 import com.nomagic.magicdraw.openapi.uml.SessionManager
@@ -7,7 +8,6 @@ import com.nomagic.uml2.impl.ElementsFactory
 import com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper
 import com.nomagic.uml2.ext.magicdraw.classes.mdkernel.*
 import com.nomagic.uml2.ext.magicdraw.mdprofiles.Stereotype
-import com.fasterxml.jackson.databind.ObjectMapper
 
 class SafTools {
 
@@ -61,189 +61,36 @@ class SafTools {
         "Interface": "Interface",
     ]
 
-    // Runtime maps — populated from _data/ JSON, fallback to hardcoded defaults
+    // Runtime maps — populated from SafDataStore at startup
     static Map CONCEPT_MAP = [:]
     static Map STEREO_TO_KIND = [:]
     static Map KIND_TO_DOMAIN = [:]
 
-    // Fallback maps for when dynamic loading fails
-    private static final FALLBACK_CONCEPT_MAP = [
-        "system_requirement":            ["Class",     "SAF_SystemRequirement"],
-        "conceptual_system":             ["Class",     "SAF_ConceptualSystem"],
-        "system_function":               ["Activity",  "SAF_Function"],
-        "conceptual_function":           ["Activity",  "SAF_Function"],
-        "conceptual_function_action":    ["CallBehaviorAction", "SAF_FunctionAction"],
-        "system_process":                ["Activity",  "SAF_SystemProcess"],
-        "conceptual_interface":          ["Class",     "SAF_ConceptualInterfaceDefinition"],
-        "physical_system":               ["Class",     "SAF_PhysicalSystem"],
-        "physical_product":              ["Class",     "SAF_PhysicalSystem"],
-        "operational_performer":         ["Class",     "SAF_OperationalPerformer"],
-        "operational_capability":        ["Class",     "SAF_OperationalCapability"],
-        "system_capability":             ["Class",     "SAF_SystemCapability"],
-        "operational_story":             ["Class",     "SAF_OperationalStory"],
-        "operational_process":           ["Activity",  "SAF_OperationalProcess"],
-        "operational_activity":          ["Activity",  "SAF_OperationalProcess"],
-        "stakeholder":                   ["Class",     "SAF_Stakeholder"],
-        "concern":                       ["Comment",   "SAF_SystemOfInterestConcern"],
-        "mission":                       ["Class",     null],
-        "requirement":                   ["Class",     "SAF_SystemRequirement"],
-        "proxy_port":                    ["ProxyPort", null],
-        "port":                          ["Port",      null],
-        "connector":                     ["Connector", null],
-        "exchange_type":                 ["ValueType", null],
-        "activity_partition":            ["ActivityPartition", null],
-        "comment":                       ["Comment",   null],
-    ]
-
-    private static final FALLBACK_STEREO_TO_KIND = [:]
-    private static final FALLBACK_KIND_TO_DOMAIN = [
-        "stakeholder": "architecture_management",
-        "concern":     "architecture_management",
-        "system_requirement": "architecture_management",
-        "requirement": "architecture_management",
-        "operational_performer": "operational",
-        "operational_capability": "operational",
-        "system_capability": "conceptual",
-        "operational_story": "operational",
-        "system_function": "conceptual",
-        "operational_process": "operational",
-        "operational_activity": "operational",
-        "mission": "operational",
-        "conceptual_system": "conceptual",
-        "conceptual_function": "conceptual",
-        "conceptual_function_action": "conceptual",
-        "system_process": "conceptual",
-        "conceptual_interface": "conceptual",
-        "exchange_type": "conceptual",
-        "physical_system": "physical",
-        "physical_product": "physical",
-        "proxy_port": "conceptual",
-        "port": "conceptual",
-        "connector": "conceptual",
-        "activity_partition": "conceptual",
-        "comment": "architecture_management",
-    ]
-
     static {
-        FALLBACK_CONCEPT_MAP.each { kind, mapping ->
-            def stereoName = mapping[1] as String
-            if (stereoName != null) {
-                FALLBACK_STEREO_TO_KIND[stereoName] = kind
-            }
-        }
-
         try {
-            buildMaps(loadData())
+            def store = SafDataStore.getInstance()
+            def idx = store.getCurrentIndex()
+            if (idx != null) {
+                buildMapsFromIndex(idx)
+            }
         } catch (Exception e) {
-            System.err.println("[SafTools] Dynamic concept load failed: " + e.message)
-            useFallbackMaps()
+            System.err.println("[SafTools] Failed to build maps from SafDataStore: " + e.message)
         }
 
         if (CONCEPT_MAP.isEmpty()) {
-            useFallbackMaps()
+            System.err.println("[SafTools] WARNING: CONCEPT_MAP is empty. saf_create_element and other kind-dependent tools will fail.")
         }
     }
 
-    private static void useFallbackMaps() {
-        CONCEPT_MAP.putAll(FALLBACK_CONCEPT_MAP)
-        STEREO_TO_KIND.putAll(FALLBACK_STEREO_TO_KIND)
-        KIND_TO_DOMAIN.putAll(FALLBACK_KIND_TO_DOMAIN)
-    }
-
-    /** Resolve _data/ directory path. Tries system property, plugin JAR location, then CWD-relative paths. */
-    private static String resolveDataDir() {
-        def sysProp = System.getProperty("cameo.mcp.server.data.dir")
-        if (sysProp != null) {
-            def f = new File(sysProp)
-            if (f.exists()) return f.absolutePath
-        }
-
-        try {
-            def cl = com.haarer.saf.mcpserver.CameoMcpServerPlugin.class
-            def jarPath = cl.protectionDomain.codeSource.location.path
-            def pluginDir = new File(jarPath).parent
-            def dataDir = new File(pluginDir, "_data").absolutePath
-            if (new File(dataDir).exists()) return dataDir
-        } catch (Exception ignored) {}
-
-        for (root in ["plugins/com.haarer.saf.mcpserver/_data", "../_data", "./_data", "_data", "scripts/../_data"]) {
-            def f = new File(root)
-            if (f.exists()) return f.absolutePath
-        }
-
-        return null
-    }
-
-    /** Load JSON data from filesystem or classpath. Returns [concepts, realizeMappings, viewpointsStream] */
-    private static Object[] loadData() {
-        def mapper = new ObjectMapper()
-        def dataDir = resolveDataDir()
-        if (dataDir != null) {
-            def cFile = new File(dataDir, "concepts.json")
-            def rFile = new File(dataDir, "realizeconcept.json")
-            if (cFile.exists() && rFile.exists()) {
-                def vpFile = new File(dataDir, "viewpoints.json")
-                return [mapper.readTree(cFile), mapper.readTree(rFile), vpFile.exists() ? mapper.readTree(vpFile) : null]
-            }
-        }
-
-        def cl = SafTools.class.getClassLoader()
-        def conceptsStream = cl.getResourceAsStream("_data/concepts.json")
-        def realizeStream = cl.getResourceAsStream("_data/realizeconcept.json")
-        if (conceptsStream == null || realizeStream == null) {
-            throw new RuntimeException("_data JSON resources not found in filesystem or classpath")
-        }
-        def vpStream = cl.getResourceAsStream("_data/viewpoints.json")
-        return [mapper.readTree(conceptsStream), mapper.readTree(realizeStream), vpStream != null ? mapper.readTree(vpStream) : null]
-    }
-
-    private static void buildMaps(Object[] data) {
-        def concepts = data[0] as com.fasterxml.jackson.databind.JsonNode
-        def realizeMappings = data[1] as com.fasterxml.jackson.databind.JsonNode
-        def viewpoints = data[2] as com.fasterxml.jackson.databind.JsonNode
-
-        // Build concept_name → stereotype_name from realizeconcept.json
-        def stereoForConcept = [:]
-        for (rm in realizeMappings) {
-            def rc = rm.get("RealizedConcept")
-            def roc = rm.get("RealizationOfConcept")
-            if (rc == null || roc == null) continue
-            def conceptName = rc.get("Name")?.asText()
-            def stereoName = roc.get("Name")?.asText()
-            if (conceptName && stereoName && !conceptName.isEmpty() && !stereoName.isEmpty()) {
-                stereoForConcept[conceptName] = stereoName
-            }
-        }
-
-        // Build viewpoint_id → domain_name map from viewpoints.json
-        def vpDomain = [:]
-        if (viewpoints != null) {
-            for (vp in viewpoints) {
-                def vpId = vp.get("ID")?.asText()
-                def domain = vp.get("Domain")?.asText()
-                if (vpId && domain) {
-                    def norm = domain.toLowerCase().replaceAll(/ /, "_")
-                    switch (norm) {
-                        case "architecture_management": norm = "architecture_management"; break
-                        case "operational": norm = "operational"; break
-                        case "conceptual": norm = "conceptual"; break
-                        case "physical": norm = "physical"; break
-                        default: norm = null
-                    }
-                    if (norm != null) {
-                        vpDomain[vpId] = norm
-                    }
-                }
-            }
-        }
-
-        // Build CONCEPT_MAP from concepts.json
+    private static void buildMapsFromIndex(def idx) {
         def dynConceptMap = [:]
         def dynStereoToKind = [:]
+        def dynKindToDomain = [:]
+        def domainPriority = ["architecture_management": 0, "operational": 1, "conceptual": 2, "physical": 3]
 
-        for (c in concepts) {
-            def name = c.get("Name")?.asText()
-            def classType = c.get("ClassType")?.asText()
+        for (c in idx.allConcepts()) {
+            def name = c.name()
+            def classType = c.classType()
             if (!name || !classType) continue
 
             def sysmlType = CLASSTYPE_TO_SYSML[classType]
@@ -258,50 +105,26 @@ class SafTools {
             if (kindKey.isEmpty()) continue
             if (dynConceptMap.containsKey(kindKey)) continue
 
-            def stereoName = stereoForConcept[name]
+            // Get stereotype name from direct stereotypes
+            def directStereos = idx.getDirectStereotypesForConcept(c.id())
+            def stereoName = directStereos.isEmpty() ? null : directStereos[0].name()
+
             dynConceptMap[kindKey] = [sysmlType, stereoName]
             if (stereoName != null) {
                 dynStereoToKind[stereoName] = kindKey
             }
-        }
 
-        // Build KIND_TO_DOMAIN from InViewpoint on concepts
-        def dynKindToDomain = [:]
-
-        def domainPriority = ["architecture_management": 0, "operational": 1, "conceptual": 2, "physical": 3]
-        def conceptNameToKind = [:]
-
-        for (c in concepts) {
-            def name = c.get("Name")?.asText()
-            if (!name) continue
-            def kindKey = name.toLowerCase()
-                .replaceAll(/[^a-z0-9 ]/, "")
-                .replaceAll(/ /, "_")
-                .replaceAll(/_+/, "_")
-                .replaceAll(/^_|_$/, "")
-            conceptNameToKind[name] = kindKey
-        }
-
-        for (c in concepts) {
-            def name = c.get("Name")?.asText()
-            if (!name) continue
-            def kindKey = conceptNameToKind[name]
-            if (kindKey == null || !dynConceptMap.containsKey(kindKey)) continue
-
-            def inViewpoints = c.get("InViewpoint")
-            if (inViewpoints != null && inViewpoints.size() > 0) {
+            // Build kind_to_domain from viewpoints that expose this concept
+            def vps = idx.getViewpointsForConcept(c.id())
+            if (!vps.isEmpty()) {
                 def bestDomain = null
                 def bestPriority = 999
-                for (vpRef in inViewpoints) {
-                    def vpId = vpRef.get("ID")?.asText()
-                    if (vpId == null) continue
-                    def domain = vpDomain[vpId]
-                    if (domain != null) {
-                        def pri = domainPriority[domain] ?: 999
-                        if (pri < bestPriority) {
-                            bestPriority = pri
-                            bestDomain = domain
-                        }
+                for (vp in vps) {
+                    def domain = vp.domain()
+                    def pri = domainPriority[domain] ?: 999
+                    if (pri < bestPriority) {
+                        bestPriority = pri
+                        bestDomain = domain
                     }
                 }
                 if (bestDomain != null) {

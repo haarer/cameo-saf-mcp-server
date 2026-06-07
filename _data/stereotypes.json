@@ -1,0 +1,941 @@
+[ {
+  "Name" : "SAF_A2_ARAS",
+  "ID" : "_2021x_2_6d8019d_1674232165479_968036_23271",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/Argumentation Assurance Viewpoint'>Argumentation Assurance Viewpoint</A><BR>Purpose:<BR>The Argumentation Assurance Viewpoint presents claims backed up by arguments that are supported by evidence, together with the possibility to counter such claims in a similar manner.<BR>Presentation:<BR>A block definition diagram (BDD) featuring a claim-argument-evidence pattern (CAE).</html>"
+}, {
+  "Name" : "SAF_A2_CSTD",
+  "ID" : "_2021x_2_8710274_1700817327515_843725_50585",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/Common Standards Definition Viewpoint'>Common Standards Definition Viewpoint</A><BR>Purpose:<BR>The Standards Definition Viewpoint supports the definition of applicable standards, and their relationships,  e.g., for format and protocol specifications, regulations, and engineering documents that are used throughout the system life cycle. It provides the meta-data for the applied standards, guidance and policy, e.g., issue, version, issue date, and publisher. The Viewpoint helps to keep track of changes to the set of applicable documents and of new versions of applied standards. Links should be used to refer to documents external to the architecture description.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring the taxonomy of types of standards,  applicable to the system of interest, or parts of the system of interest. The Standards are represented by packages which allows to use them in model libraries and put e.g. reusable interface definitions, or terms complying to the standard into the package</li><li>A table format listing standards, applicable to the system of interest or parts of it, their relationships and the relation to which parts of the system the standards apply</li></UL></html>"
+}, {
+  "Name" : "SAF_A2_CSTD_Table",
+  "ID" : "_2024x_8710274_1717680274694_162060_14786",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/Common Standards Definition Viewpoint'>Common Standards Definition Viewpoint</A><BR>Purpose:<BR>The Standards Definition Viewpoint supports the definition of applicable standards, and their relationships,  e.g., for format and protocol specifications, regulations, and engineering documents that are used throughout the system life cycle. It provides the meta-data for the applied standards, guidance and policy, e.g., issue, version, issue date, and publisher. The Viewpoint helps to keep track of changes to the set of applicable documents and of new versions of applied standards. Links should be used to refer to documents external to the architecture description.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring the taxonomy of types of standards,  applicable to the system of interest, or parts of the system of interest. The Standards are represented by packages which allows to use them in model libraries and put e.g. reusable interface definitions, or terms complying to the standard into the package</li><li>A table format listing standards, applicable to the system of interest or parts of it, their relationships and the relation to which parts of the system the standards apply</li></UL></html>"
+}, {
+  "Name" : "SAF_A2_GRID",
+  "ID" : "_2021x_2_8710274_1697453280481_761317_28570",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1696576589232_543559_24371'>Grid Definition Viewpoint</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697453616439_929610_29143'>Grid</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697453884307_467076_29314'>containing</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697454168635_705915_29452'>containing</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697454194125_161227_29476'>containing</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_A2_GRID_Table",
+  "ID" : "_2024x_26f0132_1719141205004_162437_25125",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/Grid Definition Viewpoint'>Grid Definition Viewpoint</A><BR>Purpose:<BR>The Grid Definition Viewpoint serves as overview about the of the Views present in a System Model.<BR>Presentations:<BR> <UL><li>A content diagram featuring a matrix view for the SAF Viewpoint conceptual model: Rows represent Domains, and columns represent Aspects, and the cells manage the Views.</li><li>A table featuring the saf viewpoints, the views (diagrams, tables, ..) of the system model conforming to those viewpoints, domain and aspect information</li></UL></html>"
+}, {
+  "Name" : "SAF_A2_TRMD_Table",
+  "ID" : "_2021x_2_8710274_1701349840148_646810_89384",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/Common Terms Definition Viewpoint'>Common Terms Definition Viewpoint</A><BR>Purpose:<BR>The Common Terms Definition Viewpoint supports the definition of applicable terms used in standards or defined during the systems engineering activities.<BR>Presentations:<BR> <UL><li>A table format listing terms included in glossaries, or standards if applicable.</li><li>A table format listing abbreviations included in glossaries, orstandards if applicable.</li></UL></html>"
+}, {
+  "Name" : "SAF_A7_PRND_Table",
+  "ID" : "_2024x_8710274_1715874592986_911669_15868",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_A8_EATR",
+  "ID" : "_2024x_2_26f0132_1757586882201_912675_456",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/EA Traceability Viewpoint'>EA Traceability Viewpoint</A><BR>Purpose:<BR>The EA Traceability Viewpoint provides a mapping between SAF System Model elements and model elements of an upper Enterprise Architecture (EA) Model.\nThe mapping is accomplished by three kinds of relations\n- a representation relation which states that an element of the SAF System Model and the related model element in the EA model represents the same entity.\n- a derivation relation, stating that an element of the SAF System Model is derived from an EA model element.\n- an informed relation, stating that an element of the  SAF System Model is related to the respective EA Element. <BR>Presentations:<BR> <UL><li>One or more mapping matrices representing EA model elements and SAF model elements and their represents, derive and inform relations.</li><li>One or more tables containing EA model elements, SAF model elements and the represents, derivation and informs relations.</li><li>One or more BDD containing EA model elements, SAF model elements and the  represents, derivation and informs relations.</li></UL></html>"
+}, {
+  "Name" : "SAF_A8_EATR_Matrix",
+  "ID" : "_2024x_2_26f0132_1757423193639_473235_10",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/EA Traceability Viewpoint'>EA Traceability Viewpoint</A><BR>Purpose:<BR>The EA Traceability Viewpoint provides a mapping between SAF System Model elements and model elements of an upper Enterprise Architecture (EA) Model.\nThe mapping is accomplished by three kinds of relations\n- a representation relation which states that an element of the SAF System Model and the related model element in the EA model represents the same entity.\n- a derivation relation, stating that an element of the SAF System Model is derived from an EA model element.\n- an informed relation, stating that an element of the  SAF System Model is related to the respective EA Element. <BR>Presentations:<BR> <UL><li>One or more mapping matrices representing EA model elements and SAF model elements and their represents, derive and inform relations.</li><li>One or more tables containing EA model elements, SAF model elements and the represents, derivation and informs relations.</li><li>One or more BDD containing EA model elements, SAF model elements and the  represents, derivation and informs relations.</li></UL></html>"
+}, {
+  "Name" : "SAF_A8_EATR_Table",
+  "ID" : "_2024x_2_26f0132_1757423370722_685247_31",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Architecture Management Domain/EA Traceability Viewpoint'>EA Traceability Viewpoint</A><BR>Purpose:<BR>The EA Traceability Viewpoint provides a mapping between SAF System Model elements and model elements of an upper Enterprise Architecture (EA) Model.\nThe mapping is accomplished by three kinds of relations\n- a representation relation which states that an element of the SAF System Model and the related model element in the EA model represents the same entity.\n- a derivation relation, stating that an element of the SAF System Model is derived from an EA model element.\n- an informed relation, stating that an element of the  SAF System Model is related to the respective EA Element. <BR>Presentations:<BR> <UL><li>One or more mapping matrices representing EA model elements and SAF model elements and their represents, derive and inform relations.</li><li>One or more tables containing EA model elements, SAF model elements and the represents, derivation and informs relations.</li><li>One or more BDD containing EA model elements, SAF model elements and the  represents, derivation and informs relations.</li></UL></html>"
+}, {
+  "Name" : "SAF_Adversary",
+  "ID" : "_2024x_4c5019a_1725547950570_166239_37",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724753316265_833673_1841'>Adversary</A></html>"
+}, {
+  "Name" : "SAF_Argument",
+  "ID" : "_2021x_2_6d8019d_1674232165468_699772_23249",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167080_762583_23364'>Argument</A></html>"
+}, {
+  "Name" : "SAF_ArgumentClaimSupport",
+  "ID" : "_2021x_2_6d8019d_1687623430525_974383_25431",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1687622957056_63882_25313'>supporting</A></html>"
+}, {
+  "Name" : "SAF_Asset",
+  "ID" : "_2024x_4c5019a_1724838389862_85507_1364",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724750542260_2346_1453'>Asset</A></html>"
+}, {
+  "Name" : "SAF_Assumption",
+  "ID" : "_2024x_4c5019a_1725547916078_557191_25",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724754064310_650307_1929'>Assumption</A></html>"
+}, {
+  "Name" : "SAF_AttackAction",
+  "ID" : "_2024x_4c5019a_1729866479166_357505_18",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1729865951822_392813_2627'>Attack Action</A></html>"
+}, {
+  "Name" : "SAF_AttackPath",
+  "ID" : "_2024x_4c5019a_1725547928969_322514_31",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1728287543061_486317_539'>ADV use Attack Path to attack SO</A></html>"
+}, {
+  "Name" : "SAF_AttackVector",
+  "ID" : "_2024x_2a0c05a1_1731001044239_219725_34",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_Availability",
+  "ID" : "_2024x_4c5019a_1727777620157_683028_20",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1727773856081_19672_133'>Availability</A></html>"
+}, {
+  "Name" : "SAF_C1_SCXD",
+  "ID" : "_19_0_4_6d8019d_1618591731111_585346_2477",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Context Definition Viewpoint'>System Context Definition Viewpoint</A><BR>Purpose:<BR>The System Context Definition Viewpoint defines on a conceptual level how the SOI is embedded in its environment, i.e., where the boundary of the SOI is and who the external entities are the SOI interacts with (e.g., users, other external systems, environmental conditions, etc.).  In addition, the System Context Definition Viewpoint serves as architecture concept to demonstrate how the architecture description defined in the Operational Context Definition Viewpoint is realized.<BR>Presentations:<BR> <UL><li><html>\n  <head>\n\t\t<style>\n\t\t\tp {padding:0px; margin:0px;}\n\t\t</style>\n\t</head>\n  <body>\n    <p>\nA block definition diagram (BDD) featuring the following elements\n\n    </p>\n\n    <ul>\n      <li>\none Conceptual System block representing SOI in the conceptual domain\n\n      </li>\n      <li>\na Conceptual Context block representing the addressed context in the conceptual domain\n\n      </li>\n      <li>\nContextual System, Conceptual User and Conceptual Environment blocks for each relevant context element\n\n      </li>\n      <li>\ncomposition relationship from context block to each context element used in the context\n\n      </li>\n      <li>\na composition relationship from context block to the SOI\n\n      </li>\n    </ul>\n    <p>\nThe SOI&#160;is identified by the part stereotype\n\n    </p>\n\n</body>\n</html></li><li>A tabular format listing context roles, context elements, and respective descriptions.</li></UL></html>"
+}, {
+  "Name" : "SAF_C1_SCXD_Table",
+  "ID" : "_2024x_26f0132_1718445860250_114816_23014",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Context Definition Viewpoint'>System Context Definition Viewpoint</A><BR>Purpose:<BR>The System Context Definition Viewpoint defines on a conceptual level how the SOI is embedded in its environment, i.e., where the boundary of the SOI is and who the external entities are the SOI interacts with (e.g., users, other external systems, environmental conditions, etc.).  In addition, the System Context Definition Viewpoint serves as architecture concept to demonstrate how the architecture description defined in the Operational Context Definition Viewpoint is realized.<BR>Presentations:<BR> <UL><li><html>\n  <head>\n\t\t<style>\n\t\t\tp {padding:0px; margin:0px;}\n\t\t</style>\n\t</head>\n  <body>\n    <p>\nA block definition diagram (BDD) featuring the following elements\n\n    </p>\n\n    <ul>\n      <li>\none Conceptual System block representing SOI in the conceptual domain\n\n      </li>\n      <li>\na Conceptual Context block representing the addressed context in the conceptual domain\n\n      </li>\n      <li>\nContextual System, Conceptual User and Conceptual Environment blocks for each relevant context element\n\n      </li>\n      <li>\ncomposition relationship from context block to each context element used in the context\n\n      </li>\n      <li>\na composition relationship from context block to the SOI\n\n      </li>\n    </ul>\n    <p>\nThe SOI&#160;is identified by the part stereotype\n\n    </p>\n\n</body>\n</html></li><li>A tabular format listing context roles, context elements, and respective descriptions.</li></UL></html>"
+}, {
+  "Name" : "SAF_C1_SCXE",
+  "ID" : "_19_0_4_6d8019d_1618081524318_206808_1303",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Context Exchange Viewpoint'>System Context Exchange Viewpoint</A><BR>Purpose:<BR>The System Context Exchange Viewpoint serves for the identification and definition of external interfaces of the SOI that are used to interact, e.g., users, external systems, and other external entities defined in the given context of the SOI. The System Context Exchange Viewpoint\n* identifies system interfaces on a functional level,\n* states to which external entities the system interfaces are connected to,\n* and defines the usage of interfaces, e.g., when only a subset of the interface is used.<BR>Presentations:<BR> <UL><li>An internal block diagram (IBD) - associated to a system context - featuring the SOI, the system context elements, and the connectors for each identified interface from SOI to the respective context elements. An interface is an interaction point for interaction of the SOI to with context elements. Item flows are defined for each exchange on the identified interface. Connectors/ports may contain reference to the interface documents if applicable. Ports may be structured as appropriate to manage and structure the information.\nNote: more than one IBD focused on different areas of interest may be used in oder to keep the view comprehensive. Depending on the Stakeholder concerns the item exchange information might be suppressed.</li><li>A tabular format listing the identified interfaces of the soi (ports), referencing interface definitions (port types) ,connections (connector) to system context elements, and information exchange (item flows) conveyed over these connections. It is advised to have multiple tables focusing on certain aspects to keep the view comprehensive, e.g. table focusing on contexts or on certain interface partners.</li></UL></html>"
+}, {
+  "Name" : "SAF_C1_SCXE_Table",
+  "ID" : "_2024x_26f0132_1718445081588_464851_22944",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Context Exchange Viewpoint'>System Context Exchange Viewpoint</A><BR>Purpose:<BR>The System Context Exchange Viewpoint serves for the identification and definition of external interfaces of the SOI that are used to interact, e.g., users, external systems, and other external entities defined in the given context of the SOI. The System Context Exchange Viewpoint\n* identifies system interfaces on a functional level,\n* states to which external entities the system interfaces are connected to,\n* and defines the usage of interfaces, e.g., when only a subset of the interface is used.<BR>Presentations:<BR> <UL><li>An internal block diagram (IBD) - associated to a system context - featuring the SOI, the system context elements, and the connectors for each identified interface from SOI to the respective context elements. An interface is an interaction point for interaction of the SOI to with context elements. Item flows are defined for each exchange on the identified interface. Connectors/ports may contain reference to the interface documents if applicable. Ports may be structured as appropriate to manage and structure the information.\nNote: more than one IBD focused on different areas of interest may be used in oder to keep the view comprehensive. Depending on the Stakeholder concerns the item exchange information might be suppressed.</li><li>A tabular format listing the identified interfaces of the soi (ports), referencing interface definitions (port types) ,connections (connector) to system context elements, and information exchange (item flows) conveyed over these connections. It is advised to have multiple tables focusing on certain aspects to keep the view comprehensive, e.g. table focusing on contexts or on certain interface partners.</li></UL></html>"
+}, {
+  "Name" : "SAF_C1_SUCD",
+  "ID" : "_19_0_4_6d8019d_1617380348210_24096_555",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Use Case Viewpoint'>System Use Case Viewpoint</A><BR>Purpose:<BR>The System Use Case Viewpoint provides an outside view on the system functionality from the perspective of the system users and contributes to the definition of system requirements and system usage. The intended system use may be captured as free-text use case description, as well as storytelling approach on a coarse level of detail. The main system exchange partners participating in the intended system use are identified. System use cases are related to a specific system context. System use cases are derived from operational scenarios elaborated during mission analysis.<BR>Presentations:<BR> <UL><li>A use case diagram featuring model elements representing System Use Cases, System Context, and System Context Elements. The System Context shall be used as subject of the use case. The System Context Elements playing a Role in the Use Case shall be connected to the Use Case by associations.\nNote: System Use Case pre- and postconditions shall be represented either by callout or compartment notation.\nRelationship to operational stories can be related to the use case in order trace to mission analysis.</li><li>A tabular format listing the System Use Cases, the System Use Case pre- and postconditions, the System Context, and the System Context Elements. Additionaly, the relationship to operational stories, if applicable.</li></UL></html>"
+}, {
+  "Name" : "SAF_C1_SUCD_Table",
+  "ID" : "_2024x_26f0132_1718444814950_893924_22854",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Use Case Viewpoint'>System Use Case Viewpoint</A><BR>Purpose:<BR>The System Use Case Viewpoint provides an outside view on the system functionality from the perspective of the system users and contributes to the definition of system requirements and system usage. The intended system use may be captured as free-text use case description, as well as storytelling approach on a coarse level of detail. The main system exchange partners participating in the intended system use are identified. System use cases are related to a specific system context. System use cases are derived from operational scenarios elaborated during mission analysis.<BR>Presentations:<BR> <UL><li>A use case diagram featuring model elements representing System Use Cases, System Context, and System Context Elements. The System Context shall be used as subject of the use case. The System Context Elements playing a Role in the Use Case shall be connected to the Use Case by associations.\nNote: System Use Case pre- and postconditions shall be represented either by callout or compartment notation.\nRelationship to operational stories can be related to the use case in order trace to mission analysis.</li><li>A tabular format listing the System Use Cases, the System Use Case pre- and postconditions, the System Context, and the System Context Elements. Additionaly, the relationship to operational stories, if applicable.</li></UL></html>"
+}, {
+  "Name" : "SAF_C2_SCYD",
+  "ID" : "_19_0_4_6d8019d_1618762989365_936788_2353",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Capability Definition Viewpoint'>System Capability Definition Viewpoint</A><BR>Purpose:<BR>The System Capability Definition Viewpoint defines a taxonomy of Capabilities including composition, specialization, and dependency relationships between System Capabilities.\nNote: Connecting capabilities to requirements creates a linkage between two different types of conceptual problem description that helps manage the complexity of the system. At a high level of abstraction, capabilities allow an system architect to plan phases of the system evolution without the need to bear details in mind. Those details will not be lost if they are captured as requirements and traced to a corresponding capability. There is one key difference between capabilities and requirements: Requirements come from different sources, sponsored by different stakeholders, and are usually captured at different levels of abstraction. In contrast, capabilities should always represent a coherent and consolidated view of the system.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring System Capabilities, their composition, specialization, and dependency relationships.\nNote: The relationship to operational capabilities shall be shown if applicable.</li><li>A tabular format listing System Capabilities, their composition, specialisation, and dependency relationships, as well as relations to operational capabilities.</li></UL></html>"
+}, {
+  "Name" : "SAF_C2_SCYD_Table",
+  "ID" : "_2024x_26f0132_1718444691784_101759_22771",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Capability Definition Viewpoint'>System Capability Definition Viewpoint</A><BR>Purpose:<BR>The System Capability Definition Viewpoint defines a taxonomy of Capabilities including composition, specialization, and dependency relationships between System Capabilities.\nNote: Connecting capabilities to requirements creates a linkage between two different types of conceptual problem description that helps manage the complexity of the system. At a high level of abstraction, capabilities allow an system architect to plan phases of the system evolution without the need to bear details in mind. Those details will not be lost if they are captured as requirements and traced to a corresponding capability. There is one key difference between capabilities and requirements: Requirements come from different sources, sponsored by different stakeholders, and are usually captured at different levels of abstraction. In contrast, capabilities should always represent a coherent and consolidated view of the system.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring System Capabilities, their composition, specialization, and dependency relationships.\nNote: The relationship to operational capabilities shall be shown if applicable.</li><li>A tabular format listing System Capabilities, their composition, specialisation, and dependency relationships, as well as relations to operational capabilities.</li></UL></html>"
+}, {
+  "Name" : "SAF_C2_SETD",
+  "ID" : "_19_0_4_26f0132_1631267986737_158302_36",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Exchange Type Definition Viewpoint'>System Exchange Type Definition Viewpoint</A><BR>Purpose:<BR>The System Exchange Type Definition Viewpoint captures system wide concepts and collects type definitions for any exchanged item, e.g., information, material, or energy, of the Conceptual Domain for Functional and Logical Architecture. Its purpose is to define these item types and their relationships. Furthermore, the System Exchange Type Definition Viewpoint specifies the data types, entity types, related value types, and units that are used by the SOI.\nNote: Conceptual Exchange Types are used as types of function input and output in the Functional Archtecture, and for types of interfaces in the Logical Architecture. They specify what is to be exchanged but not how.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Conceptual Exchange Types and their relationships in terms of generalization, composition, or general association. \nNote: Conceptual Exchange Types are managed in the domain knowledge package of the SOI, the Conceptual Exchange Types are visible and usable to all sub elements of the SOI. Conceptual Exchange Types shall be value types or blocks. </li><li>A tabular format listing theConceptual Exchange Types, and their relationships.</li></UL></html>"
+}, {
+  "Name" : "SAF_C2_SETD_Table",
+  "ID" : "_2024x_26f0132_1718444573319_748914_22693",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Exchange Type Definition Viewpoint'>System Exchange Type Definition Viewpoint</A><BR>Purpose:<BR>The System Exchange Type Definition Viewpoint captures system wide concepts and collects type definitions for any exchanged item, e.g., information, material, or energy, of the Conceptual Domain for Functional and Logical Architecture. Its purpose is to define these item types and their relationships. Furthermore, the System Exchange Type Definition Viewpoint specifies the data types, entity types, related value types, and units that are used by the SOI.\nNote: Conceptual Exchange Types are used as types of function input and output in the Functional Archtecture, and for types of interfaces in the Logical Architecture. They specify what is to be exchanged but not how.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Conceptual Exchange Types and their relationships in terms of generalization, composition, or general association. \nNote: Conceptual Exchange Types are managed in the domain knowledge package of the SOI, the Conceptual Exchange Types are visible and usable to all sub elements of the SOI. Conceptual Exchange Types shall be value types or blocks. </li><li>A tabular format listing theConceptual Exchange Types, and their relationships.</li></UL></html>"
+}, {
+  "Name" : "SAF_C2_SFBS",
+  "ID" : "_19_0_4_26f0132_1629448019169_887442_9417",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Functional Breakdown Structure Viewpoint'>System Functional Breakdown Structure Viewpoint</A><BR>Purpose:<BR>The System Functional Breakdown Structure Viewpoint defines the structured, modular functional breakdown of the SOI beginning with System Processes, over identified System Functions further refined down to System Partial Functions. The reuse of System Functions, and System Partial Functions over Function Trees of the SOI is facilitated. <BR>Presentations:<BR> <UL><li>One or more more block definition diagrams (BDD) featuring activities representing System Processes, System Functions, System Partial Functions, and their aggregation composing the functional breakdown structure.</li><li>Tool specific analysis diagram featuring the relationships between System Processes, System Functions, and System Partial Functions.</li></UL></html>"
+}, {
+  "Name" : "SAF_C2_SSTD",
+  "ID" : "_19_0_4_26f0132_1625209562736_284155_381",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Structure Definition Viewpoint'>System Structure Definition Viewpoint</A><BR>Purpose:<BR>The System Structure Definition Viewpoint describes how the system is decomposed into a hierarchical structure of conceptual elements.\nThese conceptual system parts will be used to assign responsibilty to functions to them (divide & conquer principle). It covers related concepts and principles that define what the system does and is widely reusable among similar systems like product families, or product generations.<BR>Presentation:<BR>A block definition diagram (BDD) featuring the conceptual system block and conceptual system blocks for parts of the system. These elements are connected to the system block by means of aggregation relationships. \nNote: Multiple relationships to a kind of element are allowed. This means, that this kind of element is used in several roles.</html>"
+}, {
+  "Name" : "SAF_C3_SFRE",
+  "ID" : "_2021x_2_6d8019d_1677616004198_497557_24505",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Functional Refinement Viewpoint'>System Functional Refinement Viewpoint</A><BR>Purpose:<BR>The System Functional Refinement Viewpoint analyses decomposition of System Functions into System Partial Functions in order achieve understanding and agreement about the System functions sufficient to derive system  requirements.<BR>Presentation:<BR>Activity Diagram featuring System Partial Functions, functional exchange between partial functions. There are explicitely no Swimlanes and no allocations to structure.</html>"
+}, {
+  "Name" : "SAF_C3_SPRO",
+  "ID" : "_19_0_4_6d8019d_1617380277228_633159_552",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Process Viewpoint'>System Process Viewpoint</A><BR>Purpose:<BR>The System Process Viewpoint provides the functional representation of the system using a black-box approach\n* the representation of the SOI and all Context Elements\n* the System Functions the SOI shall be able to perform\n* the Context Functions the Context Elements are expected to perform\n* the exchange between SOI System Functions and Context Functions of Context Elements\n* the functional flows crossing the boundary between SOI and Context Elements<BR>Presentations:<BR> <UL><li>An activity diagram featuring the ordered execution of System Process Actions. The activity diagram swim lanes are typed with Context Element usage and SOI usage from the same System Context. \nNote: In order to improve the clarity of presentation it may be appropriate to use several activity diagrams for one System Process.</li><li>A tabular format listing all identified System Functions, the System Processes in which they appear, and the Comtext Exchange with the Context Functions.</li></UL></html>"
+}, {
+  "Name" : "SAF_C3_SPRO_Table",
+  "ID" : "_2024x_26f0132_1718444307071_150416_22623",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Process Viewpoint'>System Process Viewpoint</A><BR>Purpose:<BR>The System Process Viewpoint provides the functional representation of the system using a black-box approach\n* the representation of the SOI and all Context Elements\n* the System Functions the SOI shall be able to perform\n* the Context Functions the Context Elements are expected to perform\n* the exchange between SOI System Functions and Context Functions of Context Elements\n* the functional flows crossing the boundary between SOI and Context Elements<BR>Presentations:<BR> <UL><li>An activity diagram featuring the ordered execution of System Process Actions. The activity diagram swim lanes are typed with Context Element usage and SOI usage from the same System Context. \nNote: In order to improve the clarity of presentation it may be appropriate to use several activity diagrams for one System Process.</li><li>A tabular format listing all identified System Functions, the System Processes in which they appear, and the Comtext Exchange with the Context Functions.</li></UL></html>"
+}, {
+  "Name" : "SAF_C3_SSTA",
+  "ID" : "_19_0_4_6d8019d_1627582668863_723808_2445",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System State Viewpoint'>System State Viewpoint</A><BR>Purpose:<BR>The System State Viewpoint defines the conditions of the SOI or parts of thereof that constrain the execution of System Functions. System States are used as pre- or post-condition of System Use Cases, and as constraints within the definition of System Functions to specifying valid transitions. Valid transitions between System States and the conditions for transitioning are specified in system wide concepts captured in System Requirements.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring states, and state transitions. \nNote: References to model elements that are dependent of states, or transitions shall be shown as callout, or compartment notation.</li><li>A tabular format listing states, state transitions, and the conditons to be fullfilled before the transition will occur. References to model elements that are dependent of states (Domain Item Kinds, System Functions, System Use Cases, etc.), or transitions shall be shown in the table.</li></UL></html>"
+}, {
+  "Name" : "SAF_C3_SSTA_Table",
+  "ID" : "_2024x_26f0132_1718444107324_646747_22569",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System State Viewpoint'>System State Viewpoint</A><BR>Purpose:<BR>The System State Viewpoint defines the conditions of the SOI or parts of thereof that constrain the execution of System Functions. System States are used as pre- or post-condition of System Use Cases, and as constraints within the definition of System Functions to specifying valid transitions. Valid transitions between System States and the conditions for transitioning are specified in system wide concepts captured in System Requirements.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring states, and state transitions. \nNote: References to model elements that are dependent of states, or transitions shall be shown as callout, or compartment notation.</li><li>A tabular format listing states, state transitions, and the conditons to be fullfilled before the transition will occur. References to model elements that are dependent of states (Domain Item Kinds, System Functions, System Use Cases, etc.), or transitions shall be shown in the table.</li></UL></html>"
+}, {
+  "Name" : "SAF_C4_SCXI",
+  "ID" : "_19_0_4_26f0132_1626791693357_994866_3136",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Context Interaction Viewpoint'>System Context Interaction Viewpoint</A><BR>Purpose:<BR>The System Context Interaction Viewpoint describes the System external behavior based on the exchange between Logical SOI and Logical Context Elements Usage in a given System Context. It depicts the sequence of interactions between the Logical SOI, the Context Elements and the exchanged Domain Item Kinds needed to accomplish a given System Process. \nNote: The System Context Interaction Viewpoint may refine a System Use Case.<BR>Presentation:<BR>A sequence diagram featuring the flow of control between SOI and Context Elements Roles of a System Context to achieve one outcome of a System Use Case. \nNote: This diagram depicts the sending and receiving of messages between the interacting entities called lifelines, where time is represented along the vertical axis. The lifelines representatives are part properties typed by a System Context Elements.</html>"
+}, {
+  "Name" : "SAF_C4_SIEX",
+  "ID" : "_19_0_4_26f0132_1625209687705_869914_419",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Internal Exchange Viewpoint'>System Internal Exchange Viewpoint</A><BR>Purpose:<BR>The System Internal Exchange Viewpoint serves for the identification and definition of interfaces of elements of the conceptual system. also, the delegation of system element interfaces to the conceptual system boundary interfaces is covered.\nThe System Internal Exchange Viewpoint\n* identifies system element interfaces on a conceptual level\n* states to which other conceptual elements the interfaces are connected to\n* assigns conceptual interface definitions to interfaces\n* defines the usage of interfaces, e.g., if only a subset of the interfaces is used \n* defines the delegation of conceptual system element interfaces to the conceptual system boundary interfaces<BR>Presentation:<BR>One or more IBDs featuring the SOI boundary, the conceptual elements of the SOI, as well as the connectors for each identified SOI interface delegation to conceptual SOI elements. An interface is a connection resource for hooking on the conceptual SOI elements to other conceptual SOI elements. Item flows are defined for each exchange on the identified interface.\nNote: Please use more than one IBD focused on different areas of interest to keep the view comprehensive.</html>"
+}, {
+  "Name" : "SAF_C4_SITI",
+  "ID" : "_19_0_3_26f0132_1582319340394_382321_60610",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Internal Interaction Viewpoint'>System Internal Interaction Viewpoint</A><BR>Purpose:<BR>The SystemInternal Interaction Viewpoint describes System internal behavior based on the exchange between the Conceptual Systems internal Roles It depicts the sequence of interactions between the Conceptual SOI Elements and the exchanged Domain Item Kinds.<BR>Presentation:<BR>A sequence diagram featuring the flow of control between Conceptual Internal Roles within the SOI.\nNote: This diagram depicts the sending and receiving of messages between the interacting entities called lifelines where time is represented along the vertical axis. The lifeline representatives are part properties typed by Conceptual System.</html>"
+}, {
+  "Name" : "SAF_C5_SIFD",
+  "ID" : "_2021x_2_8710274_1679480698224_528018_25860",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Interface Definition Viewpoint'>System Interface Definition Viewpoint</A><BR>Purpose:<BR>The System Interface Definition Viewpoint captures system wide concepts defining interfaces. It allows to adopt long-lived standards and to harmonize conceptual interface definitions to improve interchangeability, interoperability, and portability.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Conceptual Interface blocks with ports, and flow properties.</li><li>A tabular format listing Conceptual Interface blocks, their ports, and flow properties.</li></UL></html>"
+}, {
+  "Name" : "SAF_C6_SRQD_Table",
+  "ID" : "_19_0_1_26f0132_1548407715628_25139_43804",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Requirement Definition Viewpoint'>System Requirement Definition Viewpoint</A><BR>Purpose:<BR>The System Requirement Definition Viewpoint specifies functions, non-functional properties, or constraints of the System. System Requirements are captured, the interrelationships between Functional and Non-Functional Requirements on the same level of abstraction and the traceability to Stakeholder Requirements are depicted.<BR>Presentation:<BR>A tabular format listing\n* unique requirement ID, text, and attributes,\n* traceability reference to Stakeholder Requirements,\n* traceability reference to depended Requirements on the same level of abstraction.</html>"
+}, {
+  "Name" : "SAF_C7_ASID",
+  "ID" : "_2024x_4c5019a_1724846855776_360910_2549",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Asset Identification Viewpoint'>Asset Identification Viewpoint</A><BR>Purpose:<BR>The Asset Identification viewpoint defines the assets that must be taken into account in the risk analysis. This is the first step of the risk management process according to DIN EN ISO/IEC 27005:2024-05.<BR></html>"
+}, {
+  "Name" : "SAF_C7_ASID_Table",
+  "ID" : "_2024x_4c5019a_1724834932932_125760_732",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Asset Identification Viewpoint'>Asset Identification Viewpoint</A><BR>Purpose:<BR>The Asset Identification viewpoint defines the assets that must be taken into account in the risk analysis. This is the first step of the risk management process according to DIN EN ISO/IEC 27005:2024-05.<BR></html>"
+}, {
+  "Name" : "SAF_C7_IMAN",
+  "ID" : "_2024x_4c5019a_1726421910225_40359_327",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Impact Analysis Viewpoint'>Impact Analysis Viewpoint</A><BR>Purpose:<BR>tbd<BR></html>"
+}, {
+  "Name" : "SAF_C7_IMAN_Table",
+  "ID" : "_2024x_4c5019a_1726421828345_746165_321",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Impact Analysis Viewpoint'>Impact Analysis Viewpoint</A><BR>Purpose:<BR>tbd<BR></html>"
+}, {
+  "Name" : "SAF_C7_RIAN",
+  "ID" : "_2024x_4c5019a_1726432568406_567060_417",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Security Risk Analysis Viewpoint'>Security Risk Analysis Viewpoint</A><BR>Purpose:<BR>tbd<BR></html>"
+}, {
+  "Name" : "SAF_C7_RIAN_Table",
+  "ID" : "_2024x_4c5019a_1726432589722_859572_423",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Security Risk Analysis Viewpoint'>Security Risk Analysis Viewpoint</A><BR>Purpose:<BR>tbd<BR></html>"
+}, {
+  "Name" : "SAF_C7_SECT",
+  "ID" : "_2024x_4c5019a_1725548418126_514094_79",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Security Context Viewpoint'>Security Context Viewpoint</A><BR>Purpose:<BR>The Security Context viewpoint defines the Security Context, that describes the environment and all security relevant aspects of a System. This is the first step of the risk management process according to DIN EN ISO/IEC 27005:2024-05.\n\nThe Security Context describes all internal and external elements, boundaries, interconnections and assumptions that referes to the security of a system or an asset.\nDIN ISO 31000:2018-10 defines: \n\"The context of the risk management process should be derived from an understanding of the external and internal environment in which the organisation operates and should reflect the specific environment of the activity to which the risk management process is applied.\" <BR></html>"
+}, {
+  "Name" : "SAF_C7_SECT_Table",
+  "ID" : "_2024x_4c5019a_1725548466184_799473_85",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Security Context Viewpoint'>Security Context Viewpoint</A><BR>Purpose:<BR>The Security Context viewpoint defines the Security Context, that describes the environment and all security relevant aspects of a System. This is the first step of the risk management process according to DIN EN ISO/IEC 27005:2024-05.\n\nThe Security Context describes all internal and external elements, boundaries, interconnections and assumptions that referes to the security of a system or an asset.\nDIN ISO 31000:2018-10 defines: \n\"The context of the risk management process should be derived from an understanding of the external and internal environment in which the organisation operates and should reflect the specific environment of the activity to which the risk management process is applied.\" <BR></html>"
+}, {
+  "Name" : "SAF_C7_THSC",
+  "ID" : "_2024x_4c5019a_1726432501687_212033_405",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Threat Szenario Viewpoint'>Threat Szenario Viewpoint</A><BR>Purpose:<BR>tbd<BR></html>"
+}, {
+  "Name" : "SAF_C7_THSC_Table",
+  "ID" : "_2024x_4c5019a_1726432538483_126898_411",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/Threat Szenario Viewpoint'>Threat Szenario Viewpoint</A><BR>Purpose:<BR>tbd<BR></html>"
+}, {
+  "Name" : "SAF_C8_SCYM_Table",
+  "ID" : "_2021x_2_6d8019d_1691055569911_434596_24894",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Capability Mapping Viewpoint'>System Capability Mapping Viewpoint</A><BR>Purpose:<BR>The System Capability Mapping Viewpoint describes the relationships of System Capabilities. The reasoning for System Capabilities as support for System Use Cases and the contribution of System Processes to Capabilities are described. Furthermore, the mapping of System Capabilities to Operational Capabilities are identified.<BR>Presentation:<BR>A tabular format listing the relationships of System Capabilities to Operational Capabilities, System Use Cases, System Process Activities, and System Requirements.</html>"
+}, {
+  "Name" : "SAF_C8_SFUM_Matrix",
+  "ID" : "_2021x_2_6d8019d_1677360534022_847905_25995",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Function Mapping Viewpoint'>System Function Mapping Viewpoint</A><BR>Purpose:<BR>The System Function Mapping Viewpoint supports the definition of assignment of system functions (and their sub functions) to conceptual system elements.<BR>Presentation:<BR>A FBS to CBS mapping matrix featuring\n* Functional Breakdown Structure (FBS)\n* Conceptual Breakdown Structure (CBS)\n* Allocation from system functions and system partial functions to conceptual system elements</html>"
+}, {
+  "Name" : "SAF_C8_SRQT_Matrix",
+  "ID" : "_19_0_4_6d8019d_1624904106285_850809_1491",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Conceptual Domain/System Requirement Traceability Viewpoint'>System Requirement Traceability Viewpoint</A><BR>Purpose:<BR>The System Requirement Traceability Viewpoint specifies for every System Requirement the traceability to the functional domain level\n* System Use Case\n* System Capability\n* System Context Definition\n* System Context Exchange\n* System Context Interaction\n* System Process\n* System State<BR>Presentation:<BR>A dependency matrix featuring relationships for every System Requirement to the functional domain level\n* System Use Case\n* System Capability\n* System Context Definition\n* System Context Exchange\n* System Context Interaction\n* System Process\n* System State</html>"
+}, {
+  "Name" : "SAF_Claim",
+  "ID" : "_2021x_2_6d8019d_1674232165465_734664_23246",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167080_274533_23363'>Claim</A></html>"
+}, {
+  "Name" : "SAF_ClaimAboutSubjectMaking",
+  "ID" : "_2021x_2_6d8019d_1674232165481_295568_23274",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167083_240422_23373'>being made about</A></html>"
+}, {
+  "Name" : "SAF_ClaimClaimableItemSupport",
+  "ID" : "_2021x_2_6d8019d_1687619081355_443463_25050",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167084_618602_23374'>supporting</A></html>"
+}, {
+  "Name" : "SAF_ClaimSubject",
+  "ID" : "_2021x_2_6d8019d_1674232165471_339910_23255",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167083_587567_23372'>Subject of Claim</A></html>"
+}, {
+  "Name" : "SAF_ClaimableItem",
+  "ID" : "_2021x_2_6d8019d_1674232165482_924684_23277",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167079_323900_23362'>Claimable Item</A></html>"
+}, {
+  "Name" : "SAF_Claimant",
+  "ID" : "_2021x_2_6d8019d_1688225145328_197291_24223",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167082_68281_23367'>Claimant</A></html>"
+}, {
+  "Name" : "SAF_ClaimantClaimMaking",
+  "ID" : "_2021x_2_6d8019d_1674232165478_345466_23268",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167083_795162_23371'>making</A></html>"
+}, {
+  "Name" : "SAF_ConceptualContext",
+  "ID" : "_19_0_2_26f0132_1558076033373_157322_46890",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075086129_173532_44926'>Conceptual System Context</A></html>"
+}, {
+  "Name" : "SAF_ConceptualContextElementActing",
+  "ID" : "_19_0_4_6d8019d_1617440763282_465948_2187",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_6d8019d_1555339282353_464909_46799'>acting in</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2026x_b6f02e1_1780432184098_143774_34'>acting in</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_ConceptualContextRole",
+  "ID" : "_19_0_4_6d8019d_1630175259198_859971_358",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1567171243005_813677_60746'>Conceptual Context Element Role</A></html>"
+}, {
+  "Name" : "SAF_ConceptualContextRole_SoI",
+  "ID" : "_2026x_26f0132_1774016792383_186039_4257",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1567171329121_821656_60902'>Conceptual SOI Role</A></html>"
+}, {
+  "Name" : "SAF_ConceptualEnvironment",
+  "ID" : "_19_0_2_26f0132_1562313107961_803548_148677",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303989622_501728_139950'>Conceptual Environment</A></html>"
+}, {
+  "Name" : "SAF_ConceptualExchangeType",
+  "ID" : "_19_0_3_26f0132_1614938958203_459716_5653",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1561753378434_784618_50481'>Conceptual Exchange Type</A></html>"
+}, {
+  "Name" : "SAF_ConceptualExchangeTypeComposition",
+  "ID" : "_19_0_4_6d8019d_1632170657124_127768_451",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1632170395135_344484_397'>composed of</A></html>"
+}, {
+  "Name" : "SAF_ConceptualExchangeTypeDerivation",
+  "ID" : "_19_0_4_26f0132_1631285127577_990399_5297",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_26f0132_1631284129545_438782_4876'>deriving from</A></html>"
+}, {
+  "Name" : "SAF_ConceptualInterfaceDefinition",
+  "ID" : "_2021x_2_6d8019d_1692273490109_662219_24437",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_900081_91027'>Conceptual Interaction Point Definition</A></html>"
+}, {
+  "Name" : "SAF_ConceptualInternalRole",
+  "ID" : "_2021x_2_6d8019d_1692006392401_529537_24496",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_ConceptualSystem",
+  "ID" : "_19_0_1_26f0132_1547201742246_537565_42154",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_845719_91080'>Conceptual System</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075062569_130489_44874'>Conceptual External System</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_ConceptualUser",
+  "ID" : "_19_0_2_26f0132_1558076117783_295122_47010",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558534130432_293473_45375'>Conceptual User</A></html>"
+}, {
+  "Name" : "SAF_Confidentiality",
+  "ID" : "_2024x_4c5019a_1727777600435_428401_14",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1727770091854_264005_90'>Confidentiality</A></html>"
+}, {
+  "Name" : "SAF_ConformsStandard",
+  "ID" : "_2024x_1_26f0132_1729185092432_155560_16027",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_1_26f0132_1729184481488_984688_15862'>conform to</A></html>"
+}, {
+  "Name" : "SAF_Consequence",
+  "ID" : "_2024x_4c5019a_1726421761881_744492_308",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1726422601254_223976_195'>Consequence</A></html>"
+}, {
+  "Name" : "SAF_ContextAction",
+  "ID" : "_2021x_2_8710274_1676920197680_884628_29235",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_ContextElementRepresentation",
+  "ID" : "_19_0_3_6d8019d_1599386889842_487820_471",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1576255436585_904360_55710'>represented by</A></html>"
+}, {
+  "Name" : "SAF_ContextFunction_deprecated",
+  "ID" : "_19_0_4_6d8019d_1624825970650_773062_2087",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_26f0132_1624611972707_746294_1003'>Context Function</A></html>"
+}, {
+  "Name" : "SAF_CounterClaim",
+  "ID" : "_2021x_2_6d8019d_1674232165473_600709_23259",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167081_446328_23366'>CounterClaim</A></html>"
+}, {
+  "Name" : "SAF_CounterClaimClaimableItemMaking",
+  "ID" : "_2021x_2_6d8019d_1674232165483_312955_23278",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167084_655777_23375'>countering</A></html>"
+}, {
+  "Name" : "SAF_D2_CCND",
+  "ID" : "_2024x_26f0132_1719737905318_641589_28831",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_D2_COTD",
+  "ID" : "_2021x_2_8710274_1702027432699_857546_20465",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Concept Definition Viewpoint'>Framework Concept Definition Viewpoint</A><BR>Purpose:<BR>The Framework Concept Viewpoint allows to define SE concepts and their relationships to be supported by the SAF. It shall specifiy\n* the concepts with comprehensive documentation\n* the relationships of concepts with comprehensive documentation and allowable multiplicities\n* constraints among relations and concepts if applicable.\n\nThe viewpoint is intended to be used for development or extension of the SAF.<BR>Presentations:<BR> <UL><li>A Block Definition Diagram (BDD)  featuring elements of SCM_Concept representing SE concepts to be supported by SAF. SCM_Concept can be classes of items and relations between items. It is also possible to create relations to relations (SCM_Concepts can be Classes, Associations and Association Classes).\nFor relational concepts, it is reqired to display the direction, and to define the multiplicities. See SAF Development Guide for details on concept modeling conventions</li><li>A table featuring SCM_Concepts and their descriptions. In case of relational concepts the related concepts are shown also.</li></UL></html>"
+}, {
+  "Name" : "SAF_D2_COTD_Table",
+  "ID" : "_2024x_26f0132_1719737475680_936292_28621",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Concept Definition Viewpoint'>Framework Concept Definition Viewpoint</A><BR>Purpose:<BR>The Framework Concept Viewpoint allows to define SE concepts and their relationships to be supported by the SAF. It shall specifiy\n* the concepts with comprehensive documentation\n* the relationships of concepts with comprehensive documentation and allowable multiplicities\n* constraints among relations and concepts if applicable.\n\nThe viewpoint is intended to be used for development or extension of the SAF.<BR>Presentations:<BR> <UL><li>A Block Definition Diagram (BDD)  featuring elements of SCM_Concept representing SE concepts to be supported by SAF. SCM_Concept can be classes of items and relations between items. It is also possible to create relations to relations (SCM_Concepts can be Classes, Associations and Association Classes).\nFor relational concepts, it is reqired to display the direction, and to define the multiplicities. See SAF Development Guide for details on concept modeling conventions</li><li>A table featuring SCM_Concepts and their descriptions. In case of relational concepts the related concepts are shown also.</li></UL></html>"
+}, {
+  "Name" : "SAF_D2_STKD_Table",
+  "ID" : "_2024x_26f0132_1719738093050_603021_28974",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Stakeholder and Concern Definition Viewpoint'>Framework Stakeholder and Concern Definition Viewpoint</A><BR>Purpose:<BR>The Framework Stakeholder Viewpoint provides definitions for Architecture Framework Stakeholders having an interest in SAF Viewpoints. The Interest is formulated using Concerns. A Rationale formulates why a Stakeholder has a certain concern.\n\nThe viewpoint is intended to be used for development or extension of the SAF.<BR>Presentations:<BR> <UL><li>A Block Definition Diagram (BDD) featuring *SCM_VPStakeholder* elements, and inheritance relationships if applicable.</li><li>A matrix featuring SCM_VPStakeholder elements and SCM_VPConcern elements as rows and columns, and a marking in cells where a SCM_ConcernRationale connects a stakeholder with a concern.</li><li>A table featuring the SCM_ConcernRationales that connect SCM_VPStakeholders and SCM_VPConcerns, and the rationales documentation.</li><li>A table featuring *SCM_VPStakeholder* elements, their documentation,  the *SCM_VPConcern* elements representing the concerns of the stakeholders regarding to SAF Viewpoints, and The SCM_Rationale Elements.</li></UL></html>"
+}, {
+  "Name" : "SAF_D2_STYD_Table",
+  "ID" : "_2024x_26f0132_1719738142966_985767_29029",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Stereotype Overview Viewpoint'>Framework Stereotype Overview Viewpoint</A><BR>Purpose:<BR>The Framework Stereotype Viewpoint provides an overview over all stereotypes provided by SAF.<BR>Presentation:<BR>A table featuring the stereotypes of the SAF profile and their documentation.</html>"
+}, {
+  "Name" : "SAF_D2_VPTD",
+  "ID" : "_2024x_26f0132_1719737475678_685392_28619",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Viewpoint Definition Viewpoint'>Framework Viewpoint Definition Viewpoint</A><BR>Purpose:<BR>The Framework Viewpoint Definition Viewpoint serves as a specification for any SAF viewpoints in the context of the development of SAF.\nThe Viewpoint shall specify\n* an example of a conforming view\n * purpose\n * applicability \n * exposed concepts,\n * presentation forms for the conforming views\n * related viewpoints\n * stereotypes used in the conforming views \nThe viewpoint is intended to be used for development or extension of the SAF.<BR>Presentation:<BR>A View and Viewpoints Diagram featuring one *SCM Viewpoint* Element, one *SCM_View* element, a *conform* relationship among them. Additionally all *SCM_Concept* elements that are of interest in the viewpoint. Additionally *expose* relationships for all concepts that help satisfy the viewpoints concerns.\nNote, that the consequence of exposing a concept is, that the implementation of the concept must appear in the diagram/table/matrix that implements the viewpoint.</html>"
+}, {
+  "Name" : "SAF_D2_VPTI",
+  "ID" : "_2024x_26f0132_1719737520846_727143_28649",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Viewpoint Implementation Viewpoint'>Framework Viewpoint Implementation Viewpoint</A><BR>Purpose:<BR>The Framework Viewpoint Implementation Viewpoint defines the implementation of SE concepts exposed by SAF Viewpoints. It serves as the basis for profile implementations of SAF. It shall specify\n* for each exposed concept an implementation\n* an implementation for each presentation of the viewpoint\n* full traceability from implementation \n\nThe viewpoint is intended to be used for development or extension of the SAF.<BR>Presentation:<BR>A Profile Diagram featuring SCM_Concept elements for the exposed concepts of a viewpoint, stereotypes from the SAF Profile implementing the concepts, and SCM_RealizeConcept relationships tracing the implementation to the implemented concept. If concepts are implemented directly by UML Metaclasses or by SysML profile elements, they shall be shown on the diagram and related to the concepts. There are additional relationships SCM_Attribute, SCM_TypedBy and SCM_ContainedIn, that can be used to specify details of the implementation, e.g. if a concept is to be implemented by the fact that one element is part of an other element. Please see the SAF Development Guide how to do this.</html>"
+}, {
+  "Name" : "SAF_D2_VPTO",
+  "ID" : "_2024x_26f0132_1719737521935_491979_28659",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/SAF Development Domain/Framework Viewpoint Overview Viewpoint'>Framework Viewpoint Overview Viewpoint</A><BR>Purpose:<BR>The Framework Viewpoint Overview Viewpoint provides an overview about the Viewpoints in SAF from a SAF Developers perspective. It shall specify\n* the viewpoints available\n* their location in the grid by domain and aspect\n* their maturity of development \n\nThe viewpoint is intended to be used for development or extension of the SAF.<BR>Presentations:<BR> <UL><li>A content diagram  featuring a graphical grid representation containing graphical representations of the aspects, domains, and viewpoints available in the framework.</li><li>A table featuring the frameworks viewpoints, the domains, aspects, viewpoint implementation diagrams and maturity.</li></UL></html>"
+}, {
+  "Name" : "SAF_D2_VPTO_Table",
+  "ID" : "_2024x_26f0132_1719738460476_855266_29208",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_26f0132_1719735639638_993311_27196'>Framework Viewpoint Overview Viewpoint</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697454168635_705915_29452'>containing</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697454194125_161227_29476'>containing</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_DerivedFromEA",
+  "ID" : "_2024x_2_26f0132_1757002702622_804051_15213",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_2_26f0132_1757421734076_475755_1298'>derives from</A></html>"
+}, {
+  "Name" : "SAF_Diagram",
+  "ID" : "_2024x_26f0132_1718451954698_578645_28046",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_DocumentReference",
+  "ID" : "_19_0_2_26f0132_1562309311661_472964_142997",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_Effect",
+  "ID" : "_2024x_4c5019a_1726421646707_39826_295",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1729856541482_59473_223'>CON has Effect On AA</A></html>"
+}, {
+  "Name" : "SAF_Evidence",
+  "ID" : "_2021x_2_6d8019d_1674232165469_125342_23251",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167081_609406_23365'>Evidence</A></html>"
+}, {
+  "Name" : "SAF_EvidenceArgumentReinforcement",
+  "ID" : "_2021x_2_6d8019d_1674232165474_404920_23262",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167082_51450_23369'>reinforcing</A></html>"
+}, {
+  "Name" : "SAF_Example",
+  "ID" : "_19_0_2_26f0132_1567115071113_47392_54955",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_Function",
+  "ID" : "_19_0_1_26f0132_1548408079060_514464_44018",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524161_394471_91009'>System Function</A></html>"
+}, {
+  "Name" : "SAF_FunctionAction",
+  "ID" : "_19_0_4_6d8019d_1629825338987_420088_594",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524161_907005_91002'>General Functional Usage</A></html>"
+}, {
+  "Name" : "SAF_FunctionAsset",
+  "ID" : "_2024x_1_26f0132_1725610111066_673801_221",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1727855369397_570583_19'>SF is Asset in Security Context</A></html>"
+}, {
+  "Name" : "SAF_FunctionContribution",
+  "ID" : "_2026x_26f0132_1774017505995_714140_4361",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_Glossary",
+  "ID" : "_2024x_1_26f0132_1729193328493_921636_25629",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_1_26f0132_1729193426484_948459_25660'>Glossary</A></html>"
+}, {
+  "Name" : "SAF_ImpactedActeurs",
+  "ID" : "_2024x_4c5019a_1729857039097_486963_144",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1729856201681_931608_163'>Affected Acteurs</A></html>"
+}, {
+  "Name" : "SAF_InformedByEA",
+  "ID" : "_2024x_2_26f0132_1757002770095_975274_15303",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_2_26f0132_1757421856918_814040_1326'>informed by</A></html>"
+}, {
+  "Name" : "SAF_Integrity",
+  "ID" : "_2024x_4c5019a_1727777638965_664243_26",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1727773842236_29260_132'>Integrity</A></html>"
+}, {
+  "Name" : "SAF_InterfaceLayerRelationship",
+  "ID" : "_2021x_2_8710274_1695985266083_110612_25287",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1695984535441_481088_24822'>over</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697109899298_943155_150586'>over</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_IssuedBy",
+  "ID" : "_2024x_1_26f0132_1729185567557_816733_16281",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700810378676_882309_48192'>issued by</A></html>"
+}, {
+  "Name" : "SAF_LikelihoodParameter",
+  "ID" : "_2024x_4c5019a_1726432199859_742406_370",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1726428976637_131748_562'>Likelyhood Parameter</A></html>"
+}, {
+  "Name" : "SAF_LogicalExternalSystem_deprecated",
+  "ID" : "_19_0_1_26f0132_1547202431219_827789_42473",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_LogicalResource",
+  "ID" : "_2024x_4c5019a_1724838612884_200901_1484",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724751581579_977661_1588'>Intangible Resource</A></html>"
+}, {
+  "Name" : "SAF_LogicalSOI_deprecated",
+  "ID" : "_19_0_1_8710274_1547464060642_374530_42162",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075212525_51415_45174'>Logical Context SOI_ Deprecated</A></html>"
+}, {
+  "Name" : "SAF_O1_OCXD",
+  "ID" : "_19_0_1_26f0132_1548401929328_77241_42963",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Context Definition Viewpoint'>Operational Context Definition Viewpoint</A><BR>Purpose:<BR>The Operational Context Definition Viewpoint provides the operational contexts and the involved operational performers necessary to support a specific set of operational capabilities.<BR>Presentation:<BR>A block definition diagram (BDD) featuring the identified Operational Performers playing a role in the Operational Context being addressed.</html>"
+}, {
+  "Name" : "SAF_O1_OCXE",
+  "ID" : "_19_0_3_26f0132_1601646100437_337953_13001",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Context Exchange Viewpoint'>Operational Context Exchange Viewpoint</A><BR>Purpose:<BR>The Operational Context Exchange Viewpoint provides the operational exchange of systems, personnel, information, material, energy, etc. between operational performers.<BR>Presentations:<BR> <UL><li>An internal block diagram (IBD) - associated to the operational context - featuring the interconnected operational performers in their respective operational role, and the operational item exchange per operational connection.</li><li>A tabular format listing [tbd].</li></UL></html>"
+}, {
+  "Name" : "SAF_O1_OSTY",
+  "ID" : "_19_0_3_26f0132_1601645195786_604902_11134",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Story Viewpoint'>Operational Story Viewpoint</A><BR>Purpose:<BR>The Operational Story Viewpoint\n* captures operational stories within operational contexts and their relation to operational performers, thus enables storytelling\n* illustrates the operational background from the Stakeholder perspective\n* serves as starting point to identify Stakeholders and/or context elements\n* fosters the communication among different Stakeholders<BR>Presentation:<BR>A use case diagram featuring model elements representing operational stories, the context in they're taking place and operational performers involved. \nNote: Illustrations, drawings, sketches, etc., and/or descriptions in free text may provide a comprehensive understanding of the operational mission.</html>"
+}, {
+  "Name" : "SAF_O2_OCYD",
+  "ID" : "_19_0_3_26f0132_1601643834849_398612_8169",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Capability Definition Viewpoint'>Operational Capability Definition Viewpoint</A><BR>Purpose:<BR>The Operational Capability Definition Viewpoint defines a taxonomy of Capabilities from a Stakeholder’s perspective including composition, specialization, and dependency relationships between Operational Capabilities.<BR>Presentation:<BR>A block definition diagram (BDD) featuring Operational Capabilities, their composition, specialization, and dependency relationships.</html>"
+}, {
+  "Name" : "SAF_O2_OETD",
+  "ID" : "_19_0_4_26f0132_1630062793069_290685_155",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Exchange Type Definition Viewpoint'>Operational Exchange Type Definition Viewpoint</A><BR>Purpose:<BR>The Operational Exchange Type Definition Viewpoint captures enterprise wide concepts and collects type definitions for any exchanged item of the Operational Domain. Its purpose is to define these item types and their relationships.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Operational Exchange Types and their relationships.</li><li>A Table featuring Operational Exchange Types, their relationships and their Documentation</li></UL></html>"
+}, {
+  "Name" : "SAF_O2_OETD_Table",
+  "ID" : "_2024x_26f0132_1717876271033_50962_14573",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Exchange Type Definition Viewpoint'>Operational Exchange Type Definition Viewpoint</A><BR>Purpose:<BR>The Operational Exchange Type Definition Viewpoint captures enterprise wide concepts and collects type definitions for any exchanged item of the Operational Domain. Its purpose is to define these item types and their relationships.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Operational Exchange Types and their relationships.</li><li>A Table featuring Operational Exchange Types, their relationships and their Documentation</li></UL></html>"
+}, {
+  "Name" : "SAF_O2_OPRF",
+  "ID" : "_19_0_3_26f0132_1601455842479_177976_826",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Performer Definition Viewpoint'>Operational Performer Definition Viewpoint</A><BR>Purpose:<BR>The Operational Performer Definition Viewpoint represents the taxonomy of the identified Operational Performers, if existing and relevant for the understanding of the operation of the intended solution. <BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Operational Performers. and their relations in terms of decomposition or generalization at a level of detail required for problem understanding and analysis. \nNote: Identified Stakeholders are related to Operational Performers if appropriate.</li><li>A table containing operational performers, their inter relations  and relations to stakeholders</li></UL></html>"
+}, {
+  "Name" : "SAF_O2_OPRF_Table",
+  "ID" : "_2024x_26f0132_1718465296666_634864_34126",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Performer Definition Viewpoint'>Operational Performer Definition Viewpoint</A><BR>Purpose:<BR>The Operational Performer Definition Viewpoint represents the taxonomy of the identified Operational Performers, if existing and relevant for the understanding of the operation of the intended solution. <BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Operational Performers. and their relations in terms of decomposition or generalization at a level of detail required for problem understanding and analysis. \nNote: Identified Stakeholders are related to Operational Performers if appropriate.</li><li>A table containing operational performers, their inter relations  and relations to stakeholders</li></UL></html>"
+}, {
+  "Name" : "SAF_O2_STID",
+  "ID" : "_19_0_4_6d8019d_1671380025053_143662_13",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Stakeholder Identification Viewpoint'>Stakeholder Identification Viewpoint</A><BR>Purpose:<BR>The Stakeholder Identification Viewpoint of the operational domain strives to identify Stakeholders, who's concerns shall be considered, and adequatley adressed by the intended solution.<BR>Presentation:<BR>A block definition diagram (BDD) depicting the identified, analysed, and classified Stakeholders, their interrelaions and their relations to the Intended Solution. Relations to represented Operational Performers shall also be shown.</html>"
+}, {
+  "Name" : "SAF_O3_OPRO",
+  "ID" : "_19_0_3_26f0132_1600503062173_139730_1994",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Process Viewpoint'>Operational Process Viewpoint</A><BR>Purpose:<BR>The Operational Process Viewpoint describes the Operational Processes related to a specific Operational Story, the sequence of execution, and their Operational Exchanges, including information, materials, natural resources, etc. The assignment of Operational Processes to Operational Performers is captured.<BR>Presentation:<BR>An activity diagram featuring the ordered execution of Operational Process Actions. Operational Processes may be linked in terms of control flow and/or data flow visualizing the Operational Exchanges needed. \nNote: Operational Process Actions are assigned to Operational Roles and therefore in a more general manner to Operational Performers.</html>"
+}, {
+  "Name" : "SAF_O3_OSTA",
+  "ID" : "_2024x_2_26f0132_1751012321984_702856_2975",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational State Viewpoint'>Operational State Viewpoint</A><BR>Purpose:<BR>The viewpoint defines modes of operation for the prosed system (such as normal, on-road, degraded, war-time, maintenance, training etc.) which apply not only to the SOI but also to involved personnel.\nAn operational mode defines a potential life-cycle selection for the SOI which has a relevant impact for the SOI’s stakeholder/users w.r.t. to the operations. [tbd]<BR>Presentation:<BR>A block definition diagram (BDD) featuring states, and state transitions. Note: References to model elements that are dependent of states, or transitions shall be shown as callout, or compartment notation.</html>"
+}, {
+  "Name" : "SAF_O4_OCXI",
+  "ID" : "_19_0_2_26f0132_1567697216482_129982_55869",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Context Interaction Viewpoint'>Operational Context Interaction Viewpoint</A><BR>Purpose:<BR>The Operational Context Interaction Viewpoint describes single threads of interaction between Operational Performers in an Operational Context on an operational domain level. \nNote: The Operational Interaction Viewpoint may refine an Operational Story.<BR>Presentation:<BR>A sequence diagram featuring the flow of control between Operational Performers of an Operational Context to achieve one outcome of an Operational Story. \nNote: This diagram depicts the sending and receiving of messages between the interacting entities called lifelines where time is represented along the vertical axis. The lifelines representatives are part properties typed by Operational Performers.</html>"
+}, {
+  "Name" : "SAF_O6_SKRD_Table",
+  "ID" : "_19_0_1_26f0132_1548401956524_759247_43000",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Stakeholder Requirement Definition Viewpoint'>Stakeholder Requirement Definition Viewpoint</A><BR>Purpose:<BR>The Stakeholder Requirement Definition Viewpoint specifies all capabilities, functions and properties, that the intended solution shall possess or expose from the perspective of the Stakeholders. The Stakeholder Requirement Definition Viewpoint also captures constraints for the system to be developed from stakeholders perspective.<BR>Presentation:<BR>A tabular format lisiting\n* unique requirement ID, text, and attributes,\n* traceability reference to justifying model artefacts, e.g. operational stories, operational capabilities, identified concerns of stakeholders, and compliance statements\nNote: Stakeholder Requirements are to be structured in a way that the Stakeholder behind the Requirement is identifiable. When appropriate, the relationships between identified Stakeholder Requirements are and the justifying model artefacts, Operational Story, Operational Capability, Operational Performer, Operational Process, and Operational Exchange are presented.\n* \"One Requirement Package for each Stakeholder\" is a best-practice modeling rule. A package contains the Requirements specific for one Stakeholder.\n* Even if different Stakeholders may have intersecting interests and / or concerns resulting in a similar set of Requirements, each Stakeholder shall have its own set managed in a dedicated Requirement Package. Requirements must not be shared due to their different life cycles. Resolving duplications and conflicts is subject of the requirement analysis resulting in an agreed and consolidated set of System Requirements.</html>"
+}, {
+  "Name" : "SAF_O8_OCYM_Table",
+  "ID" : "_19_0_3_6d8019d_1608907358473_975875_316",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Capability Mapping Viewpoint'>Operational Capability Mapping Viewpoint</A><BR>Purpose:<BR>The Operational Capability Mapping Viewpoint describes the relationships of Operational Capabilities. The reasoning for Operational Capabilities as support for Operational Stories and the contribution of Operational Processes to Capabilities are described. Operational Capabilities encoded in Stakeholder Requirements are identified.<BR>Presentation:<BR>A tabular format listing the relationships of Operational Capabilities to Stakeholder Requirements, Operational Stories, and Operational Process Activities.</html>"
+}, {
+  "Name" : "SAF_O8_OPRM_Table",
+  "ID" : "_19_0_3_26f0132_1601459116625_669721_6527",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Operational Domain/Operational Process Mapping Viewpoint'>Operational Process Mapping Viewpoint</A><BR>Purpose:<BR>The Operational Process Mapping Viewpoint describes the relationships of Operational Processes. The reasoning for Operational Processes from Operational Stories and their contribution to Capabilities is described. The assignment of Operational Processes to Operational Performers is captured.<BR>Presentation:<BR>A tabular format listing the relationships of Operational Process Activities to Operational Capabilities, Operational Stories, and Operational Performers.</html>"
+}, {
+  "Name" : "SAF_OperationalCapability",
+  "ID" : "_19_0_3_8710274_1581676828664_176399_54365",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581665911562_310714_48925'>Operational Capability</A></html>"
+}, {
+  "Name" : "SAF_OperationalCapabilityComposition",
+  "ID" : "_19_0_3_6d8019d_1600160576148_12235_366",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581666201982_100862_49030'>composed</A></html>"
+}, {
+  "Name" : "SAF_OperationalCapabilityDependency",
+  "ID" : "_19_0_3_6d8019d_1600678873153_400736_372",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581666429993_560174_49054'>depending</A></html>"
+}, {
+  "Name" : "SAF_OperationalCapabilityGeneralization",
+  "ID" : "_19_0_3_6d8019d_1600163146864_328836_471",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581666154134_936493_49002'>specialized</A></html>"
+}, {
+  "Name" : "SAF_OperationalCapabilitySupport",
+  "ID" : "_19_0_3_6d8019d_1614802389942_56809_428",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_26f0132_1593161538343_235854_323'>supporting</A></html>"
+}, {
+  "Name" : "SAF_OperationalContext",
+  "ID" : "_19_0_3_26f0132_1581502754179_833407_156439",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1561763753175_522268_51960'>Operational Context</A></html>"
+}, {
+  "Name" : "SAF_OperationalContextRole",
+  "ID" : "_19_0_4_6d8019d_1629637155053_836431_340",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1567694227019_837886_54521'>Operational Context Role</A></html>"
+}, {
+  "Name" : "SAF_OperationalExchangeType",
+  "ID" : "_19_0_4_6d8019d_1618158382195_41606_448",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_26f0132_1600783068816_502199_735'>Operational Exchange Type</A></html>"
+}, {
+  "Name" : "SAF_OperationalExchangeTypeComposition",
+  "ID" : "_19_0_4_6d8019d_1632227659718_825878_1667",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1632227066479_408164_1197'>composed of</A></html>"
+}, {
+  "Name" : "SAF_OperationalPerformer",
+  "ID" : "_19_0_3_26f0132_1581501489077_870542_155174",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562316412621_925297_43615'>Operational Performer</A></html>"
+}, {
+  "Name" : "SAF_OperationalPerformerActing",
+  "ID" : "_19_0_3_6d8019d_1600283017764_387587_659",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_26f0132_1582984690099_348707_50208'>acting in</A></html>"
+}, {
+  "Name" : "SAF_OperationalPerformerComposition",
+  "ID" : "_19_0_3_6d8019d_1599414738887_63027_366",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_6d8019d_1598981150221_83799_30'>composed</A></html>"
+}, {
+  "Name" : "SAF_OperationalPerformerExhibit",
+  "ID" : "_19_0_3_6d8019d_1611595448048_514745_861",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_6d8019d_1611592925440_283346_480'>exhibiting</A></html>"
+}, {
+  "Name" : "SAF_OperationalProcess",
+  "ID" : "_19_0_3_8710274_1581679987896_193803_55986",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564572299224_487951_54901'>Operational Process</A></html>"
+}, {
+  "Name" : "SAF_OperationalProcessAction",
+  "ID" : "_19_0_4_6d8019d_1629824443819_231386_336",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581674683825_886069_50270'>Operational Process Usage</A></html>"
+}, {
+  "Name" : "SAF_OperationalProcessEnabling",
+  "ID" : "_19_0_3_8710274_1581681312847_255155_56868",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_8710274_1581673944718_281561_49734'>enabling</A></html>"
+}, {
+  "Name" : "SAF_OperationalProcessRefinement",
+  "ID" : "_19_0_3_8710274_1581684654332_634229_49093",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564572616564_538444_54929'>refining</A></html>"
+}, {
+  "Name" : "SAF_OperationalSketch",
+  "ID" : "_19_0_1_26f0132_1550433084140_670092_43421",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1561750848810_524986_48546'>Operational Sketch</A></html>"
+}, {
+  "Name" : "SAF_OperationalState",
+  "ID" : "_2024x_2_26f0132_1751012115640_421211_2857",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_2_26f0132_1751005742166_577072_1491'>Operational State</A></html>"
+}, {
+  "Name" : "SAF_OperationalStory",
+  "ID" : "_19_0_1_8710274_1552023067867_433281_43825",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1561750989144_963009_48675'>Operational Story</A></html>"
+}, {
+  "Name" : "SAF_P1_PCXD",
+  "ID" : "_2021x_2_6d8019d_1674914191877_627483_25391",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Context Definition Viewpoint'>Physical Context Definition Viewpoint</A><BR>Purpose:<BR>The Physical Context Definition Viewpoint identifies the various contexts the SOI is used in, along with the associated external entities sharing a physical interface with the system. For each context, the applicable environmental conditions shall be defined. The physical context helps identify the interface requirements needed to integrate a system into its environment in a given context.<BR>Presentation:<BR>A block definition diagram (BDD) depicting the elements available in a specific context. At least one BDD is used per identified context featuring\n* one block representing the Physical System, i.e., the system of interest\n* one block representing the specific Physical System Context\n* several blocks representing Physical Context Elements such as Physical User, Physical External System, and Physical Environment that are present in the Physical System Context\n* composition relationships attaching the Physical Context Elements and the Physical System to the Physical System Context block</html>"
+}, {
+  "Name" : "SAF_P1_PCXE",
+  "ID" : "_2021x_2_8710274_1695735069570_422039_26031",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Context Exchange Viewpoint'>Physical Context Exchange Viewpoint</A><BR>Purpose:<BR>The Physical Context Exchange Viewpoint focuses on the identification of the physical interfaces with external entities and relevant documentation. It is used to capture interface design requirements, applicable standards, protocols and format specifications, that are agreed upon the interfaces.<BR>Presentations:<BR> <UL><li>A) For each given context, an internal block diagram (IBD is used to identify the physical interfaces, the item flows, that are exchanged on that interfaces, and related documentation.\nNote: To understand the interfaces, a mapping of protocol layers may be depicted.</li><li>B) A tabular format providing a list of all the defined external interfaces and the applicable documentation\n* context element kind (environment, external entity, physical user, etc.)\n* context element role name\n* port name and reference to port type\n* reference to context element type</li><li>C) A tabular format listing the applicable standards, protocols and formats for the item flows exchanged via the identified interfaces.</li></UL></html>"
+}, {
+  "Name" : "SAF_P1_PCXE_Table",
+  "ID" : "_2024x_8710274_1717757741721_127767_15486",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Context Exchange Viewpoint'>Physical Context Exchange Viewpoint</A><BR>Purpose:<BR>The Physical Context Exchange Viewpoint focuses on the identification of the physical interfaces with external entities and relevant documentation. It is used to capture interface design requirements, applicable standards, protocols and format specifications, that are agreed upon the interfaces.<BR>Presentations:<BR> <UL><li>A) For each given context, an internal block diagram (IBD is used to identify the physical interfaces, the item flows, that are exchanged on that interfaces, and related documentation.\nNote: To understand the interfaces, a mapping of protocol layers may be depicted.</li><li>B) A tabular format providing a list of all the defined external interfaces and the applicable documentation\n* context element kind (environment, external entity, physical user, etc.)\n* context element role name\n* port name and reference to port type\n* reference to context element type</li><li>C) A tabular format listing the applicable standards, protocols and formats for the item flows exchanged via the identified interfaces.</li></UL></html>"
+}, {
+  "Name" : "SAF_P2_PETD",
+  "ID" : "_2024x_3_26f0132_1758914098555_163483_1159",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Exchange Type Definition Viewpoint'>Physical Exchange Type Definition Viewpoint</A><BR>Purpose:<BR>The Physical Exchange Type Definition Viewpoint captures type definitions on design level for any exchanged or stored items, e.g., information, material, or energy, of the Physical Domain. Its purpose is to define these item types, their properties and their relationships. It also shows the traceability of these items to the conceptual layer (Functional and Logical Domain)\n<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Physical Exchange Types, their properties and relationships.</li><li>A tabular format listing the Physical Exchange Types, their properties and relationships.</li></UL></html>"
+}, {
+  "Name" : "SAF_P2_PETD_Table",
+  "ID" : "_2024x_3_26f0132_1758914138353_148539_1164",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Exchange Type Definition Viewpoint'>Physical Exchange Type Definition Viewpoint</A><BR>Purpose:<BR>The Physical Exchange Type Definition Viewpoint captures type definitions on design level for any exchanged or stored items, e.g., information, material, or energy, of the Physical Domain. Its purpose is to define these item types, their properties and their relationships. It also shows the traceability of these items to the conceptual layer (Functional and Logical Domain)\n<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Physical Exchange Types, their properties and relationships.</li><li>A tabular format listing the Physical Exchange Types, their properties and relationships.</li></UL></html>"
+}, {
+  "Name" : "SAF_P2_PSTD",
+  "ID" : "_2021x_2_8710274_1695637697813_912556_25589",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Structure Definition Viewpoint'>Physical Structure Definition Viewpoint</A><BR>Purpose:<BR>The Physical Structure Viewpoint is used to model the internal structure of the SOI and to identify the internal system elements making up the SOI. The SOI breakdown structure identifies system elements and finally at the implementation level hardware, software, and mechanics. The SOI breakdown structure determines items that are reused and make-or-buy (COTS) items. The Physical Structure Viewpoint is elaborated for each candidate physical SOI architecture. It provides the basis for further assessment of the architecture candidates by identifying the system elements in each candidate solution.<BR>Presentation:<BR>A block definition diagram (BDD) featuring the physical system block and physical blocks for any kind of physical element, HW or SW elements, the system is composed of. These elements are connected to the system block by means of aggregation relationships. \nNote: Multiple relationships to a kind of element are allowed meaning, that this kind of element is used in several roles.</html>"
+}, {
+  "Name" : "SAF_P4_PIEX",
+  "ID" : "_2021x_2_6d8019d_1675161151233_753157_23835",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Internal Exchange Viewpoint'>Physical Internal Exchange Viewpoint</A><BR>Purpose:<BR>The Physical Internal Exchange Viewpoint serves for the identification and definition of interfaces of elements of the physical system. also, the delegation of system element interfaces to the physical system boundary interfaces is covered.\nThe Physical Internal Exchange Viewpoint\n* identifies system element interfaces on a physical level\n* states to which other physical elements the interfaces are connected to\n* assigns physical interface definitions to interfaces\n* defines the usage of interfaces, e.g., if only a subset of the interfaces is used\n* defines the delegation of physical system element interfaces to physical system boundary interfaces<BR>Presentations:<BR> <UL><li>One or more IBDs featuring the SOI boundary, the parts representing physical elements of the SOI. At the SOI boundary, the interfaces of the SOI represented as proxy ports. At the parts, proxy ports representing the SOI parts interfaces. Binding Connectors for each identified SOI interface delegated to physical SOI elements interfaces.  connectors representing connections between interfaces of SOI parts. Item flows are defined for each planned exchange on the identified interfaces.\nNote: Please use more than one IBD focused on different areas of interest to keep the view comprehensive.\nNote: Ports may be nested to organize interfaces, but it is recommended to use only only one level.</li><li>A Table representing the content or part of the ibd content.</li></UL></html>"
+}, {
+  "Name" : "SAF_P4_PIEX_Table",
+  "ID" : "_2024x_8710274_1717669386236_274273_20833",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Internal Exchange Viewpoint'>Physical Internal Exchange Viewpoint</A><BR>Purpose:<BR>The Physical Internal Exchange Viewpoint serves for the identification and definition of interfaces of elements of the physical system. also, the delegation of system element interfaces to the physical system boundary interfaces is covered.\nThe Physical Internal Exchange Viewpoint\n* identifies system element interfaces on a physical level\n* states to which other physical elements the interfaces are connected to\n* assigns physical interface definitions to interfaces\n* defines the usage of interfaces, e.g., if only a subset of the interfaces is used\n* defines the delegation of physical system element interfaces to physical system boundary interfaces<BR>Presentations:<BR> <UL><li>One or more IBDs featuring the SOI boundary, the parts representing physical elements of the SOI. At the SOI boundary, the interfaces of the SOI represented as proxy ports. At the parts, proxy ports representing the SOI parts interfaces. Binding Connectors for each identified SOI interface delegated to physical SOI elements interfaces.  connectors representing connections between interfaces of SOI parts. Item flows are defined for each planned exchange on the identified interfaces.\nNote: Please use more than one IBD focused on different areas of interest to keep the view comprehensive.\nNote: Ports may be nested to organize interfaces, but it is recommended to use only only one level.</li><li>A Table representing the content or part of the ibd content.</li></UL></html>"
+}, {
+  "Name" : "SAF_P5_PIFD",
+  "ID" : "_2021x_2_8710274_1695208632632_218609_27418",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Interface Definition Viewpoint'>Physical Interface Definition Viewpoint</A><BR>Purpose:<BR>The Physical Interface Definition Viewpoint captures definitions for physical interfaces. It allows to adopt long-lived standards and to harmonize physical interface definitions to improve interchangeability, interoperability, and portability.<BR>Presentations:<BR> <UL><li>A block definition diagram (BDD) featuring Physical Interface blocks with ports, and flow properties. Compatibility between Physical Interface blocks is expressed by associations and association blocks. Physical Interface blocks may be specialisations of others (use of generalisation).\nNote: When ports are used these shall be proxy ports and be typed by interface blocks.</li><li>A tabular format listing Physical Interface blocks, their ports, and flow properties.</li></UL></html>"
+}, {
+  "Name" : "SAF_P8_PFUM_Matrix",
+  "ID" : "_2021x_2_6d8019d_1677946801652_589028_24613",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Functional Mapping Viewpoint'>Physical Functional Mapping Viewpoint</A><BR>Purpose:<BR>The Physical Functional Mapping Viewpoint supports the analysis of the assigment of system functions and system partial functions to physical system elements. The result shall be computed from the assigment of functions to logial system elements and the assignment of logical system elements to physical system elements<BR>Presentation:<BR>A FBS_to_PBS mapping matrix featuring\n* Functional Breakdown Structure (FBS)\n* Physical Breakdown Structure (PBS)\n* mapping (it is a derived relationship) from system functions and system partial functions to physical SOI elements</html>"
+}, {
+  "Name" : "SAF_P8_PLOM_Matrix",
+  "ID" : "_2021x_2_6d8019d_1677947386605_221993_24617",
+  "Documentation" : "<html>Implementation of <A HREF='https://saf.gfse.org/userdoc/Physical Domain/Physical Logical Mapping Viewpoint'>Physical Logical Mapping Viewpoint</A><BR>Purpose:<BR>The Physical Logical Mapping Viewpoint  supports the definition of the realization of conceptual logical system elements by physical system elements comprising the SOI.\n\nFollowing the identification of physical system elements capable of performing the system functions of logical elements, the Physical Logical Mapping Viewpoint provides feedback to the System Architecture Definition process to consolidate or confirm the allocation, partitioning, and alignment of logical elements to physical elements that comprise the SOI.<BR>Presentation:<BR>A assignment matrix featuring\n* Logical Element Breakdown Structure showing Logical Element Roles and Logical Elements\n* Physical Element Breakdown Structure showing physical element roles and physical elements\n* Realization relationship from physical system element roles to logical system element roles</html>"
+}, {
+  "Name" : "SAF_PhysicalContext",
+  "ID" : "_19_0_2_164f041e_1564558860534_409677_52063",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075325978_897109_45289'>Physical System Context</A></html>"
+}, {
+  "Name" : "SAF_PhysicalContextRole",
+  "ID" : "_2021x_2_8710274_1697706707436_503229_24914",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1567172443186_403777_62964'>Physical SOI Role</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1567172425344_546313_62832'>Physical Context Element Role</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_PhysicalEnvironment",
+  "ID" : "_19_0_2_26f0132_1558076176279_434857_47106",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075136166_927385_45031'>Physical Environment</A></html>"
+}, {
+  "Name" : "SAF_PhysicalExchangeType",
+  "ID" : "_2021x_2_8710274_1675099152786_518672_26637",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_482464_91025'>Physical Exchange Type</A></html>"
+}, {
+  "Name" : "SAF_PhysicalExternalSystem_deprecated",
+  "ID" : "_19_0_2_26f0132_1560372077241_905943_48390",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075409978_427311_45484'>Physical External System</A></html>"
+}, {
+  "Name" : "SAF_PhysicalHardware",
+  "ID" : "_19_0_2_26f0132_1558090490396_87116_48464",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_845534_91075'>Hardware Element</A></html>"
+}, {
+  "Name" : "SAF_PhysicalInterfaceDefinition",
+  "ID" : "_2021x_2_8710274_1695210280486_572526_27622",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_956519_91030'>Physical Interaction Point Definition</A></html>"
+}, {
+  "Name" : "SAF_PhysicalInternalRole",
+  "ID" : "_2021x_2_8710274_1695809841236_544249_27160",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524161_107047_91004'>General Physical Role</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_174876_91086'>Hardware Element Role</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_61581_91084'>Physical Software Role</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_594816_91083'>Software Element Role</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_635820_91087'>Physical Element Role</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_672620_91085'>Physical Hardware Role</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_PhysicalItem",
+  "ID" : "_19_0_1_26f0132_1547201836188_227821_42212",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_PhysicalRealization",
+  "ID" : "_2024x_3_ea40342_1760102235622_120598_2",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697730753339_508227_29549'>specifying</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303523801_894791_90759'>realizing</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_PhysicalResource",
+  "ID" : "_2024x_4c5019a_1724838520834_148039_1465",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724751736523_167024_1636'>Tangible Resource</A></html>"
+}, {
+  "Name" : "SAF_PhysicalRole_SoI",
+  "ID" : "_2026x_26f0132_1774016600060_402707_4233",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_PhysicalSoftware",
+  "ID" : "_19_0_2_26f0132_1558090471537_935611_48414",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_251302_91078'>Software Element</A></html>"
+}, {
+  "Name" : "SAF_PhysicalSystem",
+  "ID" : "_19_0_2_26f0132_1558090585793_420384_48529",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_824595_91079'>Physical Element</A></html>"
+}, {
+  "Name" : "SAF_PhysicalSystem_deprecated",
+  "ID" : "_19_0_1_8710274_1547464071851_635988_42197",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1558075337119_355128_45325'>Physical SOI</A></html>"
+}, {
+  "Name" : "SAF_PhysicalUser",
+  "ID" : "_19_0_1_26f0132_1547202486398_568937_42535",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_ebf0350_1555174193029_536383_44542'>Physical User</A></html>"
+}, {
+  "Name" : "SAF_Process",
+  "ID" : "_2021x_2_8710274_1700809840928_269630_17686",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700810729890_968352_48370'>Process</A></html>"
+}, {
+  "Name" : "SAF_ProtectionNeed",
+  "ID" : "_2024x_8710274_1715874541389_595179_15826",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_Refuter",
+  "ID" : "_2021x_2_6d8019d_1688225179612_961895_24265",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1674232167082_824671_23368'>Refuter</A></html>"
+}, {
+  "Name" : "SAF_RefuterCounterClaimMaking",
+  "ID" : "_2021x_2_6d8019d_1687637715067_620676_25736",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1687635765022_652079_24627'>making</A></html>"
+}, {
+  "Name" : "SAF_RepresentsEA",
+  "ID" : "_2024x_2_26f0132_1757002641692_837788_15175",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_2_26f0132_1757421548498_984650_1244'>represents</A></html>"
+}, {
+  "Name" : "SAF_Risk",
+  "ID" : "_2024x_4c5019a_1726432026287_484307_352",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1726430943101_262310_996'>Risk</A></html>"
+}, {
+  "Name" : "SAF_SecurityAssuranceLevel",
+  "ID" : "_2024x_4c5019a_1729866790085_297932_52",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1728711798398_384221_251'>Security Assurance Level</A></html>"
+}, {
+  "Name" : "SAF_SecurityContext",
+  "ID" : "_2024x_4c5019a_1724836153200_404924_846",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724674758529_936816_356'>Security Context</A></html>"
+}, {
+  "Name" : "SAF_SecurityEnviromentalElement",
+  "ID" : "_2024x_4c5019a_1725547883612_860887_19",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724752203589_449075_1766'>Security Enviromental Element</A></html>"
+}, {
+  "Name" : "SAF_SecurityMeasures",
+  "ID" : "_2024x_4c5019a_1729866769685_232637_46",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1728711539575_688605_182'>Security Measures</A></html>"
+}, {
+  "Name" : "SAF_SecurityObjective",
+  "ID" : "_2024x_4c5019a_1724838496713_843411_1449",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1724750691427_829277_1481'>Security Objective</A></html>"
+}, {
+  "Name" : "SAF_SecurityRecuirements",
+  "ID" : "_2024x_4c5019a_1729866714922_602421_33",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1728711582034_531131_209'>Security Requirements</A></html>"
+}, {
+  "Name" : "SAF_SeverityLevel",
+  "ID" : "_2024x_4c5019a_1726421366863_823772_271",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1726422508426_194688_174'>Severity Level</A></html>"
+}, {
+  "Name" : "SAF_Stakeholder",
+  "ID" : "_19_0_2_26f0132_1565094689606_808099_51895",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558519956748_646834_44043'>System of Interest Stakeholder</A></html>"
+}, {
+  "Name" : "SAF_StakeholderRelation",
+  "ID" : "_19_0_2_26f0132_1576256988971_313392_56275",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1575019807024_82785_55519'>related to</A></html>"
+}, {
+  "Name" : "SAF_StakeholderRepresenting",
+  "ID" : "_19_0_3_6d8019d_1600597534207_157849_655",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1576255381074_947214_55662'>representing</A></html>"
+}, {
+  "Name" : "SAF_StakeholderRequirement",
+  "ID" : "_19_0_2_164f041e_1564562840570_263949_52838",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520000264_403052_44141'>Stakeholder Requirement</A></html>"
+}, {
+  "Name" : "SAF_StakeholderRequirementImposition",
+  "ID" : "_19_0_3_6d8019d_1600679857332_333392_618",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520103521_679129_44321'>imposed</A></html>"
+}, {
+  "Name" : "SAF_StakeholderRequirementRefinement",
+  "ID" : "_19_0_3_6d8019d_1609148130261_947486_570",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520697796_594436_44679'>refining</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_6d8019d_1609067438603_923129_400'>refining</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1567606884034_616995_54129'>refining</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_Standard",
+  "ID" : "_2021x_2_8710274_1700810557668_637315_48235",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700810118595_556759_48108'>Standard</A></html>"
+}, {
+  "Name" : "SAF_StandardCategory",
+  "ID" : "_2021x_2_8710274_1700819040067_20402_51257",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700813046483_995773_50081'>Category Of Standard</A></html>"
+}, {
+  "Name" : "SAF_StandardCategoryAssignment",
+  "ID" : "_2021x_2_8710274_1701360709869_194778_91148",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700814367039_336586_50268'>categorized</A></html>"
+}, {
+  "Name" : "SAF_StandardChapter",
+  "ID" : "_2024x_1_26f0132_1730537023123_451623_16921",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SAF_StandardDependingOn",
+  "ID" : "_2024x_1_26f0132_1730146316549_832482_16733",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_1_26f0132_1730145934888_287548_16610'>depends on</A></html>"
+}, {
+  "Name" : "SAF_StandardSuperseding",
+  "ID" : "_2021x_2_8710274_1700817699465_496750_50736",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700817559642_660412_50682'>superseding</A></html>"
+}, {
+  "Name" : "SAF_StandardizationOrganization",
+  "ID" : "_2021x_2_8710274_1700812596870_49325_49849",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700810355233_788568_48161'>Standardization Organization</A></html>"
+}, {
+  "Name" : "SAF_SystemCapability",
+  "ID" : "_19_0_3_6d8019d_1614802234951_841733_423",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617463709646_290604_336'>System Capability</A></html>"
+}, {
+  "Name" : "SAF_SystemCapabilityComposition",
+  "ID" : "_19_0_4_6d8019d_1618761245041_564044_2064",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617463709658_247814_337'>composed</A></html>"
+}, {
+  "Name" : "SAF_SystemCapabilityDependency",
+  "ID" : "_19_0_4_6d8019d_1618761245046_533877_2065",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617463709661_722502_339'>depending</A></html>"
+}, {
+  "Name" : "SAF_SystemCapabilityEnabling",
+  "ID" : "_19_0_4_6d8019d_1633793471065_964488_390",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617524582560_511978_675'>enabling</A></html>"
+}, {
+  "Name" : "SAF_SystemCapabilityGeneralization",
+  "ID" : "_19_0_4_6d8019d_1618761245048_815843_2066",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617463709660_425346_338'>specialized</A></html>"
+}, {
+  "Name" : "SAF_SystemCapabilitySatisfaction",
+  "ID" : "_2021x_2_6d8019d_1691179425619_679578_24346",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1691056625013_260300_25600'>satisfying</A></html>"
+}, {
+  "Name" : "SAF_SystemCapabilitySupport",
+  "ID" : "_19_0_4_6d8019d_1630159558286_241427_911",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1617464677545_852747_1286'>supporting</A></html>"
+}, {
+  "Name" : "SAF_SystemDomainKindAsset",
+  "ID" : "_2024x_1_26f0132_1725610159794_815187_303",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1727856501532_940147_149'>SDK is Asset in Security Context</A></html>"
+}, {
+  "Name" : "SAF_SystemFunctionSupport",
+  "ID" : "_2021x_2_6d8019d_1691057742693_17377_25753",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1624798205940_66834_232'>supporting</A></html>"
+}, {
+  "Name" : "SAF_SystemFunctionalRequirement",
+  "ID" : "_19_0_4_6d8019d_1630685173057_20068_948",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564383963900_307503_51643'>Functional Requirement</A></html>"
+}, {
+  "Name" : "SAF_SystemFunctionalRequirementConstraint",
+  "ID" : "_19_0_2_26f0132_1566859056603_764774_53994",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564384014791_156524_51726'>bounded by</A></html>"
+}, {
+  "Name" : "SAF_SystemFunctionalRequirementRefinement",
+  "ID" : "_19_0_4_6d8019d_1630757173609_819998_2321",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564384276906_470959_51917'>refining</A></html>"
+}, {
+  "Name" : "SAF_SystemNonFunctionalRequirement",
+  "ID" : "_19_0_4_6d8019d_1630685173062_232273_950",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564383985280_212499_51679'>Non-functional Requirement</A></html>"
+}, {
+  "Name" : "SAF_SystemOfInterestConcern",
+  "ID" : "_19_0_2_26f0132_1567750318852_177696_53167",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558519985294_233543_44077'>System of Interest Concern</A></html>"
+}, {
+  "Name" : "SAF_SystemPartialFunction_deprecated",
+  "ID" : "_2021x_2_8710274_1676729827724_699643_30171",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_26f0132_1624611043495_845903_880'>System Partial Function</A></html>"
+}, {
+  "Name" : "SAF_SystemProcess",
+  "ID" : "_19_0_4_26f0132_1624963294145_897849_4228",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_26f0132_1624610613457_313794_115'>System Process</A></html>"
+}, {
+  "Name" : "SAF_SystemProcessEnabling",
+  "ID" : "_2021x_2_6d8019d_1691052942497_211885_24413",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_6d8019d_1654507324074_749318_302'>enabling</A></html>"
+}, {
+  "Name" : "SAF_SystemProcessRefinement",
+  "ID" : "_2021x_2_6d8019d_1691063354251_379935_24633",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_4_26f0132_1624610806163_247313_817'>refining</A></html>"
+}, {
+  "Name" : "SAF_SystemRequirement",
+  "ID" : "_19_0_2_6d8019d_1566473880087_254926_52599",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520012975_812587_44177'>System Requirement</A></html>"
+}, {
+  "Name" : "SAF_SystemRequirementDerivation",
+  "ID" : "_19_0_4_6d8019d_1630686502149_531538_1032",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520123795_924466_44365'>deriving from</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1565104656755_27827_55752'>deriving from</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_SystemRequirementRefinement",
+  "ID" : "_19_0_4_6d8019d_1630755344891_22928_2192",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_3_26f0132_1582299953373_258701_56319'>refining</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1575561280252_959861_56562'>refining</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_6d8019d_1690055913036_853745_24319'>refining</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_SystemState",
+  "ID" : "_2024x_2_26f0132_1751013382405_4997_3245",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303523973_719860_90882'>System State</A></html>"
+}, {
+  "Name" : "SAF_SystemUseCase",
+  "ID" : "_19_0_1_8710274_1552023080917_369823_43852",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_1_26f0132_1554446894995_335285_45800'>System Use Case</A></html>"
+}, {
+  "Name" : "SAF_SystemUseCaseEnabling",
+  "ID" : "_19_0_4_6d8019d_1630778868755_864755_338",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_19_0_2_164f041e_1564571019748_834303_54723'>enabling</A></html>"
+}, {
+  "Name" : "SAF_TargetMisuseCase",
+  "ID" : "_2024x_4c5019a_1726432132115_888920_364",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1726428890020_798933_560'>Target Misuse Case</A></html>"
+}, {
+  "Name" : "SAF_Term",
+  "ID" : "_2021x_2_8710274_1676285202908_857449_35044",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1700810107962_53436_48086'>Term</A></html>"
+}, {
+  "Name" : "SAF_ThreatScenario",
+  "ID" : "_2024x_4c5019a_1726432059871_801089_358",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1726428909034_879245_561'>Threat Scenario</A></html>"
+}, {
+  "Name" : "SAF_Viewpoint",
+  "ID" : "_2024x_26f0132_1718446856501_55465_24568",
+  "Documentation" : "<html>Implementation of SAF Concepts\n <ul><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2021x_2_8710274_1697454030821_682386_29382'>Viewpoint</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_26f0132_1719141336629_21600_25167'>belonging to</A></LI><LI><A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_26f0132_1719141564806_4128_25334'>belonging to</A></LI></ul></html>"
+}, {
+  "Name" : "SAF_Vulnerability",
+  "ID" : "_2024x_4c5019a_1729855550162_991277_33",
+  "Documentation" : "<html>Implementation of SAF Concept <A HREF='https://saf.gfse.org/devdoc/concepts.html#_2024x_4c5019a_1728710827922_136312_119'>Vulnerability</A></html>"
+}, {
+  "Name" : "SysML ActivityDiagram",
+  "ID" : "_19_0_3_26f0132_1600503186077_662521_2047",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SysML BlockDiagram",
+  "ID" : "_19_0_2_26f0132_1567697620322_299075_57415",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SysML InternalBlockDiagram",
+  "ID" : "_19_0_3_26f0132_1601646128417_547818_13036",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SysML RequirementDiagram",
+  "ID" : "_19_0_3_6d8019d_1609099545041_886180_408",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SysML SequenceDiagram",
+  "ID" : "_19_0_2_26f0132_1567697372946_56228_57325",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SysML StateMaschineDiagram",
+  "ID" : "_19_0_4_6d8019d_1627581789485_703492_1206",
+  "Documentation" : "<html>Not implementing a concept</html>"
+}, {
+  "Name" : "SysML UseCaseDiagram",
+  "ID" : "_19_0_3_26f0132_1601645172752_571834_11090",
+  "Documentation" : "<html>Not implementing a concept</html>"
+} ]

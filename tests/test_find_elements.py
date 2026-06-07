@@ -1,3 +1,5 @@
+__test__ = False
+
 import os
 import httpx
 import json
@@ -47,6 +49,7 @@ def test_mcp_find_elements(client):
     print(data)
 
 
-with httpx.Client(base_url=SERVER_URL, timeout=10) as cl:
-    test_mcp_find_elements(cl)
+if __name__ == "__main__":
+    with httpx.Client(base_url=SERVER_URL, timeout=10) as cl:
+        test_mcp_find_elements(cl)
 

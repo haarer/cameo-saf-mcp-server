@@ -1,12 +1,14 @@
 package com.haarer.saf.mcpserver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.haarer.saf.mcpserver.data.SafDataStore;
 import com.haarer.saf.mcpserver.handlers.GroovyScriptScanner;
 import com.haarer.saf.mcpserver.protocol.McpProtocolHandler;
 import com.haarer.saf.mcpserver.protocol.McpSession;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
@@ -25,6 +27,14 @@ public class CameoMcpServer {
     public CameoMcpServer(int port) throws IOException {
         var scriptsDir = determineDefaultScriptsDir();
         info("scripts dir: " + scriptsDir);
+
+        var dataDir = determineDefaultDataDir();
+        info("SAF data dir: " + dataDir);
+        if (dataDir != null) {
+            SafDataStore.init(dataDir);
+        } else {
+            warn("No SAF data directory found - spec tools will be unavailable");
+        }
 
         sessionManager = new McpSession.Manager();
 
@@ -58,6 +68,28 @@ public class CameoMcpServer {
             }
         } catch (Exception ignored) {}
         return "/workspace/cameo-saf-mcp-server/scripts";
+    }
+
+    private String determineDefaultDataDir() {
+        var sysProp = System.getProperty("cameo.mcp.server.data.dir");
+        if (sysProp != null) {
+            var f = new File(sysProp);
+            if (f.exists()) return f.getAbsolutePath();
+        }
+        try {
+            var jarPath = CameoMcpServerPlugin.class.getProtectionDomain()
+                .getCodeSource().getLocation().getPath();
+            var pluginDir = new File(jarPath).getParent();
+            var dataDir = new File(pluginDir, "_data").getAbsolutePath();
+            if (new File(dataDir).exists()) return dataDir;
+        } catch (Exception ignored) {}
+        for (var root : List.of("plugins/com.haarer.saf.mcpserver/_data",
+                "/workspace/cameo-saf-mcp-server/_data",
+                "../_data", "./_data", "_data", "scripts/../_data")) {
+            var f = new File(root);
+            if (f.exists()) return f.getAbsolutePath();
+        }
+        return null;
     }
 
     private static void info(String msg) {
@@ -104,6 +136,7 @@ public class CameoMcpServer {
                 Thread.currentThread().interrupt();
             }
         }
+        SafDataStore.shutdown();
         transportProvider.stop();
         LOG.info("Cameo SAF MCP Server stopped");
     }

@@ -133,6 +133,52 @@ public class OptionsSet {
 }
 JAVA
 
+# Package: com.nomagic.uml2.ext.magicdraw.classes.mdkernel
+mkdir -p "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel"
+cat > "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel/Element.java" << 'JAVA'
+package com.nomagic.uml2.ext.magicdraw.classes.mdkernel;
+
+public interface Element {
+    Element getOwner();
+    java.util.Collection<Element> getOwnedElement();
+}
+JAVA
+
+cat > "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel/NamedElement.java" << 'JAVA'
+package com.nomagic.uml2.ext.magicdraw.classes.mdkernel;
+
+public interface NamedElement extends Element {
+    String getName();
+    String getQualifiedName();
+}
+JAVA
+
+# Package: com.nomagic.magicdraw.uml
+mkdir -p "$STUBS_SRC/com/nomagic/magicdraw/uml"
+cat > "$STUBS_SRC/com/nomagic/magicdraw/uml/BaseElement.java" << 'JAVA'
+package com.nomagic.magicdraw.uml;
+
+public interface BaseElement extends Comparable, Cloneable {
+    String getID();
+    String getHumanType();
+    String getHumanName();
+    BaseElement getObjectParent();
+}
+JAVA
+
+# Update Project stub with getElementByID
+cat > "$STUBS_SRC/com/nomagic/magicdraw/core/Project.java" << 'JAVA'
+package com.nomagic.magicdraw.core;
+
+import com.nomagic.magicdraw.uml.BaseElement;
+
+public class Project {
+    public OptionsSet getOptions() { return new OptionsSet(); }
+    public BaseElement getElementByID(String id) { return null; }
+    public BaseElement getPrimaryModel() { return null; }
+}
+JAVA
+
 # Compile stubs
 echo "--- Compiling stubs ---"
 javac --release "$STUBS_RELEASE" -d "$STUBS_SRC/classes" \
@@ -140,7 +186,10 @@ javac --release "$STUBS_RELEASE" -d "$STUBS_SRC/classes" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/Application.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/GUILog.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/Project.java" \
-  "$STUBS_SRC/com/nomagic/magicdraw/core/OptionsSet.java"
+  "$STUBS_SRC/com/nomagic/magicdraw/core/OptionsSet.java" \
+  "$STUBS_SRC/com/nomagic/magicdraw/uml/BaseElement.java" \
+  "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel/Element.java" \
+  "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel/NamedElement.java"
 
 # Package into a jar that matches one of the build.gradle glob patterns
 # e.g. core-*.jar  matches  core-stubs.jar

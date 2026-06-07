@@ -127,7 +127,7 @@ class ElementCrud {
             sm.closeSession(project)
         } catch (Exception e) {
             sm.cancelSession(project)
-            return [error: e.getMessage()]
+            return [error: e.getClass().getName() + ": " + (e.getMessage() ?: "")]
         }
 
         return [

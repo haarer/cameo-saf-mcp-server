@@ -270,17 +270,18 @@ def test_mcp_delete_element_create_then_delete(client):
     """Create an element, verify it exists, delete it, verify it's gone."""
     session_id = _mcp_init(client)
 
-    # 1. Find a package to use as parent
+    # 1. Find the root model element to use as writable parent
     import json as _json
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 10, "method": "tools/call",
                                   "params": {"name": "find_elements_by_type",
-                                             "arguments": {"type": "Package"}}},
+                                             "arguments": {"type": "Model"}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False), f"find_elements_by_type failed: {body}"
-    found = _json.loads(body["result"]["content"][0]["text"])
-    assert len(found) > 0, "Need at least one Package to host test element"
-    parent_id = found[0]["id"]
+    models = _json.loads(body["result"]["content"][0]["text"])
+    # The primary model is the one with no parent
+    root_model = next(m for m in models if not m.get("parentId"))
+    parent_id = root_model["id"]
 
     # 2. Create a test element
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 11, "method": "tools/call",
