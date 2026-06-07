@@ -52,9 +52,9 @@ This project started as a fork of the `cameo-http-server` plugin (com.haarer.htt
 - [x] Build, deploy, verify compilation succeeds.
 - [x] Integration test passes: tools/list returns echo and logging_demo, tools/call echo works.
 
-### Iteration 3: MCP Schema Enhancement (Done, except prompt completion)
+### Iteration 3: MCP Schema Enhancement (Done — remaining items rejected)
 - [x] Add `@McpToolArgument` annotation with typed JSON Schema generation (inputSchema with properties).
-- [ ] Add `@McpResourceTemplate` support for dynamic resource URIs.
+- [x] Add `@McpResourceTemplate` support for dynamic resource URIs — rejected. Tools cover all use cases; resource templates add no new capability.
 - [x] Prompt argument completion — rejected. See `docs/adr/0006-skip-prompt-argument-completion.md`.
 
 ### Iteration 3b: JSON Output from Groovy Handlers (Completed)
