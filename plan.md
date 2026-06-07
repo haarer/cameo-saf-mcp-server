@@ -62,7 +62,34 @@ This project started as a fork of the `cameo-http-server` plugin (com.haarer.htt
 - [x] Updated `model_info.groovy` and `model_query.groovy` to return native `Map`/`List` objects instead of manually concatenated JSON strings.
 
 
-### Iteration 4: Transport Expansion (Pending)
+### Iteration 3c: SAF Spec Ontology Tools (Pending)
+- [ ] Build Java `SafDataStore` with typed records, cross-reference indexes, and hot-reload.
+  - Load 9+ JSON files (viewpoints, concepts, concerns, stakeholders, rationales, exposes, stereotypes, realizeconcept, special-implementations, domains, aspects).
+  - Bidirectional cross-reference resolution at load time.
+  - Hot-reload via polling `file.lastModified()` every 2s, atomic swap of index.
+  - `SafDataStore.getInstance()` static accessor visible to all Groovy classloaders.
+  - `getCameoElement(guid)` for SAF spec-model development.
+- [ ] Add `scripts/saf_spec_tools.groovy` with 15 `spec_*` tools:
+  - `spec_list_viewpoints`, `spec_list_concepts`, `spec_list_concerns`, `spec_list_stakeholders`, `spec_list_stereotypes`
+  - `spec_search` (fuzzy cross-entity search)
+  - `spec_get_viewpoint`, `spec_get_viewpoint_concepts`, `spec_get_viewpoint_concerns`
+  - `spec_get_concept`, `spec_get_concept_stereotypes`
+  - `spec_get_concern`, `spec_get_stakeholder`, `spec_get_stereotype`
+  - `spec_get_special_implementations`
+- [ ] (Later) Migrate `SafTools.groovy` static maps to derive from `SafDataStore`.
+- [ ] See `docs/adr/0008-java-saf-data-store-with-hot-reload.md`.
+
+### Iteration 4: SAF Viewpoint Awareness (Pending)
+- [ ] Replace `saf_get_viewpoint_views` with composable tools:
+  - `saf_query_by_concept` — find model elements realizing a given concept
+  - `saf_resolve_concern` — high-level: concern → viewpoint → concepts → model elements
+- [ ] Migrate `SafTools.groovy` static maps to derive from `SafDataStore`.
+- [ ] Remove hardcoded `getKindsForViewpoint()`; derive all viewpoint→concept→stereotype chains from `SafDataStore`.
+- [ ] Fix diagram content traversal: use Cameo `PresentationElement.getModelElement()` instead of `getOwnedElement()`.
+- [ ] Rename/remove old `saf_get_viewpoint_views` tool.
+- [ ] See `docs/adr/0007-viewpoint-tools-redesign.md`.
+
+### Iteration 5: Transport Expansion (Pending)
 - [ ] Add SSE transport option for server-initiated notifications.
 - [ ] Add WebSocket transport option.
 - [ ] Add `notifications/initialized` and tool list change notifications.
