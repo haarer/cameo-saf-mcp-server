@@ -4,7 +4,7 @@ import os
 import httpx
 import json
 
-SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:18750")
+SERVER_URL = os.environ.get("SERVER_URL", "http://host.containers.internal:18750")
 
 def _mcp_init(client):
 
