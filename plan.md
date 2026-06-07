@@ -86,7 +86,18 @@ This project started as a fork of the `cameo-http-server` plugin (com.haarer.htt
   - Fix diagram content traversal: use `PresentationElement.getModelElement()` instead of `getOwnedElement()`.
   - See `docs/adr/0010-revise-viewpoint-tools-approach.md`.
 
-### Iteration 5: Transport Expansion (Pending)
+### Iteration 5: MCP Agent Efficiency Improvements (Pending)
+
+Reduce wasted tool calls by >50% in typical exploration sessions. See `.scratch/mcp-agent-efficiency/PRD.md`.
+
+- [ ] **Phase 1: Tool Description Improvements** — Rewrite `@McpTool` descriptions with expected value formats (`SAF_*` stereotype prefix, not concept-kind names), case-insensitivity note, variant disambiguation (`cameo_*` vs `cameo_saf_*`), and constrained parameter valid values. Affected: `find_elements`, `find_elements_by_type`, `saf_find_elements_by_type`, `saf_query_viewpoint`, `saf_get_viewpoint_views`, `saf_check_consistency`.
+- [ ] **Phase 1b: Structured Error Responses** — Tools returning empty results or errors include a hint about what to try instead and example valid inputs (e.g., `saf_get_viewpoint_views` unsupported code → suggest `spec_get_viewpoint`).
+- [ ] **Phase 2: Batch Operations** — Add `get_elements_details_batch(ids[])`, `list_owned_elements(parentId, depth?)`, and `get_port_type_info(portId)` to eliminate N+1 drill-down.
+- [ ] **Phase 3: Stereotype Catalog** — Add `list_model_stereotypes()` tool returning all stereotype names applied in the open model, grouped by prefix.
+- [ ] **Phase 4: Query Router** — Add `query_router(question)` tool that maps natural-language questions to concrete tool call sequences with pre-filled element IDs, with fallback to direct tool usage.
+- [ ] **Phase 5: Structured Resources** — Add `cameo://model/stereotype-guide` and `cameo://model/tool-guide` MCP resources for upfront reference data without tool calls.
+
+### Iteration 6: Transport Expansion (Pending)
 - [ ] Add SSE transport option for server-initiated notifications.
 - [ ] Add WebSocket transport option.
 - [ ] Add `notifications/initialized` and tool list change notifications.

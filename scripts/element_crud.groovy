@@ -405,9 +405,13 @@ class ElementCrud {
         return result
     }
 
-    @McpTool(name = "find_elements_by_type", description = "Recursively search for model elements by type name substring, stereotype substring, and/or name substring using Finder.byTypeRecursively. Returns matching elements with their IDs, names, types, and stereotypes. All filters are optional — omit to get all elements. For SAF-enriched results, use saf_find_elements_by_type.")
+    @McpTool(name = "find_elements_by_type", description = '''Recursively search for model elements by type name substring, stereotype substring, and/or name substring using Finder.byTypeRecursively. Returns matching elements with their IDs, names, types, and stereotypes. All filters are optional — omit to get all elements. For SAF-enriched results (safKind, safDomain, tagged values), use saf_find_elements_by_type instead.
+
+SAF stereotype naming convention: use full stereotype names with the SAF_ prefix (e.g., 'SAF_ConceptualSystem', not 'conceptual_system').
+All parameters are case-insensitive — don't retry with different casing.
+Use spec_list_stereotypes to see all available stereotype names in the model.''')
     @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type name (case-insensitive). Leave empty to match all types.")
-    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.")
+    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Use full SAF_ stereotype names (e.g., 'SAF_ConceptualSystem'), not concept kind names.")
     @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
     List findElementsByType(Map<String, Object> args) {

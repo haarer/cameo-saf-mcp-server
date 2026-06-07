@@ -38,6 +38,16 @@ def _mcp_init(client):
     return session_id
 
 
+@pytest.fixture(scope="session")
+def tool_names(client):
+    """Discover available tool names from the server."""
+    session_id = _mcp_init(client)
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    return [t["name"] for t in body["result"]["tools"]]
+
+
 # -- Connectivity & Health --
 
 def test_server_reachable(client):
@@ -56,7 +66,7 @@ def test_server_cors_headers(client):
 
 # -- MCP Session & JSON-RPC --
 
-def test_mcp_session_and_list_tools(client):
+def test_mcp_session_and_list_tools(client, tool_names):
     session_id = _mcp_init(client)
 
     # tools/list
@@ -66,12 +76,13 @@ def test_mcp_session_and_list_tools(client):
     body = r.json()
     assert "result" in body
     tools = body["result"]["tools"]
-    tool_names = [t["name"] for t in tools]
-    assert "echo" in tool_names
-    assert "logging_demo" in tool_names
-    assert "get_model_info" in tool_names
-    assert "create_element" in tool_names
-    assert "delete_element" in tool_names
+    available = [t["name"] for t in tools]
+
+    # Core tools that must always be present
+    assert "echo" in available
+    assert "logging_demo" in available
+    assert "get_model_info" in available
+    assert "delete_element" in available
 
     # Call echo tool
     call_echo = {
@@ -99,8 +110,7 @@ def test_mcp_model_info(client):
     content = body["result"]["content"]
     assert len(content) > 0
     text = content[0]["text"]
-    import json as _json
-    data = _json.loads(text)
+    data = json.loads(text)
     assert "modelName" in data
     assert isinstance(data["modelName"], str) and len(data["modelName"]) > 0
     assert "packages" in data
@@ -123,8 +133,7 @@ def test_mcp_find_elements(client):
     assert not body["result"].get("isError", False)
     content = body["result"]["content"]
     assert len(content) > 0
-    import json as _json
-    data = _json.loads(content[0]["text"])
+    data = json.loads(content[0]["text"])
     assert isinstance(data, list)
     if len(data) > 0:
         item = data[0]
@@ -143,8 +152,7 @@ def test_mcp_get_element_info(client):
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     content = body["result"]["content"]
-    import json as _json
-    data = _json.loads(content[0]["text"])
+    data = json.loads(content[0]["text"])
     assert len(data) > 0, "Need at least one element to test get_element_info"
     qn = data[0]["qualifiedName"]
 
@@ -157,7 +165,7 @@ def test_mcp_get_element_info(client):
     assert "result" in body
     content = body["result"]["content"]
     assert len(content) > 0
-    info = _json.loads(content[0]["text"])
+    info = json.loads(content[0]["text"])
     assert "name" in info
     assert "qualifiedName" in info
     assert "type" in info
@@ -187,8 +195,7 @@ def test_mcp_resources(client):
     body = r.json()
     assert "result" in body
     text = body["result"]["contents"][0]["text"]
-    import json as _json
-    data = _json.loads(text)
+    data = json.loads(text)
     assert "modelName" in data
 
 
@@ -255,30 +262,94 @@ def test_mcp_invalid_message_returns_error(client):
 
 # -- Element CRUD tools --
 
-def test_mcp_delete_element_registered(client):
+def test_mcp_delete_element_registered(client, tool_names):
     """delete_element tool appears in tools/list."""
     session_id = _mcp_init(client)
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
-    tool_names = [t["name"] for t in body["result"]["tools"]]
-    assert "delete_element" in tool_names
-    assert "create_element" in tool_names
+    available = [t["name"] for t in body["result"]["tools"]]
+    assert "delete_element" in available
 
 
-def test_mcp_delete_element_create_then_delete(client):
+def test_mcp_delete_element_invalid_id(client):
+    """delete_element returns error for nonexistent ID."""
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
+                                  "params": {"name": "delete_element",
+                                             "arguments": {"elementId": "nonexistent-id"}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    content = json.loads(body["result"]["content"][0]["text"])
+    assert "error" in content
+
+
+def test_mcp_delete_element_missing_id(client):
+    """delete_element returns error when elementId is missing."""
+    session_id = _mcp_init(client)
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
+                                  "params": {"name": "delete_element", "arguments": {}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    content = json.loads(body["result"]["content"][0]["text"])
+    assert "error" in content
+
+
+def test_mcp_create_element_registered(client, tool_names):
+    """create_element tool appears in tools/list."""
+    assert "create_element" in tool_names, \
+        f"create_element not in tool list: {tool_names}"
+
+
+def test_mcp_find_elements_by_type_registered(client, tool_names):
+    """find_elements_by_type tool appears in tools/list."""
+    assert "find_elements_by_type" in tool_names, \
+        f"find_elements_by_type not in tool list: {tool_names}"
+
+
+def test_mcp_get_element_details_registered(client, tool_names):
+    """get_element_details tool appears in tools/list."""
+    assert "get_element_details" in tool_names, \
+        f"get_element_details not in tool list: {tool_names}"
+
+
+def test_mcp_set_tagged_values_registered(client, tool_names):
+    """set_tagged_values tool appears in tools/list."""
+    assert "set_tagged_values" in tool_names, \
+        f"set_tagged_values not in tool list: {tool_names}"
+
+
+def test_mcp_create_relationship_registered(client, tool_names):
+    """create_relationship tool appears in tools/list."""
+    assert "create_relationship" in tool_names, \
+        f"create_relationship not in tool list: {tool_names}"
+
+
+def test_mcp_modify_element_registered(client, tool_names):
+    """modify_element tool appears in tools/list."""
+    assert "modify_element" in tool_names, \
+        f"modify_element not in tool list: {tool_names}"
+
+
+def test_mcp_delete_element_create_then_delete(client, tool_names):
     """Create an element, verify it exists, delete it, verify it's gone."""
+    required = ["create_element", "find_elements_by_type", "get_element_details", "delete_element"]
+    missing = [n for n in required if n not in tool_names]
+    if missing:
+        pytest.skip(f"missing tools: {', '.join(missing)}")
+
     session_id = _mcp_init(client)
 
     # 1. Find the root model element to use as writable parent
-    import json as _json
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 10, "method": "tools/call",
                                   "params": {"name": "find_elements_by_type",
                                              "arguments": {"type": "Model"}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False), f"find_elements_by_type failed: {body}"
-    models = _json.loads(body["result"]["content"][0]["text"])
+    models = json.loads(body["result"]["content"][0]["text"])
     # The primary model is the one with no parent
     root_model = next(m for m in models if not m.get("parentId"))
     parent_id = root_model["id"]
@@ -292,7 +363,7 @@ def test_mcp_delete_element_create_then_delete(client):
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False), f"Create failed: {body}"
-    created = _json.loads(body["result"]["content"][0]["text"])
+    created = json.loads(body["result"]["content"][0]["text"])
     elem_id = created["id"]
     assert elem_id
 
@@ -303,7 +374,7 @@ def test_mcp_delete_element_create_then_delete(client):
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False)
-    details = _json.loads(body["result"]["content"][0]["text"])
+    details = json.loads(body["result"]["content"][0]["text"])
     assert details["name"] == "TempDeleteTest"
 
     # 4. Delete the element
@@ -313,7 +384,7 @@ def test_mcp_delete_element_create_then_delete(client):
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False), f"Delete failed: {body}"
-    result = _json.loads(body["result"]["content"][0]["text"])
+    result = json.loads(body["result"]["content"][0]["text"])
     assert result["deleted"] is True
     assert result["elementId"] == elem_id
     assert result["name"] == "TempDeleteTest"
@@ -326,33 +397,6 @@ def test_mcp_delete_element_create_then_delete(client):
                                              "arguments": {"elementId": elem_id}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
-    content = _json.loads(body["result"]["content"][0]["text"])
+    content = json.loads(body["result"]["content"][0]["text"])
     # The tool should return an error map (not found)
     assert "error" in content or "not found" in str(content).lower()
-
-
-def test_mcp_delete_element_invalid_id(client):
-    """delete_element returns error for nonexistent ID."""
-    session_id = _mcp_init(client)
-
-    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
-                                  "params": {"name": "delete_element",
-                                             "arguments": {"elementId": "nonexistent-id"}}},
-                    headers={"Mcp-Session-Id": session_id})
-    body = r.json()
-    import json as _json
-    content = _json.loads(body["result"]["content"][0]["text"])
-    assert "error" in content
-
-
-def test_mcp_delete_element_missing_id(client):
-    """delete_element returns error when elementId is missing."""
-    session_id = _mcp_init(client)
-
-    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
-                                  "params": {"name": "delete_element", "arguments": {}}},
-                    headers={"Mcp-Session-Id": session_id})
-    body = r.json()
-    import json as _json
-    content = _json.loads(body["result"]["content"][0]["text"])
-    assert "error" in content

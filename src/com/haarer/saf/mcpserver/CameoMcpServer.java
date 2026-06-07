@@ -6,6 +6,7 @@ import com.haarer.saf.mcpserver.handlers.GroovyScriptScanner;
 import com.haarer.saf.mcpserver.protocol.McpProtocolHandler;
 import com.haarer.saf.mcpserver.protocol.McpSession;
 
+import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -124,6 +125,22 @@ public class CameoMcpServer {
         for (var session : sessionManager.getSessions()) {
             session.syncFromScan(result);
         }
+        notifyReload(result);
+    }
+
+    private void notifyReload(GroovyScriptScanner.ScanResult result) {
+        EventQueue.invokeLater(() -> {
+            try {
+                var guiLog = com.nomagic.magicdraw.core.Application.getInstance().getGUILog();
+                guiLog.log("[MCP Server] Scripts reloaded — "
+                    + result.tools().size() + " tools, "
+                    + result.resources().size() + " resources, "
+                    + result.prompts().size() + " prompts");
+            } catch (Exception e) {
+                // best-effort; do not crash the reload loop
+                warn("Failed to notify GUI of reload: " + e.getMessage());
+            }
+        });
     }
 
     public void stop() {

@@ -8,19 +8,47 @@ class ModelFinder {
 
     @McpTool(
         name = 'find_elements',
-        description = 'Search for model elements by name substring and/or stereotype name and/or type substring. Scans the entire model recursively. Returns name, qualifiedName, type, and stereotypes (no element IDs). For ID-based queries use find_elements_by_type. For SAF-enriched search use saf_find_elements_by_type.')
+        description = '''Search for model elements by name substring and/or stereotype name and/or type substring. Scans the entire model recursively. Returns name, qualifiedName, type, and stereotypes (no element IDs).
+
+Use this tool when:
+- You need to discover what exists in the model without knowing exact names
+- You want a quick overview of elements matching certain criteria
+- You don't need element IDs for further operations
+
+For ID-based queries that return element IDs for use with other tools, use find_elements_by_type or saf_find_elements_by_type.
+
+SAF stereotype naming convention: SAF_<Domain><ViewpointCode>_<ConceptCode> (e.g., SAF_C1_SCXD, SAF_O2_OPFR).
+Common prefixes: SAF_ (all SAF stereotypes), SAF_C (conceptual domain), SAF_O (operational domain), SAF_P (physical domain).
+All parameters are case-insensitive — don't retry with different casing.
+Use spec_list_stereotypes to see all available stereotype names in the model.
+
+Examples:
+- name='FFDS', stereotype='SAF_ConceptualContext' → find contexts named FFDS
+- stereotype='SAF_ConceptualSystem' → list all conceptual systems
+- type='Class', stereotype='SAF_' → find all classes with SAF stereotypes'''')
     @McpToolArgument(
         name = 'name',
         type = 'string',
-        description = 'Substring to match against element names (case-insensitive). Leave empty to match all.')
+        description = '''Substring to match against element names (case-insensitive). Leave empty to match all.
+
+Examples: 'FFDS' matches "FFDS Context", "Fire Department FFDS"; 'Fire' matches "Fire Department", "Fire Chief"''')
     @McpToolArgument(
         name = 'stereotype',
         type = 'string',
-        description = 'Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.')
+        description = '''Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.
+
+SAF stereotypes follow the pattern: SAF_<Domain><Viewpoint>_<Concept>
+Examples: 
+- 'SAF_ConceptualSystem' → exact match for conceptual systems
+- 'SAF_C1_' → matches all C1_OSTY viewpoint concepts (SAF_ConceptualContext, SAF_Mission, etc.)
+- 'SAF_' → matches any SAF stereotype''')
     @McpToolArgument(
         name = 'type',
         type = 'string',
-        description = 'Substring to match against element type name (case-insensitive). Leave empty to match all.')
+        description = '''Substring to match against element type name (case-insensitive). Leave empty to match all.
+
+Common SysML types: 'Class', 'Package', 'Activity', 'ProxyPort', 'Interface', 'Connector', 'DataType'
+Examples: 'Class' matches all Class instances; 'Package' matches all packages''')
     List findElements(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [[error: "No model open"]]

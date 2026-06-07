@@ -66,6 +66,35 @@ class SafTools {
     static Map STEREO_TO_KIND = [:]
     static Map KIND_TO_DOMAIN = [:]
 
+    // API domain name -> JSON data domain name
+    private static final DOMAIN_TO_JSON = [
+        "architecture_management": "Architecture Management",
+        "operational": "Operational",
+        "conceptual": "Conceptual",
+        "physical": "Physical"
+    ]
+
+    // API aspect name -> JSON data aspect name
+    private static final ASPECT_TO_JSON = [
+        "structure": "Taxonomy & Structure",
+        "behavior": "Process & Behavior",
+        "context": "Context & Exchange",
+        "traceability": "Traceability & Mapping",
+        "requirement": "Requirement",
+        "interface": "Interface"
+    ]
+
+    // Normalize a concept name to its kind-key (must match buildMapsFromIndex logic)
+    private static String conceptToKindKey(String name) {
+        if (name == null || name.isEmpty()) return null
+        def key = name.toLowerCase()
+            .replaceAll(/[^a-z0-9 ]/, "")
+            .replaceAll(/ /, "_")
+            .replaceAll(/_+/, "_")
+            .replaceAll(/^_|_$/, "")
+        return key.isEmpty() ? null : key
+    }
+
     static {
         try {
             def store = SafDataStore.getInstance()
@@ -158,11 +187,58 @@ class SafTools {
         "association":   ["association",    null],
     ]
 
-    @McpTool(name = "saf_create_element", description = "Create a SAF-typed element by concept kind. Kinds are dynamically loaded from the SAF spec data at startup — all ~90+ SAF concepts are supported. Each kind maps to a SysML type and optional SAF stereotype (e.g. 'system_requirement' -> Class + SAF_SystemRequirement). Returns the created element's ID. For raw SysML types, use create_element.")
-    @McpToolArgument(name = "kind", type = "string", description = "SAF concept kind (e.g. system_requirement, conceptual_system, physical_system, operational_performer, stakeholder, concern)", required = true)
-    @McpToolArgument(name = "name", type = "string", description = "Name for the new element", required = true)
-    @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent package to contain the element", required = true)
-    @McpToolArgument(name = "documentation", type = "string", description = "Optional documentation text stored as a comment")
+    @McpTool(name = "saf_create_element", description = '''Create a SAF-typed element by concept kind. Kinds are dynamically loaded from the SAF spec data at startup — all ~90+ SAF concepts are supported. Each kind maps to a SysML type and optional SAF stereotype (e.g., 'system_requirement' → Class + SAF_SystemRequirement, 'conceptual_system' → Class + SAF_ConceptualSystem). Returns the created element's ID for use with other tools.
+
+Use this tool when:
+- Creating new SAF elements in your model
+- You know the SAF concept kind you want to create
+- Building models following SAF viewpoint structure
+
+SAF concept kinds (examples):
+- Requirements: 'system_requirement', 'requirement'
+- Systems: 'conceptual_system', 'physical_system', 'operational_performer'  
+- Capabilities/Functions: 'operational_capability', 'conceptual_function', 'physical_process'
+- Context/Stakeholders: 'stakeholder', 'concern', 'mission'
+- Interfaces: 'conceptual_interface', 'proxy_port', 'connector'
+
+Returns: {id, name, kind, sysmlType, stereotype, parentId}
+
+Example workflow:
+1. Create parent package if needed: create_element(type='Package', name='MyViewpoint')
+2. Create SAF element: saf_create_element(kind='conceptual_system', name='FFDS System', parentId='<pkg-id>')
+3. Set tagged values (for requirements): saf_set_requirement_tags(elementId='<id>', reqId='REQ-001', text='...')
+4. Add relationships: saf_create_relationship(type='satisfy', sourceId='<req-id>', targetId='<system-id>')
+
+For raw SysML types without SAF stereotypes, use create_element instead.''')
+    @McpToolArgument(name = "kind", type = "string", description = '''SAF concept kind (case-insensitive, underscores for spaces). Required.
+
+Common kinds:
+- 'system_requirement' → Class with SAF_SystemRequirement stereotype
+- 'conceptual_system' → Class with SAF_ConceptualSystem stereotype  
+- 'physical_system' → Class with SAF_PhysicalSystem stereotype
+- 'operational_performer' → Class with SAF_OperationalPerformer stereotype
+- 'stakeholder' → Class with SAF_Stakeholder stereotype
+- 'concern' → Comment with SAF_Concern stereotype
+- 'mission' → Class with SAF_Mission stereotype
+- 'conceptual_function' → Activity with SAF_ConceptualFunction stereotype
+- 'proxy_port' → ProxyPort with SAF_ProxyPort stereotype
+
+Full list of ~90+ kinds loaded from SAF spec at startup. Error message shows valid kinds if kind is unknown.''')
+    @McpToolArgument(name = "name", type = "string", description = '''Name for the new element (e.g., 'FFDS System', 'Fire Chief', 'REQ-001'). Required.
+
+Use meaningful names that reflect the element's purpose in your architecture.''' )
+    @McpToolArgument(name = "parentId", type = "string", description = '''Element ID of the parent package to contain the element. Required.
+
+Get parent IDs from:
+- create_element(type='Package', ...) returns {id, ...}
+- saf_find_elements_by_type(type='Package') 
+- get_element_details(elementId='<known-id>') on a package
+- Model browser in Cameo
+
+Elements must have a parent package. Create one first if needed.''')
+    @McpToolArgument(name = "documentation", type = "string", description = '''Optional documentation text stored as a comment attached to the element.
+
+Use this for descriptions, rationales, or additional context. Example: 'This system handles fire detection and suppression in commercial buildings.''' )
     Map safCreateElement(Map<String, Object> args) {
         def kind = (args.get("kind") ?: "") as String
         def name = args.get("name") as String
@@ -228,10 +304,46 @@ class SafTools {
         ]
     }
 
-    @McpTool(name = "saf_set_requirement_tags", description = "Set the 'id' and 'text' tagged values on a SAF_SystemRequirement element. If the element does not yet have the SAF_SystemRequirement stereotype, it will be applied automatically. For setting arbitrary tagged values on non-requirement elements, use set_tagged_values.")
-    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the requirement element", required = true)
-    @McpToolArgument(name = "reqId", type = "string", description = "Requirement identifier (e.g. 'REQ-001')", required = true)
-    @McpToolArgument(name = "text", type = "string", description = "Requirement statement text", required = true)
+    @McpTool(name = "saf_set_requirement_tags", description = '''Set the 'id' and 'text' tagged values on a SAF_SystemRequirement element. These are the two core properties of any requirement in SAF. If the element does not yet have the SAF_SystemRequirement stereotype, it will be applied automatically.
+
+Use this tool when:
+- You've created a requirement element and need to set its identifier and statement
+- Updating existing requirements with new IDs or text
+- Building traceable requirement specifications
+
+The 'id' tagged value is the requirement identifier (e.g., "REQ-001", "SYS-REQ-1.2.3").
+The 'text' tagged value is the actual requirement statement (e.g., "The system shall detect fire within 5 seconds").
+
+Other common requirement tagged values (set via set_tagged_values):
+- priority: "high", "medium", "low"
+- status: "proposed", "approved", "baseline"  
+- rationale: explanation of why this requirement exists
+- source: stakeholder or standard that drove this requirement
+
+Returns: {elementId, reqId, text, tagsSet: 2}
+
+Example workflow:
+1. Create requirement element: saf_create_element(kind='system_requirement', name='Fire Detection', parentId='<pkg-id>')
+   → returns {id: "abc123", ...}
+2. Set id and text: saf_set_requirement_tags(elementId="abc123", reqId="REQ-001", text="The system shall detect smoke within 10 seconds of occurrence.")
+3. Link to satisfying element: saf_create_relationship(type='satisfy', sourceId="abc123", targetId='<system-id>')
+
+For setting arbitrary tagged values on non-requirement elements, use set_tagged_values instead.''')
+    @McpToolArgument(name = "elementId", type = "string", description = '''Element ID of the requirement element. Required.
+
+Get from saf_create_element() response or saf_find_elements_by_type(stereotype='SAF_SystemRequirement').''')
+    @McpToolArgument(name = "reqId", type = "string", description = '''Requirement identifier for traceability and reference. Required.
+
+Examples: 'REQ-001', 'SYS-REQ-2.1', 'FR-101', 'SAFETY-REQ-5'
+Use a consistent naming convention for your project.''')
+    @McpToolArgument(name = "text", type = "string", description = '''Requirement statement text. Required.
+
+Write clear, unambiguous requirements using standard formats:
+- "The system shall..." (functional)
+- "The system shall respond within X seconds" (performance)  
+- "The probability of failure shall be less than Y" (reliability)
+
+Example: 'The FFDS system shall detect smoke in any protected area within 10 seconds of smoke reaching the detector.'''')
     Map safSetRequirementTags(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         def reqId = args.get("reqId") as String
@@ -274,10 +386,72 @@ class SafTools {
         return [elementId: elementId, reqId: reqId, text: text, tagsSet: 2]
     }
 
-    @McpTool(name = "saf_create_relationship", description = "Create a relationship between two elements using SAF semantics. SAF types (satisfy, derive, trace, refine, verify, allocate) automatically apply the correct SysML base type and SAF stereotype. Also supports raw types (composition, dependency, generalization, association, controlflow, objectflow, connector). Returns the relationship ID.")
-    @McpToolArgument(name = "type", type = "string", description = "Relationship type: satisfy, derive, trace, refine, verify, allocate, composition, dependency, generalization, association, controlflow, objectflow, connector")
-    @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source", required = true)
-    @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the target", required = true)
+    @McpTool(name = "saf_create_relationship", description = '''Create a relationship between two elements using SAF semantics. SAF relationship types (satisfy, derive, trace, refine, verify, allocate) automatically apply the correct SysML base type and SAF stereotype. Also supports raw SysML types (composition, dependency, generalization, association, controlflow, objectflow, connector). Returns the relationship ID.
+
+Use this tool when:
+- Linking requirements to systems/functions (satisfy, verify)
+- Tracing requirement dependencies (derive, trace)
+- Refining concepts across viewpoints (refine: operational→conceptual→physical)
+- Allocating functions to systems (allocate)
+- Building system composition hierarchies (composition)
+
+SAF relationship types (apply stereotypes automatically):
+- 'satisfy': Requirement → System/Function (abstraction + <<Satisfy>>)
+- 'derive': Requirement → Requirement (abstraction + <<DeriveReqt>>)  
+- 'trace': Requirement → Requirement (abstraction + <<Trace>>)
+- 'refine': Abstract → Concrete across viewpoints (abstraction + <<Refine>>)
+- 'verify': Requirement → Test/Verification (abstraction + <<Verify>>)
+- 'allocate': Function/Capability → System (dependency + <<allocate>>)
+
+Raw SysML types (no stereotype):
+- 'composition': Whole → Part (strong ownership)
+- 'aggregation': Whole → Part (weak ownership, uses association)
+- 'dependency': Client → Supplier
+- 'generalization': Specific → General (inheritance)
+- 'controlflow': ActivityNode → ActivityNode
+- 'objectflow': ActivityNode → ActivityNode  
+- 'connector': Connector between elements
+- 'association': Generic association
+
+Returns: {id, type, sysmlType, stereotype, sourceId, targetId}
+
+Example workflows:
+1. Requirement satisfaction:
+   - Create requirement: saf_create_element(kind='system_requirement', ...)
+   - Create system: saf_create_element(kind='conceptual_system', ...)
+   - Link: saf_create_relationship(type='satisfy', sourceId='<req-id>', targetId='<sys-id>')
+
+2. Cross-viewpoint refinement:
+   - Operational: saf_create_element(kind='operational_capability', ...)
+   - Conceptual: saf_create_element(kind='conceptual_function', ...)
+   - Refine: saf_create_relationship(type='refine', sourceId='<conceptual-id>', targetId='<operational-id>')
+
+3. System composition:
+   - Parent system: saf_create_element(kind='physical_system', name='Vehicle')
+   - Subsystem: saf_create_element(kind='physical_system', name='Engine')
+   - Compose: saf_create_relationship(type='composition', sourceId='<vehicle-id>', targetId='<engine-id>')''')
+    @McpToolArgument(name = "type", type = "string", description = '''Relationship type. Required.
+
+SAF types (with stereotypes): 'satisfy', 'derive', 'trace', 'refine', 'verify', 'allocate'
+SysML types (no stereotype): 'composition', 'aggregation', 'dependency', 'generalization', 'controlflow', 'objectflow', 'connector', 'association'
+
+Default: 'dependency' if not specified.''')
+    @McpToolArgument(name = "sourceId", type = "string", description = '''Element ID of the source (client/specific/whole) element. Required.
+
+For SAF relationships:
+- satisfy: requirement is source, system/function is target
+- refine: more-specific/concrete is source, more-abstract is target  
+- allocate: capability/function is source, system is target
+
+Get IDs from saf_find_elements_by_type(), saf_get_element_details(), or creation responses.''')
+    @McpToolArgument(name = "targetId", type = "string", description = '''Element ID of the target (supplier/general/part) element. Required.
+
+For SAF relationships:
+- satisfy: system/function that satisfies the requirement
+- refine: abstracted capability/system being refined
+- allocate: system that is allocated the function/capability
+
+Get IDs from saf_find_elements_by_type(), saf_get_element_details(), or creation responses.''')
     Map safCreateRelationship(Map<String, Object> args) {
         def type = (args.get("type") ?: "dependency") as String
         def sourceId = args.get("sourceId") as String
@@ -383,9 +557,12 @@ class SafTools {
         return [id: rel.getID(), type: type, sysmlType: sysmlType, stereotype: stereotypeName, sourceId: sourceId, targetId: targetId]
     }
 
-    @McpTool(name = "saf_query_viewpoint", description = "Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.")
-    @McpToolArgument(name = "domain", type = "string", description = "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all domains.")
-    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all aspects.")
+    @McpTool(name = "saf_query_viewpoint", description = '''Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.
+
+All parameters are case-insensitive — don't retry with different casing.
+Use spec_list_stereotypes to see all available stereotype names in the model.''')
+    @McpToolArgument(name = "domain", type = "string", description = "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all domains. Case-insensitive.")
+    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all aspects. Case-insensitive.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
     List safQueryViewpoint(Map<String, Object> args) {
         def domain = (args.get("domain") ?: "") as String
@@ -393,6 +570,14 @@ class SafTools {
         def parentId = args.get("parentId") as String
 
         // Determine which SAF element kinds are relevant for this domain
+        def validDomains = ["architecture_management", "operational", "conceptual", "physical", "am", "ov", "cv", "p", ""]
+        def validAspects = ["requirement", "structure", "behavior", "interface", "context", "traceability", "rq", "st", "pb", "if", "cx", "tm", ""]
+        if (!domain.isEmpty() && !validDomains.contains(domain.toLowerCase())) {
+            return [[error: "Invalid domain: " + domain + ". Valid domains: architecture_management, operational, conceptual, physical.", suggestion: "Use saf_query_viewpoint(domain='conceptual') or omit to include all domains."]]
+        }
+        if (!aspect.isEmpty() && !validAspects.contains(aspect.toLowerCase())) {
+            return [[error: "Invalid aspect: " + aspect + ". Valid aspects: requirement, structure, behavior, interface, context, traceability.", suggestion: "Use saf_query_viewpoint(domain='conceptual', aspect='structure') or omit to include all aspects."]]
+        }
         def relevantKinds = getKindsForViewpoint(domain.toLowerCase(), aspect.toLowerCase())
 
         def project = getProject()
@@ -518,11 +703,43 @@ class SafTools {
         }
     }
 
-    @McpTool(name = "saf_find_elements_by_type", description = "Recursively search for elements by type, stereotype, and/or name substring using Finder.byTypeRecursively. Returns results enriched with safKind and safDomain fields. All filters are optional.")
-    @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type (case-insensitive). Leave empty to match all.")
-    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against stereotype names (case-insensitive). Leave empty to match all.")
-    @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
-    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
+    @McpTool(name = "saf_find_elements_by_type", description = '''Recursively search for elements by type, stereotype, and/or name substring using Finder.byTypeRecursively. Returns results enriched with safKind (SAF concept kind like 'conceptual_system', 'operational_performer') and safDomain (architecture_management, operational, conceptual, physical) fields. All filters are optional.
+
+Use this tool when:
+- You need element IDs to use with other tools (saf_get_element_details, saf_create_relationship, etc.)
+- You want SAF metadata (safKind, safDomain) alongside basic element info
+- You're searching within a specific package or the entire model
+- Querying SAF models: prefer this over find_elements_by_type for enriched results
+
+Returns: Array of objects with {id, name, type, stereotypes[], safKind, safDomain, parentId}
+
+SAF stereotype naming convention: SAF_<Domain><ViewpointCode>_<ConceptCode> (e.g., SAF_C1_SCXD, SAF_O2_OPFR).
+Common prefixes: SAF_ (all SAF stereotypes), SAF_C (conceptual domain), SAF_O (operational domain), SAF_P (physical domain).
+All parameters are case-insensitive — don't retry with different casing.
+Use spec_list_stereotypes to see all available stereotype names in the model.
+
+Examples:
+- stereotype='SAF_ConceptualSystem' → find all conceptual systems with IDs
+- name='FFDS', stereotype='SAF_' → find FFDS elements with any SAF stereotype
+- parentId='<pkg-id>', stereotype='SAF_SystemRequirement' → search requirements in a package''')
+    @McpToolArgument(name = "type", type = "string", description = '''Substring to match against element human-readable type (case-insensitive). Leave empty to match all.
+
+Common SysML types: 'Class', 'Package', 'Activity', 'ProxyPort', 'Interface', 'Connector', 'DataType'
+Examples: 'Class' matches all Class instances; 'Package' matches all packages''')
+    @McpToolArgument(name = "stereotype", type = "string", description = '''Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.
+
+SAF stereotypes follow the pattern: SAF_<Domain><Viewpoint>_<Concept>
+Examples: 
+- 'SAF_ConceptualSystem' → exact match for conceptual systems
+- 'SAF_C1_' → matches all C1_OSTY viewpoint concepts (SAF_ConceptualContext, SAF_Mission, etc.)
+- 'SAF_SystemRequirement' → matches system requirements
+- 'SAF_' → matches any SAF stereotype''')
+    @McpToolArgument(name = "name", type = "string", description = '''Substring to match against element names (case-insensitive). Leave empty to match all.
+
+Examples: 'FFDS' matches "FFDS Context", "Fire Department FFDS"; 'Fire' matches "Fire Department", "Fire Chief"''')
+    @McpToolArgument(name = "parentId", type = "string", description = '''Element ID to search within instead of the entire primary model. Omit or leave empty to search the entire model.
+
+Use this to scope searches to specific packages or sub-models. Get parent IDs from previous search results or use get_element_details on a known element.''')
     List safFindElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
@@ -567,8 +784,32 @@ class SafTools {
             .toList()
     }
 
-    @McpTool(name = "saf_get_element_details", description = "Get full SAF-enriched details about an element by ID. Returns name, type, stereotypes, safKind, safDomain, tagged values, owned elements, and traceability relationships. For plain SysML details, use get_element_details.")
-    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to inspect", required = true)
+    @McpTool(name = "saf_get_element_details", description = '''Get full SAF-enriched details about an element by ID. Returns name, type, stereotypes, safKind (SAF concept kind), safDomain (architecture_management/operational/conceptual/physical), tagged values (stereotype properties like 'id', 'text' for requirements), owned elements summary, and traceability relationships (satisfy, derive, trace, refine, verify, allocate).
+
+Use this tool when:
+- You have an element ID from a search and need complete information
+- You need to see tagged values (e.g., requirement id/text)
+- You want to understand what elements are owned by this element
+- You need to see traceability relationships for impact analysis
+
+Returns comprehensive object with:
+- Basic info: id, name, qualifiedName, type, stereotypes[]
+- SAF metadata: safKind (e.g., 'conceptual_system'), safDomain (e.g., 'conceptual')
+- taggedValues: {id: "REQ-001", text: "...", priority: "high"}
+- ownedElements: [{id, name, type, stereotypes[], safKind}]
+- traceability: [{type, targetId, targetName, targetStereotypes[]}]
+
+Example workflow:
+1. Search: saf_find_elements_by_type(stereotype='SAF_SystemRequirement', name='FFDS')
+2. Get details: saf_get_element_details(elementId='<id from step 1>')
+3. See tagged values (id, text), owned elements, and traceability links''')
+    @McpToolArgument(name = "elementId", type = "string", description = '''Element ID of the element to inspect. Required.
+
+Get element IDs from:
+- saf_find_elements_by_type() results
+- find_elements_by_type() results  
+- Previous saf_get_element_details() responses
+- Model browser in Cameo (right-click → Copy ID)''')
     Map safGetElementDetails(Map<String, Object> args) {
         def elementId = args.get("elementId") as String
         if (elementId == null || elementId.isEmpty()) return [error: "elementId is required"]
@@ -678,6 +919,12 @@ class SafTools {
         def parentId = args.get("parentId") as String
         def checks = (args.get("checks") as List) ?: ["orphan_requirements", "broken_chains", "stereotype_compliance", "cross_domain_alignment"]
 
+        def validChecks = ["orphan_requirements", "broken_chains", "stereotype_compliance", "cross_domain_alignment"]
+        def invalid = checks.findAll { !(it as String) in validChecks }
+        if (!invalid.isEmpty()) {
+            return [error: "Invalid checks: " + invalid.join(", "), suggestion: "Valid checks: " + validChecks.join(", "), hint: "Omit the 'checks' parameter to run all checks."]
+        }
+
         def project = getProject()
         def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
         if (root == null) return [error: "Root not found"]
@@ -778,8 +1025,10 @@ class SafTools {
         ]
     }
 
-    @McpTool(name = "saf_get_viewpoint_views", description = "Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by short code (AM=architecture_management, OV=operational, CV=conceptual, PV=physical) or by full domain name. Returns diagrams sorted by conformance score. Optionally include diagram element content.")
-    @McpToolArgument(name = "viewpointCode", type = "string", description = "Viewpoint short code: AM, OV, CV, or PV. Mutually exclusive with viewpointName.")
+    @McpTool(name = "saf_get_viewpoint_views", description = '''Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by short code (AM=architecture_management, OV=operational, CV=conceptual, PV=physical) or by full domain name. Returns diagrams sorted by conformance score. Optionally include diagram element content.
+
+Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.g., C1_SCXD, O2_OPFR), use spec_get_viewpoint instead.''')
+    @McpToolArgument(name = "viewpointCode", type = "string", description = "Viewpoint short code: AM, OV, CV, or PV. Mutually exclusive with viewpointName. For sub-viewpoint codes (e.g., C1_SCXD), use spec_get_viewpoint instead.")
     @McpToolArgument(name = "viewpointName", type = "string", description = "Viewpoint domain name: architecture_management, operational, conceptual, physical. Mutually exclusive with viewpointCode.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search diagrams within. Omit to search the entire model.")
     @McpToolArgument(name = "includeContent", type = "boolean", description = "If true, include diagram element details in results (default: false)")
@@ -794,6 +1043,7 @@ class SafTools {
         if (domain == null) {
             return [
                 error: "Unknown viewpoint. Use viewpointCode (AM, OV, CV, PV) or viewpointName (architecture_management, operational, conceptual, physical).",
+                suggestion: "For specific sub-viewpoints (e.g., C1_SCXD, O2_OPFR), use spec_get_viewpoint(name='C1_SCXD') instead.",
                 viewpointCode: viewpointCode,
                 viewpointName: viewpointName
             ]

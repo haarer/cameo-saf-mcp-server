@@ -37,6 +37,16 @@ def _mcp_init(client):
     return session_id
 
 
+@pytest.fixture(scope="session")
+def tool_names(client):
+    """Discover available tool names from the server."""
+    session_id = _mcp_init(client)
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    return [t["name"] for t in body["result"]["tools"]]
+
+
 def _call_tool(client, session_id, tool_name, arguments=None):
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
                                   "params": {"name": tool_name, "arguments": arguments or {}}},
@@ -50,38 +60,42 @@ def _call_tool(client, session_id, tool_name, arguments=None):
     return json.loads(content[0]["text"])
 
 
-def _get_model_root(client, session_id):
-    info = _call_tool(client, session_id, "get_model_info")
-    return info["modelName"]
+def _require_tools(tool_names, *names):
+    """Skip if any of the given tools are missing."""
+    missing = [n for n in names if n not in tool_names]
+    if missing:
+        pytest.skip(f"missing tools: {', '.join(missing)}")
+
+
+# SAF tools defined in scripts/saf_tools.groovy
+SAF_TOOLS = [
+    "saf_create_element",
+    "saf_set_requirement_tags",
+    "saf_create_relationship",
+    "saf_query_viewpoint",
+    "saf_find_elements_by_type",
+    "saf_get_element_details",
+    "saf_build_traceability_chain",
+    "saf_check_consistency",
+    "saf_get_viewpoint_views",
+    "saf_export_viewpoint",
+]
 
 
 # -- Tool Registration --
 
-def test_saf_tools_registered(client):
-    """All 5 new SAF tools appear in tools/list."""
-    session_id = _mcp_init(client)
-
-    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
-                    headers={"Mcp-Session-Id": session_id})
-    body = r.json()
-    tool_names = [t["name"] for t in body["result"]["tools"]]
-
-    saf_tools = [
-        "saf_find_elements_by_type",
-        "saf_get_element_details",
-        "saf_build_traceability_chain",
-        "saf_check_consistency",
-        "saf_export_viewpoint",
-        "saf_get_viewpoint_views",
-    ]
-    for name in saf_tools:
-        assert name in tool_names, f"Tool '{name}' not registered"
+@pytest.mark.parametrize("tool_name", SAF_TOOLS)
+def test_saf_tool_registered(tool_name, tool_names):
+    """Each SAF tool from saf_tools.groovy appears in tools/list."""
+    assert tool_name in tool_names, \
+        f"Tool '{tool_name}' not registered (server has: {tool_names})"
 
 
 # -- saf_find_elements_by_type --
 
-def test_saf_find_elements_by_type_no_filter(client):
+def test_saf_find_elements_by_type_no_filter(client, tool_names):
     """Returns elements when called without filters."""
+    _require_tools(tool_names, "saf_find_elements_by_type")
     session_id = _mcp_init(client)
     data = _call_tool(client, session_id, "saf_find_elements_by_type")
 
@@ -97,8 +111,9 @@ def test_saf_find_elements_by_type_no_filter(client):
     assert "safDomain" in elem
 
 
-def test_saf_find_elements_by_type_with_type_filter(client):
+def test_saf_find_elements_by_type_with_type_filter(client, tool_names):
     """Filters by SysML type (e.g., Block)."""
+    _require_tools(tool_names, "saf_find_elements_by_type")
     session_id = _mcp_init(client)
     data = _call_tool(client, session_id, "saf_find_elements_by_type", {"type": "Block"})
 
@@ -108,13 +123,13 @@ def test_saf_find_elements_by_type_with_type_filter(client):
             f"Expected Block type, got {elem['type']}"
 
 
-def test_saf_find_elements_by_type_with_stereotype_filter(client):
+def test_saf_find_elements_by_type_with_stereotype_filter(client, tool_names):
     """Filters by stereotype name."""
+    _require_tools(tool_names, "saf_find_elements_by_type")
     session_id = _mcp_init(client)
     data = _call_tool(client, session_id, "saf_find_elements_by_type", {"stereotype": "Requirement"})
 
     assert isinstance(data, list)
-    # May return empty list if no requirements exist — that's fine
     for elem in data:
         has_req = any("Requirement" in s for s in elem["stereotypes"])
         assert has_req, f"Expected Requirement stereotype, got {elem['stereotypes']}"
@@ -122,11 +137,11 @@ def test_saf_find_elements_by_type_with_stereotype_filter(client):
 
 # -- saf_get_element_details --
 
-def test_saf_get_element_details_valid(client):
+def test_saf_get_element_details_valid(client, tool_names):
     """Returns details for an existing element."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_get_element_details")
     session_id = _mcp_init(client)
 
-    # First get any element ID
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
     elem_id = found[0]["id"]
 
@@ -143,8 +158,9 @@ def test_saf_get_element_details_valid(client):
     assert isinstance(data["traceability"], list)
 
 
-def test_saf_get_element_details_invalid_id(client):
+def test_saf_get_element_details_invalid_id(client, tool_names):
     """Returns error for nonexistent element ID."""
+    _require_tools(tool_names, "saf_get_element_details")
     session_id = _mcp_init(client)
 
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
@@ -159,11 +175,11 @@ def test_saf_get_element_details_invalid_id(client):
 
 # -- saf_build_traceability_chain --
 
-def test_saf_build_traceability_chain_structure(client):
+def test_saf_build_traceability_chain_structure(client, tool_names):
     """Returns a valid graph structure."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_build_traceability_chain")
     session_id = _mcp_init(client)
 
-    # Find any element to start from
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
     elem_id = found[0]["id"]
 
@@ -178,8 +194,9 @@ def test_saf_build_traceability_chain_structure(client):
     assert data["rootId"] == elem_id
 
 
-def test_saf_build_traceability_chain_max_depth(client):
+def test_saf_build_traceability_chain_max_depth(client, tool_names):
     """Respects maxDepth parameter."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_build_traceability_chain")
     session_id = _mcp_init(client)
 
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
@@ -192,8 +209,9 @@ def test_saf_build_traceability_chain_max_depth(client):
     assert "edges" in data
 
 
-def test_saf_build_traceability_chain_empty_result(client):
+def test_saf_build_traceability_chain_empty_result(client, tool_names):
     """Handles element with no traceability links gracefully."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_build_traceability_chain")
     session_id = _mcp_init(client)
 
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
@@ -202,15 +220,15 @@ def test_saf_build_traceability_chain_empty_result(client):
     data = _call_tool(client, session_id, "saf_build_traceability_chain",
                       {"elementId": elem_id, "maxDepth": 0})
 
-    # maxDepth 0 should return only root or empty
     assert "nodes" in data
     assert "edges" in data
 
 
 # -- saf_check_consistency --
 
-def test_saf_check_consistency_basic(client):
+def test_saf_check_consistency_basic(client, tool_names):
     """Returns a valid consistency report."""
+    _require_tools(tool_names, "saf_check_consistency")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_check_consistency", {})
@@ -224,8 +242,9 @@ def test_saf_check_consistency_basic(client):
     assert "requirements" in summary
 
 
-def test_saf_check_consistency_with_checks(client):
+def test_saf_check_consistency_with_checks(client, tool_names):
     """Accepts explicit check list."""
+    _require_tools(tool_names, "saf_check_consistency")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_check_consistency",
@@ -236,8 +255,9 @@ def test_saf_check_consistency_with_checks(client):
     assert isinstance(data["issues"], list)
 
 
-def test_saf_check_consistency_all_checks(client):
+def test_saf_check_consistency_all_checks(client, tool_names):
     """Runs all consistency checks."""
+    _require_tools(tool_names, "saf_check_consistency")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_check_consistency",
@@ -254,8 +274,9 @@ def test_saf_check_consistency_all_checks(client):
 
 # -- saf_export_viewpoint --
 
-def test_saf_export_viewpoint_architecture_management(client):
+def test_saf_export_viewpoint_architecture_management(client, tool_names):
     """Exports architecture_management viewpoint."""
+    _require_tools(tool_names, "saf_export_viewpoint")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_export_viewpoint",
@@ -269,8 +290,9 @@ def test_saf_export_viewpoint_architecture_management(client):
     assert data["viewpoint"]["domain"] == "architecture_management"
 
 
-def test_saf_export_viewpoint_with_aspect(client):
+def test_saf_export_viewpoint_with_aspect(client, tool_names):
     """Exports viewpoint filtered by aspect."""
+    _require_tools(tool_names, "saf_export_viewpoint")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_export_viewpoint",
@@ -283,8 +305,9 @@ def test_saf_export_viewpoint_with_aspect(client):
     assert isinstance(data["edges"], list)
 
 
-def test_saf_export_viewpoint_physical(client):
+def test_saf_export_viewpoint_physical(client, tool_names):
     """Exports physical domain viewpoint."""
+    _require_tools(tool_names, "saf_export_viewpoint")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_export_viewpoint",
@@ -296,8 +319,9 @@ def test_saf_export_viewpoint_physical(client):
     assert "nodeCount" in data
 
 
-def test_saf_export_viewpoint_operational(client):
+def test_saf_export_viewpoint_operational(client, tool_names):
     """Exports operational domain viewpoint."""
+    _require_tools(tool_names, "saf_export_viewpoint")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_export_viewpoint",
@@ -308,8 +332,9 @@ def test_saf_export_viewpoint_operational(client):
     assert "nodes" in data
 
 
-def test_saf_export_viewpoint_nodes_have_metadata(client):
+def test_saf_export_viewpoint_nodes_have_metadata(client, tool_names):
     """Exported nodes contain SAF metadata."""
+    _require_tools(tool_names, "saf_export_viewpoint")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_export_viewpoint",
@@ -328,19 +353,9 @@ def test_saf_export_viewpoint_nodes_have_metadata(client):
 
 # -- Viewpoint Views --
 
-def test_saf_get_viewpoint_views_registered(client):
-    """New tool appears in tools/list."""
-    session_id = _mcp_init(client)
-
-    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
-                    headers={"Mcp-Session-Id": session_id})
-    body = r.json()
-    tool_names = [t["name"] for t in body["result"]["tools"]]
-    assert "saf_get_viewpoint_views" in tool_names
-
-
-def test_saf_get_viewpoint_views_by_code_am(client):
+def test_saf_get_viewpoint_views_by_code_am(client, tool_names):
     """Get views by viewpoint code AM."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_get_viewpoint_views",
@@ -354,8 +369,9 @@ def test_saf_get_viewpoint_views_by_code_am(client):
     assert "relevantKinds" in data
 
 
-def test_saf_get_viewpoint_views_by_code_cv(client):
+def test_saf_get_viewpoint_views_by_code_cv(client, tool_names):
     """Get views by viewpoint code CV."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_get_viewpoint_views",
@@ -365,8 +381,9 @@ def test_saf_get_viewpoint_views_by_code_cv(client):
     assert isinstance(data["views"], list)
 
 
-def test_saf_get_viewpoint_views_by_name(client):
+def test_saf_get_viewpoint_views_by_name(client, tool_names):
     """Get views by viewpoint name."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_get_viewpoint_views",
@@ -376,8 +393,9 @@ def test_saf_get_viewpoint_views_by_name(client):
     assert isinstance(data["views"], list)
 
 
-def test_saf_get_viewpoint_views_with_content(client):
+def test_saf_get_viewpoint_views_with_content(client, tool_names):
     """Get views with content included."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_get_viewpoint_views",
@@ -395,8 +413,9 @@ def test_saf_get_viewpoint_views_with_content(client):
         assert isinstance(view["content"], list)
 
 
-def test_saf_get_viewpoint_views_unknown_viewpoint(client):
+def test_saf_get_viewpoint_views_unknown_viewpoint(client, tool_names):
     """Returns error for unknown viewpoint."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     def call_with_error():
@@ -412,8 +431,9 @@ def test_saf_get_viewpoint_views_unknown_viewpoint(client):
     assert "Unknown viewpoint" in result["error"]
 
 
-def test_saf_get_viewpoint_views_view_structure(client):
+def test_saf_get_viewpoint_views_view_structure(client, tool_names):
     """Each view has required fields."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_get_viewpoint_views",
@@ -431,8 +451,9 @@ def test_saf_get_viewpoint_views_view_structure(client):
         assert 0 <= view["conformance"] <= 100
 
 
-def test_saf_get_viewpoint_views_sorted_by_conformance(client):
+def test_saf_get_viewpoint_views_sorted_by_conformance(client, tool_names):
     """Views are sorted by conformance descending."""
+    _require_tools(tool_names, "saf_get_viewpoint_views")
     session_id = _mcp_init(client)
 
     data = _call_tool(client, session_id, "saf_get_viewpoint_views",
@@ -445,8 +466,16 @@ def test_saf_get_viewpoint_views_sorted_by_conformance(client):
 
 # -- Integration: full workflow --
 
-def test_saf_full_workflow(client):
+def test_saf_full_workflow(client, tool_names):
     """End-to-end: find elements, get details, build traceability, export viewpoint."""
+    _require_tools(tool_names,
+        "saf_find_elements_by_type",
+        "saf_get_element_details",
+        "saf_build_traceability_chain",
+        "saf_check_consistency",
+        "saf_export_viewpoint",
+        "saf_get_viewpoint_views",
+    )
     session_id = _mcp_init(client)
 
     # 1. Find elements
