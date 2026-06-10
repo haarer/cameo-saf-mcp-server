@@ -88,6 +88,9 @@ tasks.register('assemblePlugin', Copy) {
         expand(version: pluginVersion, automatonVersion: cfg.automatonVer)
     }
     from(jar.archiveFile)
+    from('_data') {
+        into('_data')
+    }
     into(layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver'))
     doFirst {
         delete layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver')

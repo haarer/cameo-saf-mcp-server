@@ -155,6 +155,7 @@ def main() -> None:
         project_root, "build", "plugin-dist", PLUGIN_ID
     )
     scripts_src = os.path.join(project_root, "scripts")
+    data_src = os.path.join(project_root, "_data")
     dist_dir = os.path.join(project_root, "dist")
     os.makedirs(dist_dir, exist_ok=True)
 
@@ -170,6 +171,12 @@ def main() -> None:
         if not entry.endswith(".groovy"):
             continue
         plugin_files.append(f"{PLUGIN_DIR}/scripts/{entry}")
+
+    # _data JSON files
+    for entry in sorted(os.listdir(data_src)):
+        if not entry.endswith(".json"):
+            continue
+        plugin_files.append(f"{PLUGIN_DIR}/_data/{entry}")
 
     # Build descriptor XML
     today = datetime.date.today().strftime("%Y-%m-%d")
@@ -211,6 +218,15 @@ def main() -> None:
                 continue
             entry_path = os.path.join(scripts_src, entry)
             arc_path = f"{PLUGIN_DIR}/scripts/{entry}"
+            zf.write(entry_path, arc_path)
+            print(f"  Added: {arc_path}")
+
+        # _data JSON files
+        for entry in sorted(os.listdir(data_src)):
+            if not entry.endswith(".json"):
+                continue
+            entry_path = os.path.join(data_src, entry)
+            arc_path = f"{PLUGIN_DIR}/_data/{entry}"
             zf.write(entry_path, arc_path)
             print(f"  Added: {arc_path}")
 
