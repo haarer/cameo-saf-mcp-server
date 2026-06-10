@@ -91,4 +91,49 @@ Examples: 'Class' matches all Class instances; 'Package' matches all packages'''
         }
     }
 
+    @McpTool(name = "list_owned_elements", description = "List owned elements (direct children) of a parent element by ID, with optional recursive depth. Returns names, types, stereotypes, and IDs so you can decide which elements to drill into. Use this before calling get_element_details on individual children to eliminate N+1 drill-down.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent element whose owned elements to list", required = true)
+    @McpToolArgument(name = "depth", type = "integer", description = "Recursion depth for nested owned elements. 0 = direct children only (default: 0). Use depth=1 to include grandchildren.")
+    List listOwnedElements(Map<String, Object> args) {
+        def parentId = args.get("parentId") as String
+        def depth = (args.get("depth") as Integer) ?: 0
+
+        if (parentId == null || parentId.isEmpty()) return [[error: "parentId is required"]]
+
+        def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
+        if (project == null) return [[error: "No model open"]]
+
+        def parent = project.getElementByID(parentId)
+        if (parent == null) return [[error: "Parent element not found: " + parentId]]
+
+        def results = []
+        collectOwned(parent, results, depth)
+        return results
+    }
+
+    void collectOwned(def elem, List results, int depth) {
+        if (depth < 0) return
+        try {
+            for (child in elem.getOwnedElement()) {
+                if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement) {
+                    def stereos = StereotypesHelper.getStereotypes(child).collect { it.getName() }
+
+                    def entry = [
+                        id: child.getID(),
+                        name: child.getName() ?: "",
+                        type: child.getHumanType(),
+                        stereotypes: stereos,
+                        parentId: child.getOwner() != null ? child.getOwner().getID() : ""
+                    ]
+
+                    if (depth > 0) {
+                        entry.ownedElements = []
+                        collectOwned(child, entry.ownedElements, depth - 1)
+                    }
+
+                    results.add(entry)
+                }
+            }
+        } catch (ignored) {}
+    }
 }

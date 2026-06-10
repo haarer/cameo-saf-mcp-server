@@ -455,6 +455,20 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             .toList()
     }
 
+    @McpTool(name = "get_elements_details_batch", description = "Get detailed info for multiple model elements by their IDs in a single call. Pass an array of element IDs. Returns a list of element details (name, type, stereotypes, owned elements, relationships). Use this instead of calling get_element_details multiple times to eliminate N+1 drill-down.")
+    @McpToolArgument(name = "ids", type = "array", description = "Array of element IDs to get details for. Each ID should be a string element ID from previous search results.", required = true)
+    List getElementsDetailsBatch(Map<String, Object> args) {
+        def ids = args.get("ids") as List
+        if (ids == null || ids.isEmpty()) return [[error: "ids array is required"]]
+
+        def project = getProject()
+        return ids.collect { id ->
+            def elem = project.getElementByID(id as String)
+            if (elem == null) return [id: id, error: "Element not found"]
+            return buildElementDetail(elem, 1)
+        }
+    }
+
     @McpTool(name = "get_element_details", description = "Get full details about a model element by ID, including name, type, stereotypes, owned sub-elements, and relationships (dependencies, generalizations). For SAF-enriched details (kind, domain, tagged values, traceability), use saf_get_element_details. For lookup by qualified name, use get_element_info.")
     @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to inspect", required = true)
     Map getElementDetails(Map<String, Object> args) {

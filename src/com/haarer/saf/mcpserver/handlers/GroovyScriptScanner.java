@@ -74,7 +74,11 @@ public class GroovyScriptScanner {
                     buildPrompt(prompts, instance, method);
                 }
             } catch (Exception e) {
-                LOG.warning("Failed to load " + file.getName() + ": " + e.getMessage());
+                var msg = "Failed to load " + file.getName() + ": " + e.getMessage();
+                LOG.warning(msg);
+                try {
+                    com.nomagic.magicdraw.core.Application.getInstance().getGUILog().log(msg);
+                } catch (Exception ignored) {}
             }
         }
 
