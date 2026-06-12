@@ -15,14 +15,14 @@ OpenCode agent (LLM)
 │ CATIA Magic / Cameo Systems Modeler  │
 │                                      │
 │  ┌────────────────────────────────┐  │
-│  │ Cameo SAF MCP Server Plugin   │  │
-│  │ protocol / Groovy / hot-reload│  │
+│  │ Cameo SAF MCP Server Plugin    │  │
+│  │ protocol / Groovy / hot-reload │  │
 │  └──────────┬─────────────────────┘  │
 │             │ Cameo Open API         │
 │             ▼                        │
 │  ┌────────────────────────────────┐  │
-│  │ Cameo Model                   │  │
-│  │ (SysML + SAF profile)         │  │
+│  │ Cameo Model                    │  │
+│  │ (SysML + SAF profile)          │  │
 │  └────────────────────────────────┘  │
 └──────────────────────────────────────┘
 ```
@@ -76,7 +76,7 @@ SAF profile support for Cameo models. Provides tools for creating SAF-typed elem
 ##### SAF Concept Map
 
 | SAF Kind | SysML Type | SAF Stereotype |
-|---|---|---|---|
+|---|---|---|
 | [System Requirement](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_8710274_1558520012975_812587_44177) | Class | SAF_SystemRequirement |
 | [Conceptual System](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524176_845719_91080) | Class | SAF_ConceptualSystem |
 | [System Function](https://saf.gfse.org/devdoc/concepts.html#_19_0_2_26f0132_1562303524161_394471_91009) | Activity | SAF_Function |
