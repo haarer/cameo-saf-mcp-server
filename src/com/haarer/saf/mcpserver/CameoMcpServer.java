@@ -10,6 +10,7 @@ import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
@@ -24,6 +25,7 @@ public class CameoMcpServer {
     private final GroovyScriptScanner scanner;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final Thread hotReloadThread;
+    private volatile List<String> lastToolSignature = null;
 
     public CameoMcpServer(int port) throws IOException {
         var scriptsDir = determineDefaultScriptsDir();
@@ -121,11 +123,26 @@ public class CameoMcpServer {
 
     private synchronized void reloadScripts() {
         var result = scanner.scan();
+        var signature = toolSignature(result);
+        boolean changed = !Objects.equals(lastToolSignature, signature);
+        lastToolSignature = signature;
         sessionManager.setLatestScan(result);
         for (var session : sessionManager.getSessions()) {
             session.syncFromScan(result);
         }
+        if (changed && transportProvider != null) {
+            int delivered = transportProvider.broadcastNotification("notifications/tools/list_changed");
+            info("Tool set changed -> notifications/tools/list_changed sent to "
+                + delivered + " SSE stream(s)");
+        }
         notifyReload(result);
+    }
+
+    private static List<String> toolSignature(GroovyScriptScanner.ScanResult result) {
+        return result.tools().stream()
+            .map(t -> t.name() + "::" + t.description())
+            .sorted()
+            .toList();
     }
 
     private void notifyReload(GroovyScriptScanner.ScanResult result) {

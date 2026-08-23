@@ -67,12 +67,15 @@ Dazu strukturelle Reibungspunkte:
    Downstream-Kanal, Capability `tools.listChanged` wird nicht deklariert. Ich musste
    einen eigenen HTTP-Helper (`curl` auf `/mcp`) bauen, um `admin_*` überhaupt rufen
    zu können.
-   *Fix:* (a) `initialize` deklariert `"tools": {"listChanged": true}`, (b)
-   `StreamableMcpTransportProvider` bekommt einen SSE-Antwortkanal (`GET /mcp` pro
-   Session), (c) nach Hot-Reload mit Tool-Mengenänderung Broadcast der Notification.
-   Java-Änderung → voller Redeploy + Cameo-Restart. Falls SSE zu invasiv: Meta-Tool
-   `call_tool {name, args}` von Anfang an registrieren — dann sind neue Groovy-Tools
-   ohne Refresh rufbar.
+   *Status (v0.2.2): BEHOBEN und verifiziert.* `initialize` deklariert
+   `"tools": {"listChanged": true}`; `StreamableMcpTransportProvider` bietet einen
+   SSE-Antwortkanal (`GET /mcp` pro Session, Latch-basierte Lebensdauer,
+   15-s-Keepalive); nach Hot-Reload mit Tool-Mengenänderung geht die Notification an
+   alle offenen Streams. Dabei zwei Zusatzbugs gefunden: (a) GET-Request-Bodies sind
+   sofort am EOF — Disconnect-Erkennung darf nicht über Body-Read laufen;
+   (b) `GroovyScriptScanner.hasChanges()` erkannte **Löschungen** nie — gelöschte
+   Tools blieben bis zum Restart verfügbar. E2E-verifiziert (Add/Delete → je eine
+   Notification, `tools/list` korrekt, Suite 100/100).
 
 8. **Pfad-Chaos Container vs. Host.** Erster `admin_load_model` schlug fehl, weil ich
    den Container-Pfad `/workspace/...` übergab; der Server lebt auf dem Host
@@ -172,9 +175,8 @@ lesen → Fix → Deploy → Test).
 - **Dirty-State-Handling**: `admin_get_model_status` um `modified: true/false`
   erweitern; `admin_close_model`/`admin_reset_model` mit `discard=true` Parameter
   (`project.setModified(false)` vor dem Close), damit nie wieder ein Modal blockiert.
-- **`notifications/tools/list_changed` serverseitig senden** (Capability deklarieren +
-  SSE-Downstream-Kanal, siehe Punkt 7) — der Harness-seitige Teil ist von opencode
-  bereits implementiert.
+- ~~**`notifications/tools/list_changed` serverseitig senden**~~ — erledigt in v0.2.2
+  (Capability + SSE-Downstream-Kanal + Broadcast, siehe Punkt 7).
 - **`rule_eval` zum offiziellen Validierungswerkzeug ausbauen**: Jython/Rhino zusätzlich
   zu Groovy, Targets automatisch über `constrainedElementsFilter`-Semantik sammeln,
   Ergebnisse als Violation-Objekte (severity aus Tag, errorMessage aus Tag). Dann wäre

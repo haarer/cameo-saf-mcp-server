@@ -32,14 +32,20 @@ public class GroovyScriptScanner {
 
     public boolean hasChanges() {
         var dir = new File(scriptsDirPath);
-        if (!dir.isDirectory()) return false;
+        if (!dir.isDirectory()) return !fileCache.isEmpty();
         var files = dir.listFiles((d, n) -> n.endsWith(".groovy"));
-        if (files == null) return false;
+        if (files == null) return !fileCache.isEmpty();
+        var seen = new java.util.HashSet<String>();
         for (var f : files) {
+            seen.add(f.getAbsolutePath());
             var cached = fileCache.get(f.getAbsolutePath());
             if (cached == null || cached != f.lastModified()) {
                 return true;
             }
+        }
+        // Detect deletions: cached files that no longer exist on disk.
+        for (var path : fileCache.keySet()) {
+            if (!seen.contains(path)) return true;
         }
         return false;
     }

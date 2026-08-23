@@ -13,7 +13,7 @@ import java.util.UUID;
 public class McpProtocolHandler {
 
     private static final String SERVER_NAME = "cameo-saf-mcp-server";
-    private static final String SERVER_VERSION = "0.1.1";
+    private static final String SERVER_VERSION = "0.2.2";
     private static final String PROTOCOL_VERSION = "2024-11-05";
 
     private final ObjectMapper mapper;
@@ -62,7 +62,7 @@ public class McpProtocolHandler {
 
         var caps = mapper.createObjectNode();
         var toolsCaps = mapper.createObjectNode();
-        toolsCaps.put("listChanged", false);
+        toolsCaps.put("listChanged", true);
         caps.set("tools", toolsCaps);
 
         var resourcesCaps = mapper.createObjectNode();
