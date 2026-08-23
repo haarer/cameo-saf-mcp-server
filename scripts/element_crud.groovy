@@ -624,6 +624,35 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         return bodies.join("\n\n")
     }
 
+    String specificationOf(def elem) {
+        // Constraint.specification is a ValueSpecification (not a NamedElement);
+        // extract its expression text so constraint code stays readable.
+        def spec = null
+        try { spec = elem.getSpecification() } catch (ignored) { return "" }
+        if (spec == null) return ""
+        String typeName = spec.getClass().getSimpleName()
+        try {
+            if (spec instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.LiteralString) {
+                return spec.getValue() ?: ""
+            }
+        } catch (ignored) {}
+        try {
+            if (spec instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.OpaqueExpression) {
+                def langs = spec.getLanguage()
+                def bodies = spec.getBody()
+                if (bodies == null || bodies.isEmpty()) return ""
+                return ((langs != null) ? langs.join(",") : "?") + "\n" + bodies.join("\n--\n")
+            }
+        } catch (ignored) {}
+        try {
+            if (spec instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Expression) {
+                def sym = spec.getSymbols()
+                return (sym != null && !sym.isEmpty()) ? sym.join("\n--\n") : "[" + typeName + "]"
+            }
+        } catch (ignored) {}
+        return "[" + typeName + "]"
+    }
+
     Map buildElementDetail(elem, int depth) {
         def name = (elem instanceof NamedElement) ? elem.getName() : ""
         def stereos = StereotypesHelper.getStereotypes(elem).collect { it.getName() }
@@ -681,7 +710,7 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             }
         } catch (ignored) {}
 
-        return [
+        def result = [
             id: elem.getID(),
             name: name,
             type: elem.getHumanType(),
@@ -690,5 +719,21 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             ownedElements: owned,
             relationships: rels
         ]
+        // Opaque behaviors carry executable code as parallel language/body lists.
+        try {
+            if (elem instanceof com.nomagic.uml2.ext.magicdraw.commonbehaviors.mdbasicbehaviors.OpaqueBehavior) {
+                def langs = elem.getLanguage()
+                def bodies = elem.getBody()
+                result.languages = (langs != null) ? langs.collect { it } : []
+                result.body = (bodies != null && !bodies.isEmpty()) ? bodies.join("\n--\n") : ""
+            }
+        } catch (ignored) {}
+        // Constraints carry their expression in specification.
+        try {
+            if (elem instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Constraint) {
+                result.specification = specificationOf(elem)
+            }
+        } catch (ignored) {}
+        return result
     }
 }
