@@ -6,8 +6,10 @@ import com.nomagic.magicdraw.core.project.ProjectDescriptor
 
 class AdminBridge {
 
+    static final String PATH_HINT = "Note: paths are resolved on the HOST running Cameo, not inside a dev container. Container path /workspace/... usually maps to host /home/mac/opencode/workspace/..."
+
     @McpTool(name = "admin_load_model", description = "[ADMIN] Load a model from an mdzip file path. Closes the currently open model first if any. Returns the loaded model name or an error message.")
-    @McpToolArgument(name = "path", type = "string", description = "Absolute path to the .mdzip model file to load")
+    @McpToolArgument(name = "path", type = "string", description = "Absolute HOST path to the .mdzip model file to load (the Cameo process resolves this path, e.g. /home/mac/opencode/workspace/...)")
     Map loadModel(Map<String, Object> args) {
         def path = args.get("path")
         if (path == null || path.trim().isEmpty()) {
@@ -16,10 +18,10 @@ class AdminBridge {
 
         def file = new File(path)
         if (!file.exists()) {
-            return [error: "File not found: " + path]
+            return [error: "File not found: " + path, hint: PATH_HINT]
         }
         if (!file.canRead()) {
-            return [error: "File not readable: " + path]
+            return [error: "File not readable: " + path, hint: PATH_HINT]
         }
 
         try {
@@ -153,7 +155,7 @@ class AdminBridge {
     }
 
     @McpTool(name = "admin_reset_model", description = "[ADMIN] Reload a model from its mdzip file. Closes the current model and loads a fresh copy from the given path. Useful for resetting model state between test runs.")
-    @McpToolArgument(name = "path", type = "string", description = "Absolute path to the .mdzip model file to reload")
+    @McpToolArgument(name = "path", type = "string", description = "Absolute HOST path to the .mdzip model file to reload (the Cameo process resolves this path, e.g. /home/mac/opencode/workspace/...)")
     Map resetModel(Map<String, Object> args) {
         def path = args.get("path")
         if (path == null || path.trim().isEmpty()) {
@@ -162,7 +164,7 @@ class AdminBridge {
 
         def file = new File(path)
         if (!file.exists()) {
-            return [error: "File not found: " + path]
+            return [error: "File not found: " + path, hint: PATH_HINT]
         }
 
         try {

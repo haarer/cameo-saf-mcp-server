@@ -52,14 +52,13 @@ class ModelFinder {
 
     @McpTool(
         name = 'find_elements',
-        description = '''Search for model elements by name substring and/or stereotype name and/or type substring. Scans the entire model recursively INCLUDING used projects/modules. Returns name, qualifiedName, type, stereotypes, and owning project (no element IDs).
+        description = '''Search for model elements by name substring and/or stereotype name and/or type substring. Scans the entire model recursively INCLUDING used projects/modules. Returns id, name, qualifiedName, type, stereotypes, and owning project info.
 
 Use this tool when:
 - You need to discover what exists in the model without knowing exact names
 - You want a quick overview of elements matching certain criteria
-- You don't need element IDs for further operations
 
-For ID-based queries that return element IDs for use with other tools, use find_elements_by_type or saf_find_elements_by_type.
+For SAF-enriched results (safKind, safDomain, tagged values), use saf_find_elements_by_type instead.
 
 SAF stereotype naming convention: SAF_<Domain><ViewpointCode>_<ConceptCode> (e.g., SAF_C1_SCXD, SAF_O2_OPFR).
 Common prefixes: SAF_ (all SAF stereotypes), SAF_C (conceptual domain), SAF_O (operational domain), SAF_P (physical domain).
@@ -125,6 +124,7 @@ Examples: 'Class' matches all Class instances; 'Package' matches all packages'''
                 }
                 .forEach { r ->
                     def entry = [
+                        id: r.getID(),
                         name: r.getName(),
                         qualifiedName: r.getQualifiedName(),
                         type: r.getClass().getName(),

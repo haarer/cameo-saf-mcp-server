@@ -288,6 +288,95 @@ class ElementCrud {
         return [elementId: elementId, stereotype: stereotypeName, tagsSet: setCount]
     }
 
+    @McpTool(name = "get_stereotype_tags", description = "Read all applied stereotypes and their property values ('tags') of an element by ID. Unlike saf_get_element_details (which shows only SAF-enriched tagged values), this returns EVERY applied stereotype with ALL its property values — e.g. abbreviation, errorMessage or severity of a validationRule constraint.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to inspect", required = true)
+    Map getStereotypeTags(Map<String, Object> args) {
+        def id = args.get("elementId") as String
+        if (!id) return [error: "elementId required"]
+        def project = getProject()
+        def el = resolveElement(id)
+        if (el == null) return [error: "not found: " + id]
+        def tags = []
+        for (st in StereotypesHelper.getStereotypes(el)) {
+            try {
+                for (p in st.getAttribute()) {
+                    def vals
+                    try {
+                        vals = StereotypesHelper.getStereotypePropertyValue(el, st, p.getName())
+                    } catch (Exception inner) {
+                        vals = ["<err> " + inner.getMessage()]
+                    }
+                    tags.add([stereotype: st.getName(), property: p.getName(), values: vals.collect { String.valueOf(it) }])
+                }
+            } catch (ignored) {}
+        }
+        return [id: id, name: (el instanceof NamedElement ? el.getName() : ""), tags: tags]
+    }
+
+    @McpTool(name = "apply_stereotype", description = "Apply a stereotype to an element by ID without setting any tag values. Use set_tagged_values to set values afterwards, get_stereotype_tags to verify. Stereotype names are case-sensitive; use spec_list_stereotypes to discover valid names. Applying a stereotype from a used module makes the primary model depend on that module.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the target element", required = true)
+    @McpToolArgument(name = "stereotype", type = "string", description = "Exact stereotype name to apply (e.g. 'SAF_SystemRequirement')", required = true)
+    Map applyStereotype(Map<String, Object> args) {
+        def elementId = args.get("elementId") as String
+        def stereotypeName = args.get("stereotype") as String
+        if (!elementId) return [error: "elementId is required"]
+        if (!stereotypeName) return [error: "stereotype is required"]
+
+        def project = getProject()
+        def element = resolveElement(elementId)
+        if (element == null) return [error: "Element not found: " + elementId]
+        def stereo = findStereotype(stereotypeName)
+        if (stereo == null) return [error: "Stereotype not found: " + stereotypeName]
+        def roErr = writableCheck(element)
+        if (roErr != null) return roErr
+
+        if (StereotypesHelper.hasStereotype(element, stereo)) {
+            return [elementId: elementId, stereotype: stereotypeName, applied: false, note: "already applied"]
+        }
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "apply_stereotype")
+        try {
+            StereotypesHelper.addStereotype(element, stereo)
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: "Failed to apply stereotype: " + e.getMessage()]
+        }
+        return [elementId: elementId, stereotype: stereotypeName, applied: true]
+    }
+
+    @McpTool(name = "remove_stereotype", description = "Remove an applied stereotype from an element by ID. Succeeds silently (applied=false, note='not applied') if the element does not carry the stereotype.")
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the target element", required = true)
+    @McpToolArgument(name = "stereotype", type = "string", description = "Exact stereotype name to remove", required = true)
+    Map removeStereotype(Map<String, Object> args) {
+        def elementId = args.get("elementId") as String
+        def stereotypeName = args.get("stereotype") as String
+        if (!elementId) return [error: "elementId is required"]
+        if (!stereotypeName) return [error: "stereotype is required"]
+
+        def project = getProject()
+        def element = resolveElement(elementId)
+        if (element == null) return [error: "Element not found: " + elementId]
+        def stereo = findStereotype(stereotypeName)
+        if (stereo == null) return [error: "Stereotype not found: " + stereotypeName]
+        def roErr = writableCheck(element)
+        if (roErr != null) return roErr
+
+        if (!StereotypesHelper.hasStereotype(element, stereo)) {
+            return [elementId: elementId, stereotype: stereotypeName, removed: false, note: "not applied"]
+        }
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "remove_stereotype")
+        try {
+            StereotypesHelper.removeStereotype(element, stereo)
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: "Failed to remove stereotype: " + e.getMessage()]
+        }
+        return [elementId: elementId, stereotype: stereotypeName, removed: true]
+    }
+
     @McpTool(name = "create_relationship", description = "Create a SysML relationship between two elements. Supported types: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector. Optionally apply a stereotype. For SAF relationships (satisfy, derive, trace, refine, verify, allocate), use saf_create_relationship instead. Returns the relationship ID.")
     @McpToolArgument(name = "type", type = "string", description = "Relationship type: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector")
     @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source", required = true)
@@ -589,12 +678,17 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
     @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire model including used projects.")
     @McpToolArgument(name = "scope", type = "string", description = "'all' (default) searches primary model plus all used projects/modules; 'primary' searches only the primary model.")
+    @McpToolArgument(name = "specLanguage", type = "string", description = "Optional: only return elements whose specification is written in this language (case-insensitive, e.g. 'Groovy', 'Jython', 'OCL2.0', 'Binary'). Elements without a specification are excluded when this filter is set. Use together with type='Constraint' to find code-bearing validation rules.")
+    @McpToolArgument(name = "specTextContains", type = "string", description = "Optional: only return elements whose specification body contains this substring (case-insensitive).")
     List findElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
         def nameFilter = (args.get("name") ?: "") as String
         def parentId = args.get("parentId") as String
         def scope = ((args.get("scope") ?: "all") as String).toLowerCase()
+        def specLanguage = ((args.get("specLanguage") ?: "") as String).toLowerCase()
+        def specTextContains = ((args.get("specTextContains") ?: "") as String).toLowerCase()
+        boolean specFiltering = !specLanguage.isEmpty() || !specTextContains.isEmpty()
 
         def project = getProject()
 
@@ -631,6 +725,9 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
                     if (match && !nameFilter.isEmpty()) {
                         match = (obj.getName() ?: "").toLowerCase().contains(nameFilter.toLowerCase())
                     }
+                    if (match && specFiltering) {
+                        match = specMatches(obj, specLanguage, specTextContains)
+                    }
                     return match
                 }
                 .forEach { obj ->
@@ -649,6 +746,23 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
                 }
         }
         return results
+    }
+
+    boolean specMatches(def elem, String langFilter, String textFilter) {
+        def specText = specificationOf(elem) ?: ""
+        if (specText.isEmpty()) return false
+        int nl = specText.indexOf("\n")
+        String langs = (nl >= 0 ? specText.substring(0, nl) : "").toLowerCase()
+        String body = (nl >= 0 ? specText.substring(nl + 1) : specText).toLowerCase()
+        if (!langFilter.isEmpty()) {
+            // language part is a comma-joined list; require exact token match
+            boolean has = langs.split(",").any { it.trim() == langFilter }
+            if (!has) return false
+        }
+        if (!textFilter.isEmpty()) {
+            if (!body.contains(textFilter)) return false
+        }
+        return true
     }
 
     @McpTool(name = "get_elements_details_batch", description = "Get detailed info for multiple model elements by their IDs in a single call. Pass an array of element IDs. Returns a list of element details (name, type, stereotypes, owned elements, relationships). Use this instead of calling get_element_details multiple times to eliminate N+1 drill-down.")

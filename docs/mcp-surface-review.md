@@ -158,23 +158,35 @@ lesen → Fix → Deploy → Test).
 
 ### P1 — hoher Nutzen, kleiner Aufwand
 
-- **Generisches `api_introspect(className)`**: Konstruktoren + Methoden einer Klasse
-  aus dem Laufzeit-JVM zurückgeben. Hätte alle fünf Priors-Fälle (¹ oben) auf je einen
-  Roundtrip reduziert. (Existiert heute nur versteckt im Fehlerpfad von
-  `validation_run_rules`; siehe Maßnahme M3.)
-- **`get_stereotype_tags` als erstklassiges Tool** (heißt heute debug_stereotype_tags)
-  + **`apply_stereotype` / `remove_stereotype`**.
-- **Serverseitiger Spec-Filter**: `find_elements_by_type(..., specLanguage="Groovy")`
-  bzw. ein `query_constraints(language=, stereotype=, hasCode=true)`.
-- **`find_elements`: id und project mitliefern** — eine Schale für alle Find-Varianten.
-- **Pfad-Hinweis bei File-not-found** in Admin-Tools: "note: paths are resolved on the
-  host running Cameo".
+*Status: ALLE UMGESETZT und verifiziert (Scripts v0.2.2-Stand, Suite 100/100).*
+
+- ~~**Generisches `api_introspect(className)`**~~ — erledigt: neues Tool `api_introspect`
+  (`scripts/api_introspect.groovy`); FQN + optionaler `memberFilter`, Ladeer-Kette
+  (Context → Script → Parents → System), Konstruktoren/Methoden mit vollen Signaturen,
+  Truncation bei 400 Membern. Verifiziert an `ProjectsManager.closeProject` — fand
+  dabei nebenbei auch `closeProjectNoSave()` (relevant für Punkt 12).
+- ~~**`get_stereotype_tags` als erstklassiges Tool**~~ — erledigt: `debug_stereotype_tags`
+  heißt jetzt `get_stereotype_tags` und lebt in `element_crud.groovy`; dazu neu
+  **`apply_stereotype` / `remove_stereotype`** mit writableCheck-Guard. Happy Path nutzt
+  denselben StereotypesHelper-/SessionManager-Mechanismus wie der bewährte Auto-Apply in
+  `set_tagged_values`; verifiziert wurden die Guard-Pfade (unbekanntes Stereotype,
+  Read-only-Modul) ohne das offene Modell zu dirty-en.
+- ~~**Serverseitiger Spec-Filter**~~ — erledigt: `find_elements_by_type(..., specLanguage=, specTextContains=)`.
+  Verifiziert: `type="Constraint", specLanguage="Groovy"` liefert alle 10 Groovy-Regeln
+  des Modells in einem Call statt 1202-Elemente-Sweep mit Client-seitigem Chunking.
+- ~~**`find_elements`: id mitliefern**~~ — erledigt; die Schale ist jetzt über alle
+  Find-Varianten hinweg identisch (id, name, qualifiedName, type, stereotypes, project).
+- ~~**Pfad-Hinweis bei File-not-found**~~ — erledigt: `admin_load_model`/`admin_reset_model`
+  liefern bei fehlender Datei einen `hint` ("paths are resolved on the HOST running
+  Cameo…"); die Argument-Beschreibungen nennen den Host-Pfad explizit.
 
 ### P2 — mittlerer Aufwand
 
 - **Dirty-State-Handling**: `admin_get_model_status` um `modified: true/false`
   erweitern; `admin_close_model`/`admin_reset_model` mit `discard=true` Parameter
   (`project.setModified(false)` vor dem Close), damit nie wieder ein Modal blockiert.
+  (`api_introspect` zeigte bereits: `ProjectsManager.closeProjectNoSave()` existiert —
+  möglicherweise der sauberere Weg als setModified+close.)
 - ~~**`notifications/tools/list_changed` serverseitig senden**~~ — erledigt in v0.2.2
   (Capability + SSE-Downstream-Kanal + Broadcast, siehe Punkt 7).
 - **`rule_eval` zum offiziellen Validierungswerkzeug ausbauen**: Jython/Rhino zusätzlich
@@ -191,6 +203,10 @@ lesen → Fix → Deploy → Test).
 - **`projectId`-Parameter** durch die Read-Tools ziehen, um mehrere geladene Modelle
   parallel abfragbar zu machen (aktuell: nur aktiv).
 - **Einheitliche Fehlerform** (`{error: ...}` vs. Listen mit eingebetteten Fehlern).
+- **Session-GC**: Jede `initialize` erzeugt eine Server-Session, die nur per
+  `DELETE /mcp` verschwindet — Clients (u.a. die Test-Suite) rufen DELETE selten, der
+  Session-Map wächst unbegrenzt (nach einer Suite-Laufzeit: 160 Einträge). Idle-Timeout
+  oder LRU wäre ein Einzeiler im Transport.
 
 ---
 

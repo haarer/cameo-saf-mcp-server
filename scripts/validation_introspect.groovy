@@ -47,29 +47,4 @@ class ValidationIntrospect {
 
         return out
     }
-
-    @McpTool(name = "debug_stereotype_tags", description = "[DEBUG] Dump every applied stereotype's property values of an element by ID.")
-    @com.haarer.saf.mcpserver.handlers.McpToolArgument(name = "elementId", type = "string", description = "Element ID", required = true)
-    Map dumpTags(Map<String, Object> args) {
-        def id = args.get("elementId") as String
-        if (!id) return [error: "elementId required"]
-        def project = Application.getInstance().getProject()
-        def el = project.getElementByID(id)
-        if (el == null) return [error: "not found: " + id]
-        def tags = []
-        for (st in com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper.getStereotypes(el)) {
-            try {
-                for (p in st.getAttribute()) {
-                    def vals
-                    try {
-                        vals = com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper.getStereotypePropertyValue(el, st, p.getName())
-                    } catch (Exception inner) {
-                        vals = ["<err> " + inner.getMessage()]
-                    }
-                    tags.add([stereotype: st.getName(), property: p.getName(), values: vals.collect { String.valueOf(it) }])
-                }
-            } catch (ignored) {}
-        }
-        return [id: id, name: (el instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement ? el.getName() : ""), tags: tags]
-    }
 }
