@@ -6,9 +6,53 @@ import com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper
 
 class ModelFinder {
 
+    List getModelRoots(def project) {
+        def roots = []
+        try {
+            def models = project.getModels()
+            if (models != null) roots.addAll(models)
+        } catch (ignored) {}
+        if (roots.isEmpty()) {
+            def pm = project.getPrimaryModel()
+            if (pm != null) roots.add(pm)
+        }
+        return roots
+    }
+
+    Map rootProjectInfo(def project, def root) {
+        def primary = null
+        try { primary = project.getPrimaryModel() } catch (ignored) {}
+        if (root == primary) {
+            return [name: project.getName(), primary: true, writable: true]
+        }
+        def info = [name: "", primary: false, writable: true]
+        try {
+            def wrapper = com.nomagic.magicdraw.core.ProjectUtilities.getProject(root.eResource())
+            if (wrapper != null) {
+                info.name = wrapper.getName()
+                def desc = null
+                try { desc = com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory.getDescriptorForProject(wrapper) } catch (ignored) {}
+                if (desc instanceof com.nomagic.magicdraw.core.project.AbstractRemoteProjectDescriptor) {
+                    info.writable = false
+                    info.remote = true
+                } else if (desc != null) {
+                    try {
+                        def uri = desc.getURI()
+                        if (uri != null && "file".equalsIgnoreCase(uri.getScheme())) {
+                            def f = new File(uri)
+                            if (f.exists() && !f.canWrite()) info.writable = false
+                        }
+                    } catch (ignored) {}
+                }
+            }
+        } catch (ignored) {}
+        if (!info.name) info.name = root.getName() ?: "module"
+        return info
+    }
+
     @McpTool(
         name = 'find_elements',
-        description = '''Search for model elements by name substring and/or stereotype name and/or type substring. Scans the entire model recursively. Returns name, qualifiedName, type, and stereotypes (no element IDs).
+        description = '''Search for model elements by name substring and/or stereotype name and/or type substring. Scans the entire model recursively INCLUDING used projects/modules. Returns name, qualifiedName, type, stereotypes, and owning project (no element IDs).
 
 Use this tool when:
 - You need to discover what exists in the model without knowing exact names
@@ -40,7 +84,7 @@ Examples: 'FFDS' matches "FFDS Context", "Fire Department FFDS"; 'Fire' matches 
 SAF stereotypes follow the pattern: SAF_<Domain><Viewpoint>_<Concept>
 Examples: 
 - 'SAF_ConceptualSystem' → exact match for conceptual systems
-- 'SAF_C1_' → matches all C1_OSTY viewpoint concepts (SAF_ConceptualContext, SAF_Mission, etc.)
+- 'SAF_C1_' → matches all C1_OSTY viewpoint concepts (SAF_ConceptualContext, SAF_O2_OPFR)
 - 'SAF_' → matches any SAF stereotype''')
     @McpToolArgument(
         name = 'type',
@@ -57,41 +101,59 @@ Examples: 'Class' matches all Class instances; 'Package' matches all packages'''
         def stereoFilter = (args.getOrDefault("stereotype", "") as String).toLowerCase()
         def typeFilter = (args.getOrDefault("type", "") as String).toLowerCase()
 
-        def model = project.getPrimaryModel()
-        if (model == null) return [[error: "No primary model"]]
+        def results = []
+        for (root in getModelRoots(project)) {
+            def rootInfo = rootProjectInfo(project, root)
+            def fi = Finder.byTypeRecursively()
+            def all = fi.find(root, null)
 
-        def fi = Finder.byTypeRecursively()
-        def all = fi.find(model, null)
-
-        def results = all.stream()
-            .filter { obj -> obj instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement }
-            .filter { obj ->
-                def match = true
-                if (match && !nameFilter.isEmpty()) {
-                    match = (obj.getName() ?: "").toLowerCase().contains(nameFilter)
+            all.stream()
+                .filter { obj -> obj instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement }
+                .filter { obj ->
+                    def match = true
+                    if (match && !nameFilter.isEmpty()) {
+                        match = (obj.getName() ?: "").toLowerCase().contains(nameFilter)
+                    }
+                    if (match && !stereoFilter.isEmpty()) {
+                        def stereos = StereotypesHelper.getStereotypes(obj)
+                        match = stereos.any { st -> (st.getName() ?: "").toLowerCase().contains(stereoFilter) }
+                    }
+                    if (match && !typeFilter.isEmpty()) {
+                        match = (obj.getClass().getName() ?: "").toLowerCase().contains(typeFilter)
+                    }
+                    return match
                 }
-                if (match && !stereoFilter.isEmpty()) {
-                    def stereos = StereotypesHelper.getStereotypes(obj)
-                    match = stereos.any { st -> (st.getName() ?: "").toLowerCase().contains(stereoFilter) }
+                .forEach { r ->
+                    def entry = [
+                        name: r.getName(),
+                        qualifiedName: r.getQualifiedName(),
+                        type: r.getClass().getName(),
+                        stereotypes: StereotypesHelper.getStereotypes(r).collect { it.getName() },
+                        project: rootInfo.name,
+                        primary: rootInfo.primary,
+                        writable: rootInfo.writable
+                    ]
+                    refineOwnership(project, r, entry)
+                    results.add(entry)
                 }
-                if (match && !typeFilter.isEmpty()) {
-                    match = (obj.getClass().getName() ?: "").toLowerCase().contains(typeFilter)
-                }
-                return match
-            }
-            .toList()
-
-        return results.collect { r ->
-            [
-                name: r.getName(),
-                qualifiedName: r.getQualifiedName(),
-                type: r.getClass().getName(),
-                stereotypes: StereotypesHelper.getStereotypes(r).collect { it.getName() }
-            ]
         }
+        return results
     }
 
-    @McpTool(name = "list_owned_elements", description = "List owned elements (direct children) of a parent element by ID, with optional recursive depth. Returns names, types, stereotypes, and IDs so you can decide which elements to drill into. Use this before calling get_element_details on individual children to eliminate N+1 drill-down.")
+    void refineOwnership(def project, def elem, Map result) {
+        try {
+            def ap = com.nomagic.magicdraw.core.ProjectUtilities.getAttachedProject(elem)
+            if (ap != null) {
+                result.project = ap.getName() ?: "module"
+                result.primary = false
+                boolean ro = false
+                try { ro = ap.isReadOnly() } catch (ignored) {}
+                result.writable = !ro
+            }
+        } catch (ignored) {}
+    }
+
+    @McpTool(name = "list_owned_elements", description = "List owned elements (direct children) of a parent element by ID, with optional recursive depth. Returns names, types, stereotypes, and IDs so you can decide which elements to drill into. Use this before calling get_element_details on individual children to eliminate N+1 drill-down. Works across primary and used-project content.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent element whose owned elements to list", required = true)
     @McpToolArgument(name = "depth", type = "integer", description = "Recursion depth for nested owned elements. 0 = direct children only (default: 0). Use depth=1 to include grandchildren.")
     List listOwnedElements(Map<String, Object> args) {
@@ -115,24 +177,27 @@ Examples: 'Class' matches all Class instances; 'Package' matches all packages'''
         if (depth < 0) return
         try {
             for (child in elem.getOwnedElement()) {
-                if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement) {
-                    def stereos = StereotypesHelper.getStereotypes(child).collect { it.getName() }
+                boolean isNamed = child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement
+                // Comments are not NamedElements but carry documentation bodies;
+                // include them so they remain discoverable.
+                boolean isComment = child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Comment
+                if (!isNamed && !isComment) continue
 
-                    def entry = [
-                        id: child.getID(),
-                        name: child.getName() ?: "",
-                        type: child.getHumanType(),
-                        stereotypes: stereos,
-                        parentId: child.getOwner() != null ? child.getOwner().getID() : ""
-                    ]
+                def entry = [
+                    id: child.getID(),
+                    name: isNamed ? (child.getName() ?: "") : "",
+                    type: child.getHumanType(),
+                    stereotypes: StereotypesHelper.getStereotypes(child).collect { it.getName() },
+                    parentId: child.getOwner() != null ? child.getOwner().getID() : ""
+                ]
+                if (isComment) entry.body = child.getBody() ?: ""
 
-                    if (depth > 0) {
-                        entry.ownedElements = []
-                        collectOwned(child, entry.ownedElements, depth - 1)
-                    }
-
-                    results.add(entry)
+                if (isNamed && depth > 0) {
+                    entry.ownedElements = []
+                    collectOwned(child, entry.ownedElements, depth - 1)
                 }
+
+                results.add(entry)
             }
         } catch (ignored) {}
     }

@@ -3,16 +3,46 @@ import com.haarer.saf.mcpserver.handlers.McpToolArgument
 
 class ModelQuery {
 
-    @McpTool(name = "get_element_info", description = "Get detailed info about a model element by its qualified name (e.g. 'MyModel::MyPackage::MyBlock'). Returns name, qualifiedName, type, stereotypes, owned elements, and relationships (dependencies, generalizations, properties). Use this when you know the element's qualified path. For lookup by element ID, use get_element_details.")
+    List getModelRoots(def project) {
+        def roots = []
+        try {
+            def models = project.getModels()
+            if (models != null) roots.addAll(models)
+        } catch (ignored) {}
+        if (roots.isEmpty()) {
+            def pm = project.getPrimaryModel()
+            if (pm != null) roots.add(pm)
+        }
+        return roots
+    }
+
+    String owningProjectName(def project, def elem) {
+        try {
+            def ap = com.nomagic.magicdraw.core.ProjectUtilities.getAttachedProject(elem)
+            if (ap == null) return project.getName()
+            return ap.getName() ?: "module"
+        } catch (ignored) {
+            return ""
+        }
+    }
+
+    @McpTool(name = "get_element_info", description = "Get detailed info about a model element by its qualified name (e.g. 'MyModel::MyPackage::MyBlock'). Searches all model content including used projects/modules. Returns name, qualifiedName, type, stereotypes, owning project, owned elements, and relationships (dependencies, generalizations, properties). Use this when you know the element's qualified path. For lookup by element ID, use get_element_details.")
     @McpToolArgument(name = "qualifiedName", type = "string", description = "Fully qualified name of the element (e.g. 'Model::Package::Element')", required = true)
     Map getElementInfo(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [error: "No model open"]
         def qn = args.getOrDefault("qualifiedName", "") as String
         if (qn.isEmpty()) return [error: "qualifiedName is required"]
-        def elem = findByQName(project.getPrimaryModel(), qn)
+        def elem = null
+        for (root in getModelRoots(project)) {
+            elem = findByQName(root, qn)
+            if (elem != null) break
+        }
         if (elem == null) return [error: "Element not found: " + qn]
-        return buildMap(elem, 1)
+        def result = buildMap(elem, 1)
+        result.project = owningProjectName(project, elem)
+        result.primary = result.project == project.getName()
+        return result
     }
 
     // --- helpers ---
@@ -59,7 +89,12 @@ class ModelQuery {
             try {
                 def children = elem.getOwnedElement()
                 for (child in children) {
-                    owned.add(buildMap(child, depth - 1))
+                    def m = buildMap(child, depth - 1)
+                    // Comments carry documentation; expose their body.
+                    if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Comment) {
+                        m.body = child.getBody() ?: ""
+                    }
+                    owned.add(m)
                 }
             } catch (ignored) {}
         }
@@ -103,16 +138,27 @@ class ModelQuery {
                 }
             }
         } catch (ignored) {}
-        return [name: name, qualifiedName: elemQn, type: elemType, stereotypes: elemStereos, ownedElements: owned, relationships: rels]
+        String documentation = ""
+        try {
+            def bodies = []
+            for (c in elem.getOwnedComment()) {
+                def b = c.getBody()
+                if (b != null && !b.isEmpty()) bodies.add(b)
+            }
+            documentation = bodies.join("\n\n")
+        } catch (ignored) {}
+        return [id: elem.getID(), name: name, qualifiedName: elemQn, type: elemType, stereotypes: elemStereos, documentation: documentation, ownedElements: owned, relationships: rels]
     }
 
-    @McpTool(name = "list_model_stereotypes", description = "Return all stereotype names currently applied in the open model, grouped by prefix (SAF_, HyperlinkOwner, etc.). Use this to discover valid stereotype names before searching or creating elements.")
+    @McpTool(name = "list_model_stereotypes", description = "Return all stereotype names currently applied in the open model (including used projects/modules), grouped by prefix (SAF_, HyperlinkOwner, etc.). Use this to discover valid stereotype names before searching or creating elements.")
     Map listModelStereotypes() {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
         if (project == null) return [error: "No model open"]
 
         def allStereos = [:] as LinkedHashMap
-        collectAppliedStereos(project.getPrimaryModel(), allStereos)
+        for (root in getModelRoots(project)) {
+            collectAppliedStereos(root, allStereos)
+        }
 
         def grouped = [:] as LinkedHashMap
         allStereos.each { name, count ->

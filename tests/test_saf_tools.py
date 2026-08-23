@@ -482,8 +482,10 @@ def test_saf_full_workflow(client, tool_names):
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
     assert len(found) > 0
 
-    # 2. Get details of first element
-    elem_id = found[0]["id"]
+    # 2. Get details of first named element
+    #    (unfiltered results may legitimately start with unnamed elements,
+    #    e.g. unnamed activity actions in the loaded model)
+    elem_id = next(e["id"] for e in found if e.get("name"))
     details = _call_tool(client, session_id, "saf_get_element_details",
                          {"elementId": elem_id})
     assert details["name"]

@@ -17,6 +17,98 @@ class ElementCrud {
         return proj
     }
 
+    List getModelRoots(def project) {
+        def roots = []
+        try {
+            def models = project.getModels()
+            if (models != null) roots.addAll(models)
+        } catch (ignored) {}
+        if (roots.isEmpty()) {
+            def pm = project.getPrimaryModel()
+            if (pm != null) roots.add(pm)
+        }
+        return roots
+    }
+
+    Map rootProjectInfo(def project, def root) {
+        def primary = null
+        try { primary = project.getPrimaryModel() } catch (ignored) {}
+        if (root == primary) {
+            return [name: project.getName(), primary: true, writable: true]
+        }
+        def info = [name: "", primary: false, writable: true]
+        try {
+            def wrapper = com.nomagic.magicdraw.core.ProjectUtilities.getProject(root.eResource())
+            if (wrapper != null) {
+                info.name = wrapper.getName()
+                def desc = null
+                try { desc = com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory.getDescriptorForProject(wrapper) } catch (ignored) {}
+                if (desc instanceof com.nomagic.magicdraw.core.project.AbstractRemoteProjectDescriptor) {
+                    info.writable = false
+                    info.remote = true
+                } else if (desc != null) {
+                    try {
+                        def uri = desc.getURI()
+                        if (uri != null && "file".equalsIgnoreCase(uri.getScheme())) {
+                            def f = new File(uri)
+                            if (f.exists() && !f.canWrite()) info.writable = false
+                        }
+                    } catch (ignored) {}
+                }
+            }
+        } catch (ignored) {}
+        if (!info.name) info.name = root.getName() ?: "module"
+        return info
+    }
+
+    void refineOwnership(def project, def elem, Map result) {
+        try {
+            def ap = com.nomagic.magicdraw.core.ProjectUtilities.getAttachedProject(elem)
+            if (ap != null) {
+                result.project = ap.getName() ?: "module"
+                result.primary = false
+                boolean ro = false
+                try { ro = ap.isReadOnly() } catch (ignored) {}
+                result.writable = !ro
+            }
+        } catch (ignored) {}
+    }
+
+    Map writableCheck(def element) {
+        try {
+            def ap = com.nomagic.magicdraw.core.ProjectUtilities.getAttachedProject(element)
+            if (ap == null) return null
+            boolean apRo = false
+            try { apRo = ap.isReadOnly() } catch (ignored) {}
+            if (apRo) {
+                def pname = ap.getName() ?: "module"
+                return [error: "Element belongs to used project '" + pname + "' which is read-only. Used projects are typically read-only; ask the user how to proceed."]
+            }
+            def desc = null
+            try { desc = com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory.getDescriptorForProject(ap) } catch (ignored) {}
+            boolean remote = desc instanceof com.nomagic.magicdraw.core.project.AbstractRemoteProjectDescriptor
+            boolean fileRo = false
+            String location = ""
+            if (!remote && desc != null) {
+                try {
+                    def uri = desc.getURI()
+                    location = uri != null ? uri.toString() : ""
+                    if (uri != null && "file".equalsIgnoreCase(uri.getScheme())) {
+                        def f = new File(uri)
+                        if (f.exists() && !f.canWrite()) fileRo = true
+                    }
+                } catch (ignored) {}
+            } else if (remote) {
+                try { location = desc.getURI()?.toString() ?: "" } catch (ignored) {}
+            }
+            if (remote || fileRo) {
+                def pname = ap.getName() ?: "module"
+                return [error: "Element belongs to used project '" + pname + "' which is read-only" + (remote ? " (remote/TWC)" : " (file not writable)") + ". Used projects are typically read-only; ask the user how to proceed."]
+            }
+        } catch (ignored) {}
+        return null
+    }
+
     def getFactory() {
         return getProject().getElementsFactory()
     }
@@ -98,6 +190,9 @@ class ElementCrud {
         def parent = resolveElement(parentId)
         if (parent == null) return [error: "Parent element not found: " + parentId]
 
+        def roErr = writableCheck(parent)
+        if (roErr != null) return roErr
+
         def created = null
         def sm = SessionManager.getInstance()
         sm.createSession(project, "create_element")
@@ -159,6 +254,9 @@ class ElementCrud {
         def stereo = findStereotype(stereotypeName)
         if (stereo == null) return [error: "Stereotype not found: " + stereotypeName]
 
+        def roErr = writableCheck(element)
+        if (roErr != null) return roErr
+
         if (!StereotypesHelper.hasStereotype(element, stereo)) {
             def sm2 = SessionManager.getInstance()
             sm2.createSession(project, "apply_stereotype")
@@ -211,6 +309,11 @@ class ElementCrud {
         def target = resolveElement(targetId)
         if (source == null) return [error: "Source element not found: " + sourceId]
         if (target == null) return [error: "Target element not found: " + targetId]
+
+        def roErr = writableCheck(source)
+        if (roErr != null) return roErr
+        roErr = writableCheck(target)
+        if (roErr != null) return roErr
 
         def ef = getFactory()
         def rel = null
@@ -349,6 +452,9 @@ class ElementCrud {
         def element = (Element) project.getElementByID(elementId)
         if (element == null) return [error: "Element not found: " + elementId]
 
+        def roErr = writableCheck(element)
+        if (roErr != null) return roErr
+
         def sm = SessionManager.getInstance()
         sm.createSession(project, "modify_element")
         try {
@@ -386,6 +492,9 @@ class ElementCrud {
         def element = (Element) project.getElementByID(elementId)
         if (element == null) return [error: "Element not found: " + elementId]
 
+        def roErr = writableCheck(element)
+        if (roErr != null) return roErr
+
         def name = (element instanceof NamedElement) ? element.getName() : null
         def type = element.getHumanType()
 
@@ -405,7 +514,7 @@ class ElementCrud {
         return result
     }
 
-    @McpTool(name = "find_elements_by_type", description = '''Recursively search for model elements by type name substring, stereotype substring, and/or name substring using Finder.byTypeRecursively. Returns matching elements with their IDs, names, types, and stereotypes. All filters are optional — omit to get all elements. For SAF-enriched results (safKind, safDomain, tagged values), use saf_find_elements_by_type instead.
+    @McpTool(name = "find_elements_by_type", description = '''Recursively search for model elements by type name substring, stereotype substring, and/or name substring using Finder.byTypeRecursively. Searches ALL model content including used projects/modules by default (scope='all'); use scope='primary' to restrict to the primary model. Returns matching elements with their IDs, names, types, stereotypes, owning project, and writability. All filters are optional — omit to get all elements. For SAF-enriched results (safKind, safDomain, tagged values), use saf_find_elements_by_type instead.
 
 SAF stereotype naming convention: use full stereotype names with the SAF_ prefix (e.g., 'SAF_ConceptualSystem', not 'conceptual_system').
 All parameters are case-insensitive — don't retry with different casing.
@@ -413,46 +522,68 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
     @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type name (case-insensitive). Leave empty to match all types.")
     @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Use full SAF_ stereotype names (e.g., 'SAF_ConceptualSystem'), not concept kind names.")
     @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
-    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire model including used projects.")
+    @McpToolArgument(name = "scope", type = "string", description = "'all' (default) searches primary model plus all used projects/modules; 'primary' searches only the primary model.")
     List findElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
         def nameFilter = (args.get("name") ?: "") as String
         def parentId = args.get("parentId") as String
+        def scope = ((args.get("scope") ?: "all") as String).toLowerCase()
 
         def project = getProject()
-        def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
-        if (root == null) return [[error: "Root not found"]]
 
-        def fi = Finder.byTypeRecursively()
-        def all = fi.find(root, null)
+        List roots
+        if (parentId) {
+            def root = resolveElement(parentId)
+            if (root == null) return [[error: "Root not found"]]
+            roots = [root]
+        } else if (scope == "primary") {
+            roots = [project.getPrimaryModel()]
+            if (roots[0] == null) return [[error: "No primary model"]]
+        } else {
+            roots = getModelRoots(project)
+            if (roots.isEmpty()) return [[error: "No model roots found"]]
+        }
 
-        return all.stream()
-            .filter { obj -> obj instanceof NamedElement }
-            .filter { obj ->
-                def match = true
-                if (match && !typeFilter.isEmpty()) {
-                    match = (obj.getClass().getName() ?: "").toLowerCase().contains(typeFilter.toLowerCase())
+        def results = []
+        for (root in roots) {
+            def rootInfo = rootProjectInfo(project, root)
+            def fi = Finder.byTypeRecursively()
+            def all = fi.find(root, null)
+
+            all.stream()
+                .filter { obj -> obj instanceof NamedElement }
+                .filter { obj ->
+                    def match = true
+                    if (match && !typeFilter.isEmpty()) {
+                        match = (obj.getClass().getName() ?: "").toLowerCase().contains(typeFilter.toLowerCase())
+                    }
+                    if (match && !stereoFilter.isEmpty()) {
+                        def stereos = StereotypesHelper.getStereotypes(obj)
+                        match = stereos.any { st -> (st.getName() ?: "").toLowerCase().contains(stereoFilter.toLowerCase()) }
+                    }
+                    if (match && !nameFilter.isEmpty()) {
+                        match = (obj.getName() ?: "").toLowerCase().contains(nameFilter.toLowerCase())
+                    }
+                    return match
                 }
-                if (match && !stereoFilter.isEmpty()) {
-                    def stereos = StereotypesHelper.getStereotypes(obj)
-                    match = stereos.any { st -> (st.getName() ?: "").toLowerCase().contains(stereoFilter.toLowerCase()) }
+                .forEach { obj ->
+                    def entry = [
+                        id: obj.getID(),
+                        name: obj.getName() ?: "",
+                        type: obj.getClass().getName(),
+                        stereotypes: StereotypesHelper.getStereotypes(obj).collect { it.getName() },
+                        parentId: obj.getOwner() != null ? obj.getOwner().getID() : "",
+                        project: rootInfo.name,
+                        primary: rootInfo.primary,
+                        writable: rootInfo.writable
+                    ]
+                    refineOwnership(project, obj, entry)
+                    results.add(entry)
                 }
-                if (match && !nameFilter.isEmpty()) {
-                    match = (obj.getName() ?: "").toLowerCase().contains(nameFilter.toLowerCase())
-                }
-                return match
-            }
-            .map { obj ->
-                [
-                    id: obj.getID(),
-                    name: obj.getName() ?: "",
-                    type: obj.getClass().getName(),
-                    stereotypes: StereotypesHelper.getStereotypes(obj).collect { it.getName() },
-                    parentId: obj.getOwner() != null ? obj.getOwner().getID() : ""
-                ]
-            }
-            .toList()
+        }
+        return results
     }
 
     @McpTool(name = "get_elements_details_batch", description = "Get detailed info for multiple model elements by their IDs in a single call. Pass an array of element IDs. Returns a list of element details (name, type, stereotypes, owned elements, relationships). Use this instead of calling get_element_details multiple times to eliminate N+1 drill-down.")
@@ -482,6 +613,17 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         return buildElementDetail(elem, 1)
     }
 
+    String documentationOf(def elem) {
+        def bodies = []
+        try {
+            for (c in elem.getOwnedComment()) {
+                def b = c.getBody()
+                if (b != null && !b.isEmpty()) bodies.add(b)
+            }
+        } catch (ignored) {}
+        return bodies.join("\n\n")
+    }
+
     Map buildElementDetail(elem, int depth) {
         def name = (elem instanceof NamedElement) ? elem.getName() : ""
         def stereos = StereotypesHelper.getStereotypes(elem).collect { it.getName() }
@@ -490,7 +632,19 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         if (depth > 0) {
             try {
                 for (child in elem.getOwnedElement()) {
-                    if (child instanceof NamedElement) {
+                    if (child instanceof Comment) {
+                        // Comments are not NamedElements; expose them so
+                        // documentation stored as comments stays discoverable.
+                        owned.add([
+                            id: child.getID(),
+                            name: "",
+                            type: child.getHumanType(),
+                            body: child.getBody() ?: "",
+                            stereotypes: [],
+                            ownedElements: [],
+                            relationships: []
+                        ])
+                    } else if (child instanceof NamedElement) {
                         owned.add(buildElementDetail(child, depth - 1))
                     }
                 }
@@ -532,6 +686,7 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             name: name,
             type: elem.getHumanType(),
             stereotypes: stereos,
+            documentation: documentationOf(elem),
             ownedElements: owned,
             relationships: rels
         ]
