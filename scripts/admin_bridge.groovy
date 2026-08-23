@@ -29,16 +29,30 @@ class AdminBridge {
             // Close currently open project if any
             def currentProject = app.getProject()
             if (currentProject != null) {
-                projectsManager.closeProject(currentProject, false)
+                projectsManager.closeProject(currentProject)
             }
 
-            // Create descriptor and load
-            def descriptor = ProjectDescriptorsFactory.createProjectDescriptor(path)
+            // Create descriptor and load. createProjectDescriptor expects a location
+            // string (URI); plain filesystem paths must be converted first.
+            def descriptor = null
+            try {
+                descriptor = ProjectDescriptorsFactory.createProjectDescriptor(file.toURI().toString())
+            } catch (Exception ignored) {
+                descriptor = null
+            }
+            if (descriptor == null) {
+                // Fallback: single-File local descriptor overload, if present.
+                try {
+                    descriptor = ProjectDescriptorsFactory.createLocalProjectDescriptor(file)
+                } catch (Exception ignored2) {
+                    descriptor = null
+                }
+            }
             if (descriptor == null) {
                 return [error: "Failed to create project descriptor for: " + path]
             }
 
-            projectsManager.loadProject(descriptor)
+            projectsManager.loadProject(descriptor, true)
             def loaded = app.getProject()
             if (loaded == null) {
                 return [error: "Project loaded but no active project found"]
@@ -55,6 +69,33 @@ class AdminBridge {
         }
     }
 
+    @McpTool(name = "admin_save_model", description = "[ADMIN] Save the currently open model to its file location. Returns the saved model name or an error message.")
+    Map saveModel() {
+        try {
+            def app = Application.getInstance()
+            def project = app.getProject()
+            if (project == null) {
+                return [message: "No model is currently open"]
+            }
+            def projectsManager = app.getProjectsManager()
+            try {
+                def desc = com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory.getDescriptorForProject(project)
+                if (desc == null) {
+                    return [error: "No project descriptor for: " + project.getName()]
+                }
+                projectsManager.saveProject(desc, true)
+            } catch (Exception inner) {
+                return [error: "Failed to save model: " + inner.getMessage()]
+            }
+            return [
+                status: "ok",
+                savedModel: project.getName()
+            ]
+        } catch (Exception e) {
+            return [error: "Failed to save model: " + e.getMessage()]
+        }
+    }
+
     @McpTool(name = "admin_close_model", description = "[ADMIN] Close the currently open model. Returns the name of the closed model or a message if none was open.")
     Map closeModel() {
         try {
@@ -66,7 +107,7 @@ class AdminBridge {
 
             def modelName = project.getName()
             def projectsManager = app.getProjectsManager()
-            projectsManager.closeProject(project, false)
+            projectsManager.closeProject(project)
 
             return [
                 status: "ok",
@@ -131,16 +172,28 @@ class AdminBridge {
             // Close current project if any
             def currentProject = app.getProject()
             if (currentProject != null) {
-                projectsManager.closeProject(currentProject, false)
+                projectsManager.closeProject(currentProject)
             }
 
             // Load fresh
-            def descriptor = ProjectDescriptorsFactory.createProjectDescriptor(path)
+            def descriptor = null
+            try {
+                descriptor = ProjectDescriptorsFactory.createProjectDescriptor(file.toURI().toString())
+            } catch (Exception ignored) {
+                descriptor = null
+            }
+            if (descriptor == null) {
+                try {
+                    descriptor = ProjectDescriptorsFactory.createLocalProjectDescriptor(file)
+                } catch (Exception ignored2) {
+                    descriptor = null
+                }
+            }
             if (descriptor == null) {
                 return [error: "Failed to create project descriptor for: " + path]
             }
 
-            projectsManager.loadProject(descriptor)
+            projectsManager.loadProject(descriptor, true)
             def loaded = app.getProject()
             if (loaded == null) {
                 return [error: "Model loaded but no active project found"]
