@@ -153,12 +153,14 @@ Examples: 'Class' matches all Class instances; 'Package' matches all packages'''
         } catch (ignored) {}
     }
 
-    @McpTool(name = "list_owned_elements", description = "List owned elements (direct children) of a parent element by ID, with optional recursive depth. Returns names, types, stereotypes, and IDs so you can decide which elements to drill into. Use this before calling get_element_details on individual children to eliminate N+1 drill-down. Works across primary and used-project content.")
+    @McpTool(name = "list_owned_elements", description = "List owned elements (direct children) of a parent element by ID, with optional recursive depth. Returns every owned child (named and unnamed), with name (empty for unnamed elements), type (e.g. 'Class', 'Connector End', 'Property', 'Literal Integer'), kind (SAF concept kind where a SAF stereotype is applied, else the type), stereotypes, and ID. Optional filterType restricts results to children whose type/kind matches a case-insensitive substring, e.g. 'Class' for only classes or 'Port' for only ports. Use this before calling get_element_details on individual children to eliminate N+1 drill-down. Works across primary and used-project content.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent element whose owned elements to list", required = true)
     @McpToolArgument(name = "depth", type = "integer", description = "Recursion depth for nested owned elements. 0 = direct children only (default: 0). Use depth=1 to include grandchildren.")
+    @McpToolArgument(name = "filterType", type = "string", description = "Optional case-insensitive substring to match against each child's type/kind (e.g. 'Class', 'Connector End', 'Port'). Only matching children are returned; recursion still applies to matching containers.")
     List listOwnedElements(Map<String, Object> args) {
         def parentId = args.get("parentId") as String
         def depth = (args.get("depth") as Integer) ?: 0
+        String filterType = args.get("filterType") as String
 
         if (parentId == null || parentId.isEmpty()) return [[error: "parentId is required"]]
 
@@ -169,36 +171,61 @@ Examples: 'Class' matches all Class instances; 'Package' matches all packages'''
         if (parent == null) return [[error: "Parent element not found: " + parentId]]
 
         def results = []
-        collectOwned(parent, results, depth)
+        collectOwned(parent, results, depth, filterType)
         return results
     }
 
-    void collectOwned(def elem, List results, int depth) {
+    // Derive a coarse "kind" for an element: its SAF concept kind when a SAF
+    // stereotype is applied, otherwise its human-readable type.
+    private String kindOf(def child) {
+        def sts = StereotypesHelper.getStereotypes(child)
+        for (st in sts) {
+            def n = st.getName()
+            if (n != null && n.startsWith("SAF_")) return n.substring(4).toLowerCase()
+        }
+        return child.getHumanType()
+    }
+
+    void collectOwned(def elem, List results, int depth, String filterType) {
         if (depth < 0) return
-        try {
-            for (child in elem.getOwnedElement()) {
-                boolean isNamed = child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement
-                // Comments are not NamedElements but carry documentation bodies;
-                // include them so they remain discoverable.
-                boolean isComment = child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Comment
-                if (!isNamed && !isComment) continue
-
-                def entry = [
-                    id: child.getID(),
-                    name: isNamed ? (child.getName() ?: "") : "",
-                    type: child.getHumanType(),
-                    stereotypes: StereotypesHelper.getStereotypes(child).collect { it.getName() },
-                    parentId: child.getOwner() != null ? child.getOwner().getID() : ""
-                ]
-                if (isComment) entry.body = child.getBody() ?: ""
-
-                if (isNamed && depth > 0) {
-                    entry.ownedElements = []
-                    collectOwned(child, entry.ownedElements, depth - 1)
-                }
-
-                results.add(entry)
+        List children = new ArrayList()
+        try { children.addAll(elem.getOwnedElement()) } catch (ignored) {}
+        // getOwnedElement() returns every owned child, including unnamed
+        // structural elements (ConnectorEnd, Comment, value specifications, ...)
+        // that are NOT NamedElements. No name-based filter is applied — all are
+        // surfaced, with an empty name when the element has none. (getEnd() is
+        // intentionally NOT merged: ConnectorEnds already appear in
+        // getOwnedElement(), merging would duplicate them.)
+        for (child in children) {
+            String childName = ""
+            if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement) {
+                childName = child.getName() ?: ""
             }
-        } catch (ignored) {}
+            String type = child.getHumanType()
+            String kind = kindOf(child)
+            if (filterType != null && !filterType.isEmpty()) {
+                def hay = (type + "|" + kind).toLowerCase()
+                if (!hay.contains(filterType.toLowerCase())) continue
+            }
+
+            def entry = [
+                id: child.getID(),
+                name: childName,
+                type: type,
+                kind: kind,
+                stereotypes: StereotypesHelper.getStereotypes(child).collect { it.getName() },
+                parentId: child.getOwner() != null ? child.getOwner().getID() : ""
+            ]
+            if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Comment) {
+                entry.body = child.getBody() ?: ""
+            }
+
+            if (depth > 0) {
+                entry.ownedElements = []
+                collectOwned(child, entry.ownedElements, depth - 1, filterType)
+            }
+
+            results.add(entry)
+        }
     }
 }
