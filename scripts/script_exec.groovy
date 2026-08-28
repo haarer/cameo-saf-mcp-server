@@ -80,6 +80,7 @@ class ScriptExec {
                 if (val instanceof Boolean) ok = (Boolean) val
                 else ok = Boolean.parseBoolean(String.valueOf(val))
                 entry.result = ok
+                if (!(val instanceof Boolean)) entry.raw = String.valueOf(val)
                 if (ok) passed++ else failed++
             } catch (Exception e) {
                 entry.error = e.getMessage()

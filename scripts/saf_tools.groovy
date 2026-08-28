@@ -1460,4 +1460,191 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
     def tryNext(def closure) {
         try { return closure() } catch (ignored) { return null }
     }
+
+    Map writableCheck(def element) {
+        try {
+            def ap = com.nomagic.magicdraw.core.ProjectUtilities.getAttachedProject(element)
+            if (ap == null) return null
+            boolean apRo = false
+            try { apRo = ap.isReadOnly() } catch (ignored) {}
+            if (apRo) {
+                return [error: "Element belongs to used project '" + (ap.getName() ?: "module") + "' which is read-only."]
+            }
+            def desc = null
+            try { desc = com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory.getDescriptorForProject(ap) } catch (ignored) {}
+            boolean remote = desc instanceof com.nomagic.magicdraw.core.project.AbstractRemoteProjectDescriptor
+            boolean fileRo = false
+            if (!remote && desc != null) {
+                try {
+                    def uri = desc.getURI()
+                    if (uri != null && "file".equalsIgnoreCase(uri.getScheme())) {
+                        def f = new File(uri)
+                        if (f.exists() && !f.canWrite()) fileRo = true
+                    }
+                } catch (ignored) {}
+            }
+            if (remote || fileRo) {
+                return [error: "Element belongs to used project '" + (ap.getName() ?: "module") + "' which is read-only."]
+            }
+        } catch (ignored) {}
+        return null
+    }
+
+    /* ---- Diagram creation ---- */
+
+    @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram. Creates the diagram element, adds shape presentations for the scope element and its owned children, and optionally adds connector/jump shapes.
+
+Diagram types: UML_COMPOSITE_STRUCTURE_DIAGRAM (IBD), UML_CLASS_DIAGRAM, UML_DEPLOYMENT_DIAGRAM, UML_PACKAGE_DIAGRAM, UML_ACTIVITY_DIAGRAM, UML_COMPONENT_DIAGRAM, CONTENT_DIAGRAM, or any creatable type.
+
+Use scopeElementId to diagram a block's internal structure (P2_PSTD, P4_PIEX), or omit to diagram all direct children of parentId (P1_PCXD, P5_PIFD).''')
+    @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Lawnbot Structure')", required = true)
+    @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
+    @McpToolArgument(name = "diagramType", type = "string", description = "Diagram type constant. Default: UML_COMPOSITE_STRUCTURE_DIAGRAM. Options: UML_COMPOSITE_STRUCTURE_DIAGRAM, UML_CLASS_DIAGRAM, UML_DEPLOYMENT_DIAGRAM, UML_PACKAGE_DIAGRAM, UML_ACTIVITY_DIAGRAM, UML_COMPONENT_DIAGRAM, CONTENT_DIAGRAM, UML_SEQUENCE_DIAGRAM, UML_STATECHART_DIAGRAM, UML_USECASE_DIAGRAM")
+    @McpToolArgument(name = "scopeElementId", type = "string", description = "Optional element ID to scope the diagram to. If set, adds the scope element and its owned children. If omitted, adds all direct children of parentId.")
+    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned connectors. Default: false")
+    @McpToolArgument(name = "domainFilter", type = "string", description = "Optional SAF domain filter: architecture_management, operational, conceptual, physical. Only elements matching this domain are added.")
+    @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when collecting owned elements. Default: 2")
+    Map safCreateDiagram(Map<String, Object> args) {
+        def name = args.get("name") as String
+        def parentId = args.get("parentId") as String
+        def diagramType = (args.get("diagramType") ?: "UML_COMPOSITE_STRUCTURE_DIAGRAM") as String
+        def scopeElementId = args.get("scopeElementId") as String
+        def includeConnectors = (args.get("includeConnectors") as Boolean) ?: false
+        def domainFilter = args.get("domainFilter") as String
+        def maxDepth = (int) (args.get("maxDepth") ?: 2)
+
+        if (!name) return [error: "name is required"]
+        if (!parentId) return [error: "parentId is required"]
+
+        def project = getProject()
+        def parent = resolveElement(parentId)
+        if (parent == null) return [error: "Parent element not found: " + parentId]
+
+        def roErr = writableCheck(parent)
+        if (roErr != null) return roErr
+
+        def elementsToAdd = []
+        def connectorsToAdd = []
+
+        if (scopeElementId) {
+            def scope = resolveElement(scopeElementId)
+            if (scope == null) return [error: "Scope element not found: " + scopeElementId]
+            elementsToAdd.add(scope)
+            collectElementsForDiagram(scope, elementsToAdd, connectorsToAdd, 0, maxDepth, domainFilter)
+        } else {
+            collectElementsFromParent(parent, elementsToAdd, connectorsToAdd, domainFilter)
+        }
+
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "saf_create_diagram")
+        try {
+            def diagramElem = ModelElementsManager.getInstance().createDiagram(diagramType, parent)
+            diagramElem.setName(name)
+
+            def pem = com.nomagic.magicdraw.openapi.uml.PresentationElementsManager.getInstance()
+            def diagramPres = project.getDiagram(diagramElem)
+
+            if (diagramPres == null) {
+                sm.cancelSession(project)
+                return [error: "Failed to get diagram presentation. Diagram may need to be opened in UI first."]
+            }
+
+            def shapeIds = []
+            for (elem in elementsToAdd) {
+                try {
+                    def shape = pem.createShapeElement(elem, diagramPres, false)
+                    if (shape != null) {
+                        shapeIds.add([elementId: elem.getID(), shapeId: shape.getID(), name: elem.getName()])
+                    }
+                } catch (ignored) {}
+            }
+
+            def connectorIds = []
+            if (includeConnectors) {
+                for (conn in connectorsToAdd) {
+                    try {
+                        def jump = pem.createPathElement(conn, diagramPres, diagramPres)
+                        if (jump != null) {
+                            connectorIds.add([elementId: conn.getID(), jumpId: jump.getID()])
+                        }
+                    } catch (ignored) {}
+                }
+            }
+
+            sm.closeSession(project)
+
+            return [
+                diagramId: diagramElem.getID(),
+                name: name,
+                diagramType: diagramType,
+                parentId: parentId,
+                shapesAdded: shapeIds.size(),
+                shapes: shapeIds,
+                connectorsAdded: connectorIds.size(),
+                connectors: connectorIds,
+                scopeElementId: scopeElementId
+            ]
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getClass().getName() + ": " + (e.getMessage() ?: ""), stack: e.toString()]
+        }
+    }
+
+    void collectElementsFromParent(def parent, List elements, List connectors, String domainFilter) {
+        try {
+            for (child in parent.getOwnedElement()) {
+                def childStereos = []
+                try {
+                    for (st in child.getAppliedStereotype()) {
+                        def n = st.getName()
+                        if (n != null) childStereos.add(n)
+                    }
+                } catch (ignored) {}
+
+                def isConnector = child.getHumanType().toLowerCase().contains("connector")
+                if (isConnector) {
+                    connectors.add(child)
+                } else {
+                    if (domainFilter && !childStereos.isEmpty()) {
+                        def domain = resolveSafDomain(childStereos)
+                        if (domain && domain.toLowerCase() == domainFilter.toLowerCase()) {
+                            elements.add(child)
+                        } else if (domainFilter && childStereos.isEmpty()) {
+                            elements.add(child)
+                        }
+                    } else {
+                        elements.add(child)
+                    }
+                }
+            }
+        } catch (ignored) {}
+    }
+
+    void collectElementsForDiagram(def element, List elements, List connectors, int depth, int maxDepth, String domainFilter) {
+        if (depth > maxDepth) return
+        try {
+            for (child in element.getOwnedElement()) {
+                def childStereos = []
+                try {
+                    for (st in child.getAppliedStereotype()) {
+                        def n = st.getName()
+                        if (n != null) childStereos.add(n)
+                    }
+                } catch (ignored) {}
+
+                def isConnector = child.getHumanType().toLowerCase().contains("connector")
+                if (isConnector) {
+                    connectors.add(child)
+                } else {
+                    def kind = resolveSafKind(childStereos)
+                    if (!kind || !kind.toLowerCase().contains("relationship")) {
+                        elements.add(child)
+                        if (depth < maxDepth) {
+                            collectElementsForDiagram(child, elements, connectors, depth + 1, maxDepth, domainFilter)
+                        }
+                    }
+                }
+            }
+        } catch (ignored) {}
+    }
 }
