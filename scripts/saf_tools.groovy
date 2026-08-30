@@ -1492,22 +1492,88 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
 
     /* ---- Diagram creation ---- */
 
+    // Friendly diagram-type names (symbolic constants and human labels) mapped to the
+    // actual string value that ModelElementsManager.createDiagram(String, Element)
+    // accepts. See com.nomagic.uml2.diagram.DiagramTypes for the authoritative values.
+    private static final DIAGRAM_TYPE_ALIASES = [
+        // canonical DiagramTypes string values (pass-through targets)
+        "Activity Diagram": "Activity Diagram",
+        "Class Diagram": "Class Diagram",
+        "Component Diagram": "Component Diagram",
+        "Composite Structure Diagram": "Composite Structure Diagram",
+        "Deployment Diagram": "Deployment Diagram",
+        "Package Diagram": "Package Diagram",
+        "Sequence Diagram": "Sequence Diagram",
+        "State Machine Diagram": "State Machine Diagram",
+        "Use Case Diagram": "Use Case Diagram",
+        "Object Diagram": "Object Diagram",
+        "Communication Diagram": "Communication Diagram",
+        "Interaction Diagram": "Interaction Diagram",
+        "Profile Diagram": "Profile Diagram",
+        "Interaction Overview Diagram": "Interaction Overview Diagram",
+        "Protocol State Machine Diagram": "Protocol State Machine Diagram",
+        "Static Diagram": "Static Diagram",
+        "Content Diagram": "Content Diagram",
+        // symbolic UMLConstants-style names often guessed by agents
+        "UML_ACTIVITY_DIAGRAM": "Activity Diagram",
+        "UML_CLASS_DIAGRAM": "Class Diagram",
+        "UML_COMPONENT_DIAGRAM": "Component Diagram",
+        "UML_COMPOSITE_STRUCTURE_DIAGRAM": "Composite Structure Diagram",
+        "UML_DEPLOYMENT_DIAGRAM": "Deployment Diagram",
+        "UML_PACKAGE_DIAGRAM": "Package Diagram",
+        "UML_SEQUENCE_DIAGRAM": "Sequence Diagram",
+        "UML_STATECHART_DIAGRAM": "State Machine Diagram",
+        "UML_USECASE_DIAGRAM": "Use Case Diagram",
+        "UML_OBJECT_DIAGRAM": "Object Diagram",
+        "UML_COMMUNICATION_DIAGRAM": "Communication Diagram",
+        "UML_INTERACTION_DIAGRAM": "Interaction Diagram",
+        "UML_PROFILE_DIAGRAM": "Profile Diagram",
+        "UML_INTERACTION_OVERVIEW_DIAGRAM": "Interaction Overview Diagram",
+        "UML_PROTOCOL_STATE_MACHINE_DIAGRAM": "Protocol State Machine Diagram",
+        "UML_STATIC_DIAGRAM": "Static Diagram",
+        "UML_BEHAVIOR_DIAGRAM": "Behavior Diagram",
+        "UML_ANY_DIAGRAM": "Any Diagram",
+        "CONTENT_DIAGRAM": "Content Diagram",
+    ]
+
+    // Input passed to ModelElementsManager.createDiagram must be the canonical string value.
+    String resolveDiagramType(String raw) {
+        if (raw == null) return "Composite Structure Diagram"
+        def trimmed = raw.trim()
+        if (trimmed.isEmpty()) return "Composite Structure Diagram"
+        // direct canonical value (case-insensitive) is accepted as-is
+        def exact = DIAGRAM_TYPE_ALIASES.entrySet().find { it.key.equalsIgnoreCase(trimmed) }
+        if (exact != null) return exact.value as String
+        return lookupDiagramType(trimmed)
+    }
+
+    String lookupDiagramType(String key) {
+        def lower = key.toLowerCase()
+        def hit = DIAGRAM_TYPE_ALIASES.entrySet().find {
+            (it.key as String).toLowerCase() == lower
+        }
+        if (hit != null) return hit.value as String
+        throw new IllegalArgumentException(
+            "Unknown diagram type: '${key}'. Valid values: " +
+            (DIAGRAM_TYPE_ALIASES.keySet().toSorted() as List).join(", "))
+    }
+
     @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram. Creates the diagram element, adds shape presentations for the scope element and its owned children, and optionally adds connector/jump shapes.
 
-Diagram types: UML_COMPOSITE_STRUCTURE_DIAGRAM (IBD), UML_CLASS_DIAGRAM, UML_DEPLOYMENT_DIAGRAM, UML_PACKAGE_DIAGRAM, UML_ACTIVITY_DIAGRAM, UML_COMPONENT_DIAGRAM, CONTENT_DIAGRAM, or any creatable type.
+Use scopeElementId to diagram a block's internal structure (P2_PSTD, P4_PIEX), or omit to diagram all direct children of parentId (P1_PCXD, P5_PIFD).
 
-Use scopeElementId to diagram a block's internal structure (P2_PSTD, P4_PIEX), or omit to diagram all direct children of parentId (P1_PCXD, P5_PIFD).''')
-    @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Lawnbot Structure')", required = true)
+Note: diagrams for SysML blocks (BDD = Class Diagram, IBD = Composite Structure Diagram) are composed of CLASSIFIER shapes. The tool adds the containers and owned children as shapes; it does NOT draw package-level association (composition) relationships as connector lines - only elements whose type contains 'connector' are rendered as paths. For a BDD to show compositions, call saf_add_association_paths afterwards.''')
+    @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
-    @McpToolArgument(name = "diagramType", type = "string", description = "Diagram type constant. Default: UML_COMPOSITE_STRUCTURE_DIAGRAM. Options: UML_COMPOSITE_STRUCTURE_DIAGRAM, UML_CLASS_DIAGRAM, UML_DEPLOYMENT_DIAGRAM, UML_PACKAGE_DIAGRAM, UML_ACTIVITY_DIAGRAM, UML_COMPONENT_DIAGRAM, CONTENT_DIAGRAM, UML_SEQUENCE_DIAGRAM, UML_STATECHART_DIAGRAM, UML_USECASE_DIAGRAM")
+    @McpToolArgument(name = "diagramType", type = "string", description = "Diagram kind. Default: 'Composite Structure Diagram' (IBD). BDD uses 'Class Diagram'. Accepted: friendly names ('Class Diagram', 'Composite Structure Diagram', 'Package Diagram', ...) and UMLConstants-style aliases ('UML_CLASS_DIAGRAM', 'UML_COMPOSITE_STRUCTURE_DIAGRAM', ...).")
     @McpToolArgument(name = "scopeElementId", type = "string", description = "Optional element ID to scope the diagram to. If set, adds the scope element and its owned children. If omitted, adds all direct children of parentId.")
-    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned connectors. Default: false")
+    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Does NOT render package-level Association/Composition relationships - use saf_add_association_paths for those. Default: false")
     @McpToolArgument(name = "domainFilter", type = "string", description = "Optional SAF domain filter: architecture_management, operational, conceptual, physical. Only elements matching this domain are added.")
     @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when collecting owned elements. Default: 2")
     Map safCreateDiagram(Map<String, Object> args) {
         def name = args.get("name") as String
         def parentId = args.get("parentId") as String
-        def diagramType = (args.get("diagramType") ?: "UML_COMPOSITE_STRUCTURE_DIAGRAM") as String
+        def diagramType = resolveDiagramType(args.get("diagramType") as String)
         def scopeElementId = args.get("scopeElementId") as String
         def includeConnectors = (args.get("includeConnectors") as Boolean) ?: false
         def domainFilter = args.get("domainFilter") as String
@@ -1550,24 +1616,34 @@ Use scopeElementId to diagram a block's internal structure (P2_PSTD, P4_PIEX), o
             }
 
             def shapeIds = []
+            def shapeSkips = []
             for (elem in elementsToAdd) {
                 try {
                     def shape = pem.createShapeElement(elem, diagramPres, false)
                     if (shape != null) {
                         shapeIds.add([elementId: elem.getID(), shapeId: shape.getID(), name: elem.getName()])
+                    } else {
+                        shapeSkips.add([elementId: elem.getID(), name: elem.getName(), reason: "createShapeElement returned null (not shapeable in this diagram type)"])
                     }
-                } catch (ignored) {}
+                } catch (Exception se) {
+                    shapeSkips.add([elementId: elem.getID(), name: elem.getName(), reason: se.toString()])
+                }
             }
 
             def connectorIds = []
+            def connectorSkips = []
             if (includeConnectors) {
                 for (conn in connectorsToAdd) {
                     try {
                         def jump = pem.createPathElement(conn, diagramPres, diagramPres)
                         if (jump != null) {
                             connectorIds.add([elementId: conn.getID(), jumpId: jump.getID()])
+                        } else {
+                            connectorSkips.add([elementId: conn.getID(), name: conn.getName(), reason: "createPathElement returned null"])
                         }
-                    } catch (ignored) {}
+                    } catch (Exception ce) {
+                        connectorSkips.add([elementId: conn.getID(), name: conn.getName(), reason: ce.toString()])
+                    }
                 }
             }
 
@@ -1580,10 +1656,122 @@ Use scopeElementId to diagram a block's internal structure (P2_PSTD, P4_PIEX), o
                 parentId: parentId,
                 shapesAdded: shapeIds.size(),
                 shapes: shapeIds,
+                shapesSkipped: shapeSkips,
                 connectorsAdded: connectorIds.size(),
                 connectors: connectorIds,
+                connectorsSkipped: connectorSkips,
                 scopeElementId: scopeElementId
             ]
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getClass().getName() + ": " + (e.getMessage() ?: ""), stack: e.toString()]
+        }
+    }
+
+    @McpTool(name = "saf_add_association_paths", description = '''Draw association path shapes (including composition/aggregation) on an existing diagram, between the classifier shapes already present. Use after saf_create_diagram to show composition relationships on a BDD (e.g. the C1_SCXD requirement that the context block compose the SOI and each context element).
+
+Given a diagram and a set of Associations (explicit relationshipIds, or all Associations owned by an element - containerId, else the diagram's owner), the tool finds the shape presentations of the two end classifiers already in the diagram and creates a PathElement between them. Any association whose end classifiers are not both already present as shapes is reported as skipped (never created silently).''')
+    @McpToolArgument(name = "diagramId", type = "string", description = "Element ID of the diagram to add association paths to", required = true)
+    @McpToolArgument(name = "relationshipIds", type = "array", description = "Optional list of Association element IDs to draw. If omitted, containerId (or the element owning the diagram) is scanned for owned Associations.")
+    @McpToolArgument(name = "containerId", type = "string", description = "Optional element whose owned Associations are scanned when relationshipIds is omitted.")
+    Map safAddAssociationPaths(Map<String, Object> args) {
+        def diagramId = args.get("diagramId") as String
+        def relationshipIds = args.get("relationshipIds") as List
+        def containerId = args.get("containerId") as String
+
+        if (!diagramId) return [error: "diagramId is required"]
+
+        def project = getProject()
+        def diagramElem = resolveElement(diagramId)
+        if (diagramElem == null) return [error: "Diagram element not found: " + diagramId]
+
+        def roErr = writableCheck(diagramElem)
+        if (roErr != null) return roErr
+
+        def pem = com.nomagic.magicdraw.openapi.uml.PresentationElementsManager.getInstance()
+        def diagramPres = project.getDiagram(diagramElem)
+        if (diagramPres == null) {
+            return [error: "Failed to get diagram presentation for diagram " + diagramId + ". Diagram may need to be opened in UI first."]
+        }
+
+        def associations = []
+        if (relationshipIds != null && !relationshipIds.isEmpty()) {
+            for (rid in relationshipIds) {
+                def rel = resolveElement(rid as String)
+                if (rel != null && rel instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Association) {
+                    associations.add(rel)
+                }
+            }
+        } else {
+            def container = containerId ? resolveElement(containerId) : diagramElem.getOwner()
+            if (container == null) return [error: "No container element for association scan"]
+            try {
+                for (child in container.getOwnedElement()) {
+                    if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Association) {
+                        associations.add(child)
+                    }
+                }
+            } catch (ignored) {}
+        }
+
+        if (associations.isEmpty()) {
+            return [diagramId: diagramId, associationsFound: 0, added: [], addedCount: 0, skipped: [], skippedCount: 0,
+                    note: "no associations to draw"]
+        }
+
+        // Map model element ID -> shape presentation for classifier shapes already in the diagram.
+        def shapeByElementId = [:]
+        try {
+            for (pres in diagramPres.getPresentationElements()) {
+                try {
+                    def el = pres.getElement()
+                    if (el != null) shapeByElementId[el.getID()] = pres
+                } catch (ignored) {}
+            }
+        } catch (ignored) {}
+
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "saf_add_association_paths")
+        def added = []
+        def skipped = []
+        try {
+            for (assoc in associations) {
+                def endTypes = []
+                try { endTypes = new ArrayList(assoc.getEndType()) } catch (ignoredE) {}
+                if (endTypes == null || endTypes.size() < 2) {
+                    skipped.add([associationId: assoc.getID(), name: assoc.getName(), reason: "association has fewer than 2 end types"])
+                    continue
+                }
+                def shapeA = shapeByElementId[endTypes.get(0).getID()]
+                def shapeB = shapeByElementId[endTypes.get(1).getID()]
+                if (shapeA == null || shapeB == null) {
+                    skipped.add([associationId: assoc.getID(), name: assoc.getName(), reason: "end classifier shape not present in diagram"])
+                    continue
+                }
+                // createPathElement validates that the passed client/supplier shapes' model
+                // elements equal the relationship's client/supplier. For an (unordered)
+                // Association this ordering is not implied by getEndType(), so try both.
+                def path = null
+                def lastErr = null
+                for (pair in [[shapeA, shapeB], [shapeB, shapeA]]) {
+                    try {
+                        path = pem.createPathElement(assoc, pair.get(0), pair.get(1))
+                        if (path != null) break
+                    } catch (Exception pairErr) {
+                        lastErr = pairErr.toString()
+                    }
+                }
+                if (path != null) {
+                    added.add([associationId: assoc.getID(), name: assoc.getName(), pathId: path.getID()])
+                } else {
+                    skipped.add([associationId: assoc.getID(), name: assoc.getName(),
+                                 reason: lastErr ?: "createPathElement returned null for both end orderings"])
+                }
+            }
+            sm.closeSession(project)
+            return [diagramId: diagramId, associationsFound: associations.size(),
+                    added: added, addedCount: added.size(),
+                    skipped: skipped, skippedCount: skipped.size()]
         } catch (Exception e) {
             sm.cancelSession(project)
             return [error: e.getClass().getName() + ": " + (e.getMessage() ?: ""), stack: e.toString()]

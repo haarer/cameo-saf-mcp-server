@@ -377,8 +377,10 @@ class ElementCrud {
         return [elementId: elementId, stereotype: stereotypeName, removed: true]
     }
 
-    @McpTool(name = "create_relationship", description = "Create a SysML relationship between two elements. Supported types: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector. Optionally apply a stereotype. For SAF relationships (satisfy, derive, trace, refine, verify, allocate), use saf_create_relationship instead. Returns the relationship ID.")
-    @McpToolArgument(name = "type", type = "string", description = "Relationship type: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector")
+    @McpTool(name = "create_relationship", description = '''Create a SysML relationship between two elements. Supported types: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector. Optionally apply a stereotype. For SAF relationships (satisfy, derive, trace, refine, verify, allocate), use saf_create_relationship instead. Returns the relationship ID.
+
+IMPORTANT: 'composition' here creates a package-level Association whose second end has composite aggregation (association member ends). It does NOT create a block-owned part property. For a part property owned by a whole Block (needed for IBD/BDD internal structure and SAF C1_SCXD), use create_part instead.''')
+    @McpToolArgument(name = "type", type = "string", description = "Relationship type: dependency, abstraction, generalization, association, composition, controlflow, objectflow, connector. For block-owned parts use create_part, not composition.")
     @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source", required = true)
     @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the target", required = true)
     @McpToolArgument(name = "stereotype", type = "string", description = "Optional stereotype to apply to the relationship")
