@@ -214,9 +214,7 @@ class ElementCrud {
             }
 
             if (documentation != null && !documentation.isEmpty()) {
-                def comment = getFactory().createCommentInstance()
-                comment.setBody(documentation)
-                ModelElementsManager.getInstance().addElement(comment, created)
+                com.nomagic.magicdraw.uml2.Elements.setComment(created, documentation)
             }
 
             sm.closeSession(project)
@@ -553,14 +551,9 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
                 ((NamedElement) element).setName(newName)
             }
             if (newDoc != null) {
-                def comments = element.getOwnedComment()
-                if (comments != null && !comments.isEmpty()) {
-                    comments.iterator().next().setBody(newDoc)
-                } else {
-                    def comment = getFactory().createCommentInstance()
-                    comment.setBody(newDoc)
-                    ModelElementsManager.getInstance().addElement(comment, element)
-                }
+                // Canonical API: sets documentation on the first owned comment, or creates
+                // one if none exists; null/empty documentation removes the comment.
+                com.nomagic.magicdraw.uml2.Elements.setComment(element, newDoc)
             }
             sm.closeSession(project)
         } catch (Exception e) {

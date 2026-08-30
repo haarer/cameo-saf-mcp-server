@@ -283,9 +283,7 @@ Use this for descriptions, rationales, or additional context. Example: 'This sys
             }
 
             if (documentation != null && !documentation.isEmpty()) {
-                def comment = getFactory().createCommentInstance()
-                comment.setBody(documentation)
-                ModelElementsManager.getInstance().addElement(comment, created)
+                com.nomagic.magicdraw.uml2.Elements.setComment(created, documentation)
             }
 
             sm.closeSession(project)
