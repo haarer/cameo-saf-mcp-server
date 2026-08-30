@@ -69,6 +69,22 @@ def test_create_relationship_warns_composition_is_not_part(client):
     assert "create_part" in type_desc, f"type arg should mention create_part: {type_desc}"
 
 
+def test_create_part_discloses_auto_created_companion_association(client):
+    """create_part with composite/shared aggregation auto-creates a companion Association
+    (MagicDraw behavior). The surface must disclose this so agents do NOT call
+    create_relationship('composition') for the same pair and produce duplicates.
+    """
+    defs = _tool_defs(client)
+    assert "create_part" in defs
+    desc = defs["create_part"].get("description", "")
+    assert "companion Association" in desc, f"expected companion Association mention in: {desc}"
+    assert "create_relationship" in desc, f"expected create_relationship warning in: {desc}"
+    assert "duplicate" in desc.lower(), f"expected duplicate warning in: {desc}"
+    assert "saf_add_association_paths" in desc, f"expected path guidance in: {desc}"
+    agg = defs["create_part"]["inputSchema"]["properties"]["aggregation"]["description"]
+    assert "duplicate" in agg.lower(), f"aggregation arg should warn about duplicates: {agg}"
+
+
 def test_saf_add_association_paths_registered_and_guides(client):
     """The association-path tool must be present and must advertise non-silent behavior
     (skipped associations are reported, not swallowed) so agents can draw compositions
