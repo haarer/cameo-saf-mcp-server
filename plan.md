@@ -134,6 +134,10 @@ Goal: give operators control over which MCP tools are visible and callable, and 
 - [ ] Add WebSocket transport option.
 - [ ] Add `notifications/initialized` and tool list change notifications.
 
+##### Transport Configuration (Completed)
+- [x] Added `cameo.mcp.server.bind.host` system property to configure the HTTP listen interface (default `0.0.0.0`, all interfaces). Threaded from `CameoMcpServerPlugin` → `CameoMcpServer` → `StreamableMcpTransportProvider` and replaces the previously hardcoded `"0.0.0.0"` bind. Port remains `cameo.mcp.server.port` (default `18750`). Use `127.0.0.1` to restrict to loopback.
+
+
 ## Lessons Learned
 
 ### Jackson Classloader Conflict

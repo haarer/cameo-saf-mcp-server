@@ -27,7 +27,7 @@ public class CameoMcpServer {
     private final Thread hotReloadThread;
     private volatile List<String> lastToolSignature = null;
 
-    public CameoMcpServer(int port) throws IOException {
+    public CameoMcpServer(String host, int port) throws IOException {
         var scriptsDir = determineDefaultScriptsDir();
         info("scripts dir: " + scriptsDir);
 
@@ -44,7 +44,7 @@ public class CameoMcpServer {
         var mapper = new ObjectMapper();
         protocolHandler = new McpProtocolHandler(mapper, sessionManager);
 
-        transportProvider = new StreamableMcpTransportProvider(port, protocolHandler, sessionManager);
+        transportProvider = new StreamableMcpTransportProvider(host, port, protocolHandler, sessionManager);
 
         scanner = new GroovyScriptScanner(scriptsDir, mapper);
 
@@ -57,6 +57,10 @@ public class CameoMcpServer {
 
     public int getPort() {
         return transportProvider.getPort();
+    }
+
+    public String getHost() {
+        return transportProvider.getHost();
     }
 
     private String determineDefaultScriptsDir() {

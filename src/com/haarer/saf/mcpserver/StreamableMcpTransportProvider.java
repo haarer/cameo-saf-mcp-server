@@ -51,6 +51,7 @@ public class StreamableMcpTransportProvider {
     }
 
     private final HttpServer httpServer;
+    private final String host;
     private final int port;
     private final McpProtocolHandler handler;
     private final McpSession.Manager sessionManager;
@@ -58,11 +59,12 @@ public class StreamableMcpTransportProvider {
     private final Map<String, SseClient> sseClients = new ConcurrentHashMap<>();
     private final ScheduledExecutorService keepaliveExecutor;
 
-    public StreamableMcpTransportProvider(int port, McpProtocolHandler handler, McpSession.Manager sessionManager) throws IOException {
+    public StreamableMcpTransportProvider(String host, int port, McpProtocolHandler handler, McpSession.Manager sessionManager) throws IOException {
+        this.host = host;
         this.port = port;
         this.handler = handler;
         this.sessionManager = sessionManager;
-        this.httpServer = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
+        this.httpServer = HttpServer.create(new InetSocketAddress(host, port), 0);
         this.httpServer.setExecutor(Executors.newCachedThreadPool());
         httpServer.createContext("/", this::handleExchange);
         this.keepaliveExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -72,10 +74,12 @@ public class StreamableMcpTransportProvider {
         });
         keepaliveExecutor.scheduleWithFixedDelay(this::sendKeepalives, 15, 15, TimeUnit.SECONDS);
         httpServer.start();
-        info("HTTP server started on port " + port);
+        info("HTTP server started on " + host + ":" + port);
     }
 
     public int getPort() { return port; }
+
+    public String getHost() { return host; }
 
     public void stop() {
         keepaliveExecutor.shutdownNow();
