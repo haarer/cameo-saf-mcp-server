@@ -89,6 +89,18 @@ Tasks are drawn from the existing `_data/` SAF ontology and the FFDS model.
 
 ## 6. Harness Design (`validation/runner.py`)
 
+### Tool Filtering Mechanism
+
+The `enabled_tools` array in each test case is enforced at the MCP server level via an admin bridge tool. Before each run, the harness calls:
+
+```
+admin_set_enabled_tools(["saf_create_element", "saf_find_elements_by_type", ...])
+```
+
+This tells the MCP server to only expose those tools in `tools/list` and accept calls to only those tools in `tools/call`. After the run, `admin_set_enabled_tools([])` restores all tools.
+
+The filter is a static `Set<String>` on `McpSession` that both `handleToolsList` and `handleToolsCall` check. It takes effect immediately (no session restart needed) and applies to all connected sessions.
+
 ### Flow per test case
 
 ```
@@ -96,8 +108,9 @@ for each test_case in suite:
   for repetition in range(test_case.repetitions):
     for tool_variant in tool_variants:
       1. Call admin_load_model(test_case.model) → reset to clean state
-      2. Generate isolated opencode config with tool_variant.enabled_tools
-      3. Spawn: XDG_CONFIG_HOME=<tmpdir> opencode run --format json --model <model> "<task>"
+      2. Call admin_set_enabled_tools(tool_variant.enabled_tools) → restrict tool surface
+      3. Generate isolated opencode config (only MCP server + model)
+      4. Spawn: XDG_CONFIG_HOME=<tmpdir> opencode run --format json --model <model> "<task>"
       4. Capture stdout/stderr → write transcript to output/<id>/<variant>/<rep>.jsonl
       5. Parse transcript: extract all MCP tool calls, responses, errors
       6. Compute efficiency metrics:
@@ -210,7 +223,36 @@ Container → host.containers.internal:1234  (LLM inference server)
 
 No changes to the container setup. The harness only needs Python 3 + `httpx` (same deps as the existing test suite).
 
-## 11. Files
+## 11. Admin Web Page
+
+A management web page at `http://host.containers.internal:18750/admin` provides real-time control and visibility into the MCP tool surface.
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/admin` | Self-contained HTML page with tool grid |
+| GET | `/admin/api` | JSON: all tools with name, description, enabled status, call count |
+| POST | `/admin/api/enable` | Body `{"tools":["name1","name2"]}` — sets enabled set; empty/absent = all tools |
+| POST | `/admin/api/disable` | Clears the filter (re-enables all tools) |
+
+### UI Features
+
+- Toggle slider per tool — enable/disable instantly
+- Enable All / Disable All buttons
+- Call counter per tool (lifetime since server start or last reset)
+- Refresh button
+- Tool description shown inline
+
+### Implementation
+
+- Java `HttpServer` handler in `StreamableMcpTransportProvider.java` on the same port (no separate port)
+- Call stats: `ConcurrentHashMap<String, AtomicLong>` in `McpSession`, incremented in `McpProtocolHandler.handleToolsCall()`
+- Tool filter: same static `Set<String>` mechanism used by `admin_set_enabled_tools` — the admin API calls `McpSession.setEnabledTools()` directly
+
+The admin page is bundled as an inline HTML string (no external files). A Cameo restart is required to pick up the Java changes.
+
+## 12. Files
 
 ```
 validation/

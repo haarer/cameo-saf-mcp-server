@@ -1,5 +1,6 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
 import com.haarer.saf.mcpserver.handlers.McpToolArgument
+import com.haarer.saf.mcpserver.protocol.McpSession
 import com.nomagic.magicdraw.core.Application
 import com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory
 import com.nomagic.magicdraw.core.project.ProjectDescriptor
@@ -210,6 +211,31 @@ class AdminBridge {
         } catch (Exception e) {
             return [error: "Failed to reset model: " + e.getMessage()]
         }
+    }
+
+    @McpTool(name = "admin_set_enabled_tools", description = "[ADMIN] Restrict which MCP tools are visible and callable. Pass an array of tool names. Only those tools will appear in tools/list and be accepted by tools/call. Call with an empty array or omit to restore all tools.")
+    @McpToolArgument(name = "tools", type = "array", description = "Array of tool names to enable (e.g. [\"saf_create_element\", \"saf_create_relationship\"]). Empty or null restores all tools.")
+    Map setEnabledTools(Map<String, Object> args) {
+        def tools = args.get("tools")
+        if (tools == null || (tools instanceof List && tools.isEmpty())) {
+            McpSession.clearEnabledTools()
+            return [status: "ok", message: "All tools enabled", enabledCount: -1]
+        }
+        if (tools instanceof List) {
+            def toolSet = new LinkedHashSet(tools)
+            McpSession.setEnabledTools(toolSet)
+            return [status: "ok", enabledCount: toolSet.size(), tools: toolSet]
+        }
+        return [error: "tools must be an array of tool name strings"]
+    }
+
+    @McpTool(name = "admin_get_enabled_tools", description = "[ADMIN] Get the currently enabled tool set. Returns the list of enabled tool names, or a message indicating all tools are enabled.")
+    Map getEnabledTools() {
+        def enabled = McpSession.getEnabledTools()
+        if (enabled == null) {
+            return [status: "ok", message: "All tools are enabled", enabledCount: -1]
+        }
+        return [status: "ok", enabledCount: enabled.size(), tools: enabled]
     }
 
 }

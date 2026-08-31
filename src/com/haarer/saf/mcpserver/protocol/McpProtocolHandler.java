@@ -83,6 +83,7 @@ public class McpProtocolHandler {
     private String handleToolsList(McpSession session, Object id) throws Exception {
         var toolsArray = mapper.createArrayNode();
         for (var tool : session.getTools()) {
+            if (!McpSession.isToolEnabled(tool.name())) continue;
             var node = mapper.createObjectNode();
             node.put("name", tool.name());
             node.put("description", tool.description());
@@ -106,10 +107,15 @@ public class McpProtocolHandler {
         String toolName = params.has("name") ? params.get("name").asText() : null;
         if (toolName == null) return HandleResult.error(this, id, -32602, "Missing tool name");
 
+        if (!McpSession.isToolEnabled(toolName)) {
+            return HandleResult.error(this, id, -32602, "Tool not found: " + toolName);
+        }
+
         var arguments = nodeToMap(params.has("arguments") ? params.get("arguments") : null);
 
         for (var tool : session.getTools()) {
             if (tool.name().equals(toolName)) {
+                McpSession.incrementToolCallCount(toolName);
                 try {
                     var toolResult = tool.handler().call(arguments);
                     var contentArray = mapper.createArrayNode();

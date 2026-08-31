@@ -114,7 +114,22 @@ Derived from `docs/mcp-surface-review.md` (Tier 1 of the capability proposal).
 
 Follow-ups (Tier 2+ in `docs/mcp-surface-review.md`): diagrams, port/part detail enrichment (incl. exposing `propertyPath`/interface on the read side), multiplicity/aggregation/navigability setters, offset/limit batching, `get_connectors(blockId)` (currently folded into `get_block_structure`), explicit `NestedConnectorEnd`/`propertyPath` surfaced by `get_port_type_info` / `get_block_structure`.
 
-### Iteration 7: Transport Expansion (Pending)
+### Iteration 7: Tool Surface Administration — Tool Filtering + Admin Web Page (Completed)
+
+Goal: give operators control over which MCP tools are visible and callable, and per-tool call telemetry, to support the validation harness (see `validation/PLAN.md`) and controlled-agent experiments.
+
+- [x] `McpSession` static tool filter — `setEnabledTools()` / `clearEnabledTools()` / `isToolEnabled()` backed by a `volatile Set<String>`. When set, only enabled tools appear in `tools/list` and are accepted by `tools/call`; disabled calls return `-32602 Tool not found`.
+- [x] Call telemetry — `ConcurrentHashMap<String, AtomicLong>` counters incremented in `McpProtocolHandler.handleToolsCall()`, read via `getToolCallCount()` / `getToolCallCounts()`.
+- [x] Groovy admin tools — `admin_set_enabled_tools(tools[])` (pass empty/omit to restore all) and `admin_get_enabled_tools` in `scripts/admin_bridge.groovy`.
+- [x] HTTP admin endpoints in `StreamableMcpTransportProvider` on the same port:
+  - `GET /admin` — self-contained HTML tool-manager page (toggle sliders, Enable All / Disable All, per-tool call count, inline descriptions).
+  - `GET /admin/api` — JSON: every tool with name, description, enabled status, call count.
+  - `POST /admin/api/enable` — body `{"tools":[...]}` sets the enabled set; empty/absent restores all.
+  - `POST /admin/api/disable` — clears the filter (re-enables all).
+- [x] Enforced in both `handleToolsList` and `handleToolsCall`; takes effect immediately across all sessions (no session restart).
+- [x] Deployed and verified against a live Cameo instance: 63 → 3 filtered listing, disabled-call rejection, enable/disable via HTTP, call counts, and full 112-test suite pass.
+
+### Iteration 8: Transport Expansion (Pending)
 - [ ] Add SSE transport option for server-initiated notifications.
 - [ ] Add WebSocket transport option.
 - [ ] Add `notifications/initialized` and tool list change notifications.

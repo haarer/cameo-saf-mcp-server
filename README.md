@@ -69,6 +69,28 @@ The `scripts/` directory ships with several Groovy handlers:
 - `@McpTool(name="find_elements_by_type")` — Find elements by SysML type and/or stereotype, returns results with element ID.
 - `@McpTool(name="get_element_details")` — Get full element details by ID (name, type, stereotypes, owned elements, relationships).
 
+#### `admin_bridge.groovy` — Model lifecycle & tool-surface administration
+- `@McpTool(name="admin_load_model")` — Load a model from an mdzip file path (resolved on the Cameo host; closes the current model first).
+- `@McpTool(name="admin_save_model")` — Save the currently open model to its file location.
+- `@McpTool(name="admin_close_model")` — Close the currently open model.
+- `@McpTool(name="admin_get_model_status")` — Report the currently open model's name, file path, and element count.
+- `@McpTool(name="admin_reset_model")` — Reload a model from its mdzip file (close + fresh load); used to reset model state between test runs.
+- `@McpTool(name="admin_set_enabled_tools")` — Restrict which MCP tools are visible and callable. Pass an array of tool names; only those appear in `tools/list` and are accepted by `tools/call`. Pass an empty array or omit to restore all tools. Takes effect immediately across all sessions.
+- `@McpTool(name="admin_get_enabled_tools")` — Return the currently enabled tool set (or a message indicating all tools are enabled).
+
+##### Admin Web Page
+
+A management page is served on the same MCP HTTP port (default `18750`):
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin` | GET | Self-contained HTML tool-manager page — toggle sliders per tool, Enable All / Disable All, per-tool call count, inline descriptions, Refresh. |
+| `/admin/api` | GET | JSON of every tool with `name`, `description`, `enabled` status, and `calls` (lifetime count). Also `filterActive` and the `enabledTools` set when a filter is active. |
+| `/admin/api/enable` | POST | Body `{"tools":["name1","name2"]}` sets the enabled set; empty/absent body restores all tools. |
+| `/admin/api/disable` | POST | Clears the tool filter (re-enables all tools). |
+
+Both the `admin_set_enabled_tools`/`admin_get_enabled_tools` MCP tools and the `/admin` HTTP endpoints drive the same static filter on `McpSession`, so either mechanism affects all connected sessions immediately. Per-tool call counters are incremented on every `tools/call` and are reset only on server restart.
+
 #### `saf_tools.groovy` — Model Structure and SAF Viewpoints
 
 SAF profile support for Cameo models. Provides tools for creating SAF-typed elements, querying viewpoints, building traceability chains, and exporting structured IR.
