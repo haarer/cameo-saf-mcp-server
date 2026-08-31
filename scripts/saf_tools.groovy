@@ -26,6 +26,10 @@ class SafTools {
         return getProject().getElementByID(id)
     }
 
+    String safeName(def elem) {
+        try { return elem.getName() ?: "" } catch (ignored) { return "" }
+    }
+
     def findStereotype(String name) {
         if (name == null || name.isEmpty()) return null
         def project = getProject()
@@ -1556,23 +1560,29 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
             (DIAGRAM_TYPE_ALIASES.keySet().toSorted() as List).join(", "))
     }
 
-    @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram. Creates the diagram element, adds shape presentations for the scope element and its owned children, and optionally adds connector/jump shapes.
+    @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram.
 
-Use scopeElementId to diagram a block's internal structure (P2_PSTD, P4_PIEX), or omit to diagram all direct children of parentId (P1_PCXD, P5_PIFD).
+THINK FIRST - decide WHICH elements to show. A diagram does NOT show everything owned by an element or package. It deliberately shows a SUBSET: the specific classifiers (and, for an IBD, the specific parts/connectors) that the viewpoint's recipe calls for. Focused views are standard practice - especially IBDs, which highlight only certain aspects. Do not add multiplicity literals, parts-as-floating-blocks on a BDD, or relationship views as shapes.
 
-Note: diagrams for SysML blocks (BDD = Class Diagram, IBD = Composite Structure Diagram) are composed of CLASSIFIER shapes. The tool adds the containers and owned children as shapes; it does NOT draw package-level association (composition) relationships as connector lines - only elements whose type contains 'connector' are rendered as paths. For a BDD to show compositions, call saf_add_association_paths afterwards.''')
+SELECTIVE (recommended): pass elementIds - add shapes for exactly the elements you chose and nothing else. This is how you build the correct, focused diagram for the viewpoint. Example - System Context BDD: pass the context block and each context element as elementIds, then call saf_add_association_paths to draw the composition links between them. Example - IBD: pass the part properties you want visible; connectors are drawn with the connector/port tools, not as elementIds shapes.
+
+LEGACY AUTO (avoid): omit elementIds to auto-collect the scope element (or all children of parentId). The auto path skips comments, literal integers, and relationship views, but it still cannot represent the deliberate subset each viewpoint needs - so prefer elementIds and reason about the subset.
+
+Note: Package-level Association/Composition relationships are NOT rendered as connector lines by this tool - call saf_add_association_paths afterwards to draw them between the shapes you added.''')
     @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
     @McpToolArgument(name = "diagramType", type = "string", description = "Diagram kind. Default: 'Composite Structure Diagram' (IBD). BDD uses 'Class Diagram'. Accepted: friendly names ('Class Diagram', 'Composite Structure Diagram', 'Package Diagram', ...) and UMLConstants-style aliases ('UML_CLASS_DIAGRAM', 'UML_COMPOSITE_STRUCTURE_DIAGRAM', ...).")
-    @McpToolArgument(name = "scopeElementId", type = "string", description = "Optional element ID to scope the diagram to. If set, adds the scope element and its owned children. If omitted, adds all direct children of parentId.")
+    @McpToolArgument(name = "elementIds", type = "array", description = "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.")
+    @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds is omitted. If set, adds the scope element and its owned children; if omitted, adds all direct children of parentId. Avoid - prefer elementIds for selective diagrams.")
     @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Does NOT render package-level Association/Composition relationships - use saf_add_association_paths for those. Default: false")
-    @McpToolArgument(name = "domainFilter", type = "string", description = "Optional SAF domain filter: architecture_management, operational, conceptual, physical. Only elements matching this domain are added.")
-    @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when collecting owned elements. Default: 2")
+    @McpToolArgument(name = "domainFilter", type = "string", description = "Optional SAF domain filter: architecture_management, operational, conceptual, physical. Only elements matching this domain are added (auto path only).")
+    @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when auto-collecting owned elements. Default: 2")
     Map safCreateDiagram(Map<String, Object> args) {
         def name = args.get("name") as String
         def parentId = args.get("parentId") as String
         def diagramType = resolveDiagramType(args.get("diagramType") as String)
         def scopeElementId = args.get("scopeElementId") as String
+        def elementIds = args.get("elementIds") as List
         def includeConnectors = (args.get("includeConnectors") as Boolean) ?: false
         def domainFilter = args.get("domainFilter") as String
         def maxDepth = (int) (args.get("maxDepth") ?: 2)
@@ -1590,7 +1600,22 @@ Note: diagrams for SysML blocks (BDD = Class Diagram, IBD = Composite Structure 
         def elementsToAdd = []
         def connectorsToAdd = []
 
-        if (scopeElementId) {
+        boolean selective = elementIds != null && !elementIds.isEmpty()
+        if (selective) {
+            def missing = []
+            for (idObj in elementIds) {
+                def id = idObj as String
+                def el = resolveElement(id)
+                if (el == null) {
+                    missing.add(id)
+                } else {
+                    elementsToAdd.add(el)
+                }
+            }
+            if (!missing.isEmpty()) {
+                return [error: "Some elementIds could not be resolved: " + missing.join(", ")]
+            }
+        } else if (scopeElementId) {
             def scope = resolveElement(scopeElementId)
             if (scope == null) return [error: "Scope element not found: " + scopeElementId]
             elementsToAdd.add(scope)
@@ -1619,12 +1644,12 @@ Note: diagrams for SysML blocks (BDD = Class Diagram, IBD = Composite Structure 
                 try {
                     def shape = pem.createShapeElement(elem, diagramPres, false)
                     if (shape != null) {
-                        shapeIds.add([elementId: elem.getID(), shapeId: shape.getID(), name: elem.getName()])
+                        shapeIds.add([elementId: elem.getID(), shapeId: shape.getID(), name: safeName(elem)])
                     } else {
-                        shapeSkips.add([elementId: elem.getID(), name: elem.getName(), reason: "createShapeElement returned null (not shapeable in this diagram type)"])
+                        shapeSkips.add([elementId: elem.getID(), name: safeName(elem), reason: "createShapeElement returned null (not shapeable in this diagram type)"])
                     }
                 } catch (Exception se) {
-                    shapeSkips.add([elementId: elem.getID(), name: elem.getName(), reason: se.toString()])
+                    shapeSkips.add([elementId: elem.getID(), name: safeName(elem), reason: se.toString()])
                 }
             }
 
@@ -1776,6 +1801,18 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
         }
     }
 
+    boolean isNonShapeableGroup(def elem) {
+        // Elements that must never be added as standalone classifier shapes.
+        if (elem instanceof Comment) return true                                    // documentation comments
+        def metatype = elem.getHumanType()?.toLowerCase() ?: ""
+        if (metatype.contains("literal")) return true                                // multiplicity literals (LiteralInteger, etc.)
+        if (metatype == "association" || metatype == "connector") return true        // package-level association / connector (drawn as paths, not shapes)
+        if (metatype.contains("dependency") || metatype.contains("abstraction")
+                || metatype == "generalization") return true                        // relationship views -> paths, not shapes
+        if (metatype.contains("directed relationship") || metatype.contains("relationship")) return true
+        return false
+    }
+
     void collectElementsFromParent(def parent, List elements, List connectors, String domainFilter) {
         try {
             for (child in parent.getOwnedElement()) {
@@ -1787,6 +1824,11 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
                     }
                 } catch (ignored) {}
 
+                if (isNonShapeableGroup(child)) {
+                    // Comments, literal integers, relationship views are not
+                    // standalone classifier shapes on a BDD; skip them.
+                    continue
+                }
                 def isConnector = child.getHumanType().toLowerCase().contains("connector")
                 if (isConnector) {
                     connectors.add(child)
@@ -1818,6 +1860,11 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
                     }
                 } catch (ignored) {}
 
+                if (isNonShapeableGroup(child)) {
+                    // Comments, literal integers, relationship views are not
+                    // standalone classifier shapes; skip them.
+                    continue
+                }
                 def isConnector = child.getHumanType().toLowerCase().contains("connector")
                 if (isConnector) {
                     connectors.add(child)

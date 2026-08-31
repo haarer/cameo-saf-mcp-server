@@ -1,8 +1,31 @@
+import json
 import os
 import httpx
 import pytest
 
 SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:18750")
+
+
+def _call_tool(client, session_id, tool_name, arguments=None):
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
+                                  "params": {"name": tool_name, "arguments": arguments or {}}},
+                    headers={"Mcp-Session-Id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert "result" in body, f"Tool {tool_name} returned error: {body}"
+    assert not body["result"].get("isError", False), f"Tool {tool_name} error: {body['result']['content']}"
+    content = body["result"]["content"]
+    assert len(content) > 0
+    return json.loads(content[0]["text"])
+
+
+@pytest.fixture(scope="module")
+def writable_root(client):
+    """The writable primary model root to parent throwaway elements under."""
+    session_id = _mcp_init(client)
+    models = _call_tool(client, session_id, "find_elements_by_type", {"type": "Model"})
+    root = next(m for m in models if not m.get("parentId"))
+    return root["id"]
 
 
 @pytest.fixture(scope="session")
@@ -116,3 +139,45 @@ def test_saf_add_association_paths_errors_cleanly_on_unknown_diagram(client):
 def _require_client_ok(client):
     r = client.get("/")
     return r
+
+
+def test_saf_create_diagram_skips_documentation_comment(client, writable_root):
+    """Regression: saf_create_diagram used to throw 'No signature of method: getName
+    for class ... CommentImpl' when the scoped element owned a documentation Comment.
+    Comments are not NamedElements (no getName()) and cannot be diagrammed as
+    classifier shapes, so they must be skipped, not crash the tool.
+    """
+    session_id = _mcp_init(client)
+
+    # create_element with documentation attaches a Comment owned by the Class.
+    owner = _call_tool(client, session_id, "create_element",
+                       {"type": "Class", "name": "ScratchDiagramCommentOwner",
+                        "parentId": writable_root,
+                        "documentation": "Regression test: this Comment must not crash diagram creation."})
+
+    try:
+        result = _call_tool(client, session_id, "saf_create_diagram",
+                            {"name": "ScratchCommentSkipBDD",
+                             "parentId": writable_root,
+                             "diagramType": "Class Diagram",
+                             "scopeElementId": owner["id"]})
+
+        # No crash: we got a normal result with a diagramId.
+        assert "diagramId" in result, f"expected diagramId, got: {result}"
+        assert "shapesSkipped" in result, f"expected shapesSkipped reporting, got: {result}"
+
+        # The owned Comment must not appear as a shape (it has no getName and is not
+        # a classifier); the documented element itself should still be a shape.
+        shape_ids = [s["elementId"] for s in result.get("shapes", [])]
+        assert owner["id"] in shape_ids, f"owner shape missing: {result}"
+
+        def has_comment_error(item):
+            reason = item.get("reason", "")
+            return "Comment" in reason or "getName" in reason
+
+        assert not any(has_comment_error(s) for s in result.get("shapesSkipped", [])), \
+            f"comment surfaced as error in shapesSkipped: {result['shapesSkipped']}"
+
+        _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+    finally:
+        _call_tool(client, session_id, "delete_element", {"elementId": owner["id"]})

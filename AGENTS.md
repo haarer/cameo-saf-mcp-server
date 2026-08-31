@@ -31,4 +31,16 @@ Single-context repo. See `docs/agents/domain.md`.
 ## Build & Deploy
 
 - **Cameo restart policy**: only restart Cameo when Java source code (`src/`) changes.
-  Groovy scripts (`scripts/*.groovy`) are hot-loaded — no restart needed.
+  Groovy scripts (`scripts/*.groovy`) are hot-loaded — no full restart needed.
+- **IMPORTANT — the running Cameo does NOT load `scripts/` from this repo.**
+  At runtime the plugin resolves its scripts dir from the deployed JAR location
+  (`CameoMcpServer.determineDefaultScriptsDir()` → `<CAMEO_HOME>/plugins/com.haarer.saf.mcpserver/scripts`,
+  overridable by VM property `cameo.mcp.server.scripts.dir`). Editing a script here
+  has NO effect until it is copied into that deployed dir.
+- **Hot-deploy a Groovy script into a running Cameo** with:
+  `./deploy-scripts.sh [file.groovy ...]`
+  (defaults to all of `scripts/`; uses `CAMEO_HOME`; waits ~3s for the 2s poller).
+  The `GroovyScriptScanner` detects file changes (mtime) every 2s and atomically
+  swaps the tool/resource/prompt lists without disconnecting MCP sessions.
+- **`install.sh`** is the FULL deploy (rebuild JAR + copy everything) and requires a
+  restart — do NOT use it for script-only changes.
