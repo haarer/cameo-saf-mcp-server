@@ -166,12 +166,17 @@ class ElementCrud {
             case "statemachine": return ef.createStateMachineInstance()
             case "transition": return ef.createTransitionInstance()
             case "constraint": return ef.createConstraintInstance()
+            case "usecase": return ef.createUseCaseInstance()
+            case "actor": return ef.createActorInstance()
+            case "include": return ef.createIncludeInstance()
+            case "extend": return ef.createExtendInstance()
+            case "extensionpoint": return ef.createExtensionPointInstance()
             default: throw new IllegalArgumentException("Unsupported type: " + type)
         }
     }
 
     @McpTool(name = "create_element", description = "Create a new SysML model element (Class, Package, Activity, Port, etc.) as a child of an existing parent element. Optionally apply a stereotype and set documentation. Returns the created element's ID. For SAF-typed elements, use saf_create_element instead.")
-    @McpToolArgument(name = "type", type = "string", description = "SysML type: Class, Package, Interface, Activity, Port, ProxyPort, Connector, Comment, Dependency, Abstraction, Association, Generalization, ControlFlow, ObjectFlow, DataType, Enumeration, Signal, State, StateMachine, Transition, Constraint, etc.")
+    @McpToolArgument(name = "type", type = "string", description = "SysML type: Class, Package, Interface, Activity, Port, ProxyPort, Connector, Comment, Dependency, Abstraction, Association, Generalization, ControlFlow, ObjectFlow, DataType, Enumeration, Signal, State, StateMachine, Transition, Constraint, Use Case, Actor, Include, Extend, etc.")
     @McpToolArgument(name = "name", type = "string", description = "Name for the new element", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent to contain the new element", required = true)
     @McpToolArgument(name = "stereotype", type = "string", description = "Optional stereotype name to apply to the element")

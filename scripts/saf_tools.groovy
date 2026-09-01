@@ -701,6 +701,9 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             case "valuetype":
             case "datatype": return ef.createDataTypeInstance()
             case "constraint": return ef.createConstraintInstance()
+            case "usecase": return ef.createUseCaseInstance()
+            case "actor": return ef.createActorInstance()
+            case "extensionpoint": return ef.createExtensionPointInstance()
             default: throw new IllegalArgumentException("Unsupported type: " + type)
         }
     }

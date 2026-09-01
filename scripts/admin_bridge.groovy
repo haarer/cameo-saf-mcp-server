@@ -2,8 +2,12 @@ import com.haarer.saf.mcpserver.handlers.McpTool
 import com.haarer.saf.mcpserver.handlers.McpToolArgument
 import com.haarer.saf.mcpserver.protocol.McpSession
 import com.nomagic.magicdraw.core.Application
+import com.nomagic.magicdraw.core.modules.ModulesService
 import com.nomagic.magicdraw.core.project.ProjectDescriptorsFactory
 import com.nomagic.magicdraw.core.project.ProjectDescriptor
+import com.nomagic.magicdraw.openapi.uml.SessionManager
+import com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper
+import com.nomagic.uml2.ext.magicdraw.mdprofiles.Profile
 
 class AdminBridge {
 
@@ -211,6 +215,185 @@ class AdminBridge {
         } catch (Exception e) {
             return [error: "Failed to reset model: " + e.getMessage()]
         }
+    }
+
+    @McpTool(name = "admin_create_model", description = "[ADMIN] Create a brand new empty model (project) in Cameo and make it the active project. Optionally save it immediately to a .mdzip path on the host. Use admin_apply_profile afterwards to attach profiles (e.g. SAF_Profile).")
+    @McpToolArgument(name = "name", type = "string", description = "Name for the new model/project (also used as the primary model name unless primaryModelName is given)", required = true)
+    @McpToolArgument(name = "savePath", type = "string", description = "Optional absolute HOST path to save the new model as a .mdzip (e.g. /home/mac/opencode/workspace/.../NewModel.mdzip). If omitted the model exists only in memory until saved with admin_save_model.")
+    @McpToolArgument(name = "primaryModelName", type = "string", description = "Optional name for the primary (root) model element. Defaults to 'name'.")
+    Map createModel(Map<String, Object> args) {
+        def name = args.get("name") as String
+        def savePath = args.get("savePath") as String
+        def primaryModelName = args.get("primaryModelName") as String
+        if (name == null || name.trim().isEmpty()) {
+            return [error: "name is required"]
+        }
+
+        try {
+            def app = Application.getInstance()
+            def pm = app.getProjectsManager()
+
+            def project = pm.createProject()
+            if (project == null) {
+                return [error: "Failed to create project"]
+            }
+            pm.setActiveProject(project)
+
+            project.setName(name)
+            def primary = project.getPrimaryModel()
+            if (primary != null) {
+                primary.setName(primaryModelName != null && !primaryModelName.trim().isEmpty() ? primaryModelName : name)
+            }
+
+            def savedPath = null
+            if (savePath != null && !savePath.trim().isEmpty()) {
+                def outFile = new File(savePath)
+                try {
+                    outFile.getParentFile().mkdirs()
+                } catch (ignored) {}
+                def descriptor = ProjectDescriptorsFactory.createLocalProjectDescriptor(project, outFile)
+                if (descriptor == null) {
+                    return [error: "Failed to create save descriptor for: " + savePath, hint: PATH_HINT, modelName: project.getName()]
+                }
+                pm.saveProject(descriptor, true)
+                savedPath = outFile.getAbsolutePath()
+            }
+
+            def elementCount = 0
+            if (primary != null) {
+                elementCount = primary.getOwnedElement().size()
+            }
+
+            return [
+                status: "ok",
+                modelName: project.getName(),
+                primaryModelName: primary != null ? primary.getName() : null,
+                elementCount: elementCount,
+                savedPath: savedPath,
+                hasProfilesApplied: false
+            ]
+        } catch (Exception e) {
+            return [error: "Failed to create model: " + e.getMessage()]
+        }
+    }
+
+    @McpTool(name = "admin_apply_profile", description = "[ADMIN] Attach a profile to the currently open model. Loads the profile .mdzip as a module, then applies it (with its dependent profiles) to the primary model so its stereotypes become usable. When only a profile name is given, the file is resolved under the Cameo install's profiles/ (or modelLibraries/) directory — no host path needed.")
+    @McpToolArgument(name = "profile", type = "string", description = "Profile name to locate in the Cameo install's profiles/ (or modelLibraries/) directory, e.g. 'SAF_Profile', 'SysML', 'UAF'. One of 'profile' or 'profilePath' is required.")
+    @McpToolArgument(name = "profilePath", type = "string", description = "Optional absolute HOST path to the profile .mdzip file. If omitted, 'profile' is resolved under <Cameo install>/profiles/ and <Cameo install>/modelLibraries/.")
+    @McpToolArgument(name = "name", type = "string", description = "Optional profile name to apply when profilePath is given (defaults to the file name).")
+    Map applyProfile(Map<String, Object> args) {
+        def profileName = args.get("profile") as String
+        def profilePath = args.get("profilePath") as String
+        def nameOverride = args.get("name") as String
+
+        if ((profileName == null || profileName.trim().isEmpty()) && (profilePath == null || profilePath.trim().isEmpty())) {
+            return [error: "Either 'profile' (name) or 'profilePath' is required"]
+        }
+
+        def app = Application.getInstance()
+        def project = app.getProject()
+        if (project == null) {
+            return [error: "No model is currently open. Create or load one first (admin_create_model / admin_load_model)."]
+        }
+
+        // 1. Locate the profile .mdzip on the HOST (explicit path wins over name-based resolution).
+        def file = null
+        if (profilePath != null && !profilePath.trim().isEmpty()) {
+            file = new File(profilePath)
+            if (!file.exists()) {
+                return [error: "File not found: " + profilePath, hint: PATH_HINT]
+            }
+        } else {
+            def baseName = profileName.trim().replaceAll(/\.mdzip$/, "")
+            def installRoot = null
+            try {
+                installRoot = Application.environment()?.getInstallRoot()
+            } catch (ignored) {}
+            def searchDirs = ["profiles", "modelLibraries"]
+            for (sub in searchDirs) {
+                if (installRoot == null) break
+                for (candidate in [baseName + ".mdzip", baseName.toLowerCase() + ".mdzip"]) {
+                    def f = new File(installRoot, sub + File.separator + candidate)
+                    if (f.exists()) {
+                        file = f
+                        break
+                    }
+                }
+                if (file != null) break
+            }
+            if (file == null) {
+                return [error: "Could not locate profile '" + profileName + "' under Cameo install" + (installRoot ? " (" + installRoot + ")" : "") + " in profiles/ or modelLibraries/. Pass an explicit profilePath instead.", hint: PATH_HINT]
+            }
+        }
+
+        // 2. Attach the profile project as a module of the open project (allowUI=false: no dialogs).
+        def attached = ModulesService.findOrLoadLocalModule(project, file.getAbsolutePath(), false)
+        if (attached == null) {
+            return [error: "Failed to attach profile module: " + file.getAbsolutePath() + " (already attached or unresolved dependencies)."]
+        }
+
+        // 3. Pick the target profile and collect its dependency closure (dependencies apply first).
+        def requested = nameOverride != null && !nameOverride.trim().isEmpty()
+            ? nameOverride.trim()
+            : (profileName != null && !profileName.trim().isEmpty() ? profileName.trim().replaceAll(/\.mdzip$/, "") : file.getName().replaceAll(/\.mdzip$/, ""))
+        def target = StereotypesHelper.getProfile(project, requested)
+        if (target == null) {
+            def loaded = StereotypesHelper.getAllProfiles(project).collect { it.getName() }.sort().join(", ")
+            return [error: "Profile '" + requested + "' not found among loaded profiles after attaching " + file.getName() + ". Loaded profiles: " + loaded]
+        }
+
+        def toApply = []
+        def visited = new HashSet()
+        Closure collectDeps
+        collectDeps = { Profile p ->
+            if (visited.contains(p)) return
+            visited.add(p)
+            for (dep in StereotypesHelper.getDependingProfiles(p)) {
+                collectDeps(dep)
+            }
+            toApply.add(p)
+        }
+        collectDeps(target)
+
+        def primary = project.getPrimaryModel()
+        if (primary == null) {
+            return [error: "Project has no primary model"]
+        }
+
+        // 4. Apply each selected profile (dependencies first), skipping already-applied ones.
+        def applied = []
+        def skipped = []
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "admin_apply_profile")
+        try {
+            def appliedNames = new HashSet(StereotypesHelper.getAppliedProfiles(primary).collect { it.getName() })
+            for (p in toApply) {
+                if (appliedNames.contains(p.getName())) {
+                    skipped.add(p.getName())
+                    continue
+                }
+                if (!StereotypesHelper.canApplyProfile(primary, p)) {
+                    skipped.add(p.getName() + " (cannot apply)")
+                    continue
+                }
+                StereotypesHelper.applyProfile(primary, p)
+                applied.add(p.getName())
+                appliedNames.add(p.getName())
+            }
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: "Failed to apply profile: " + e.getMessage()]
+        }
+
+        return [
+            status: "ok",
+            modelName: project.getName(),
+            attachedModule: file.getAbsolutePath(),
+            appliedProfiles: applied,
+            alreadyApplied: skipped,
+            loadedProfileCount: StereotypesHelper.getAllProfiles(project).size()
+        ]
     }
 
     @McpTool(name = "admin_set_enabled_tools", description = "[ADMIN] Restrict which MCP tools are visible and callable. Pass an array of tool names. Only those tools will appear in tools/list and be accepted by tools/call. Call with an empty array or omit to restore all tools.")
