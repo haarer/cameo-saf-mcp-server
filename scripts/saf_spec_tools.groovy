@@ -11,9 +11,22 @@ class SafSpecTools {
         return idx
     }
 
+    // Diagram-level (view-kind) SAF stereotypes that realize a viewpoint, via the
+    // realize/realizeconcept relations (Viewpoint <-- Revise/Realize -- SAF_X_Table, etc.)
+    // getDirectStereotypesForConcept already excludes non-stereotype realizations
+    // (e.g. the viewpoint element realizing itself), so every entry is a real stereotype.
+    private List getViewStereotypes(def vp) {
+        def idx = getIndex()
+        def direct = idx.getDirectStereotypesForConcept(vp.id())
+        if (direct == null || direct.isEmpty()) return []
+        return direct
+            .collect { s -> [id: s.id(), name: s.name(), documentation: s.documentation()] }
+            .sort { a, b -> a.name <=> b.name }
+    }
+
     // ---- List tools -------------------------------------------------------
 
-    @McpTool(name = "spec_list_viewpoints", description = "SAF Spec: List all viewpoints, optionally filtered by domain, aspect, or maturity. Use this to discover what viewpoints are available and their grid position (domain x aspect).")
+    @McpTool(name = "spec_list_viewpoints", description = "SAF Spec: List all viewpoints, optionally filtered by domain, aspect, or maturity. Use this to discover what viewpoints are available and their grid position (domain x aspect). Each entry includes its diagram-level viewStereotypes (the SAF stereotypes whose diagram/table/matrix conforms to the viewpoint).")
     @McpToolArgument(name = "domain", type = "string", description = "Filter by domain (e.g. architecture_management, operational, conceptual, physical)")
     @McpToolArgument(name = "aspect", type = "string", description = "Filter by aspect (e.g. taxonomy___structure, context___exchange, process___behavior)")
     @McpToolArgument(name = "maturity", type = "string", description = "Filter by maturity (released, proposed, under construction)")
@@ -34,7 +47,8 @@ class SafSpecTools {
                 domain: vp.domain(),
                 aspect: vp.aspect(),
                 maturity: vp.maturity(),
-                exposure: vp.exposure()
+                exposure: vp.exposure(),
+                viewStereotypes: getViewStereotypes(vp)
             ])
         }
         result.sort { a, b -> a.name <=> b.name }
@@ -101,7 +115,7 @@ class SafSpecTools {
 
     // ---- Get tools --------------------------------------------------------
 
-    @McpTool(name = "spec_get_viewpoint", description = "SAF Spec: Get detailed info about a single SAF viewpoint by name, VP_ID (e.g. O1_OSTY), or ID. Returns metadata, framed concerns, exposed concept names, and viewpoint dependencies.")
+    @McpTool(name = "spec_get_viewpoint", description = "SAF Spec: Get detailed info about a single SAF viewpoint by name, VP_ID (e.g. O1_OSTY), or ID. Returns metadata, framed concerns, exposed concept names, viewStereotypes (the SAF stereotypes applied to conforming diagram/table/matrix views), and viewpoint dependencies.")
     @McpToolArgument(name = "name", type = "string", description = "Viewpoint name, VP_ID, or ID", required = true)
     Map specGetViewpoint(Map<String, Object> args) {
         def name = args.get("name") as String
@@ -151,6 +165,7 @@ class SafSpecTools {
             stakeholders: stakeholders,
             concerns: concerns,
             exposedConcepts: concepts,
+            viewStereotypes: getViewStereotypes(vp),
             recommendedViewpoints: recommended,
             requiredViewpoints: required
         ]
