@@ -8,6 +8,7 @@ import com.nomagic.uml2.impl.ElementsFactory
 import com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper
 import com.nomagic.uml2.ext.magicdraw.classes.mdkernel.*
 import com.nomagic.uml2.ext.magicdraw.mdprofiles.Stereotype
+import com.nomagic.uml2.ext.magicdraw.mdusecases.UseCase
 
 class SafTools {
 
@@ -267,10 +268,19 @@ Use this for descriptions, rationales, or additional context. Example: 'This sys
         if (parent == null) return [error: "Parent element not found: " + parentId]
 
         def created = null
+        def resolvedType = null
         def sm = SessionManager.getInstance()
         sm.createSession(project, "saf_create_element")
         try {
-            created = createByType(sysmlType)
+            // Resolve the element's actual UML metaclass. The concept's ClassType
+            // (concepts.json, SAF taxonomy) is NOT authoritative for the UML element:
+            // the SAF stereotype it carries is. E.g. "System Use Case" has ClassType
+            // "Class" but SAF_SystemUseCase extends the UML metamodel class UseCase,
+            // so the element must be a UML UseCase. Prefer the stereotype's extended
+            // base metaclass; fall back to the ClassType-based mapping only when no
+            // usable stereotype (or base metaclass) exists.
+            resolvedType = resolveMetaclassFor(sysmlType, stereotypeName)
+            created = createByType(resolvedType)
             if (created instanceof NamedElement) {
                 ((NamedElement) created).setName(name)
             }
@@ -300,9 +310,52 @@ Use this for descriptions, rationales, or additional context. Example: 'This sys
             id: created.getID(),
             name: name,
             kind: kind,
-            sysmlType: sysmlType,
+            sysmlType: resolvedType ?: sysmlType,
             stereotype: stereotypeName,
             parentId: parentId
+        ]
+    }
+
+    @McpTool(name = "saf_set_use_case_subject", description = '''Set the UML 'subject' of a System Use Case element to a classifier (e.g. the System of Interest or the System Context block). In UML, the subject is the classifier whose behavior the use case describes; SAF does not define or require it, but this tool lets you populate it for UML-level completeness.
+
+Use this tool when:
+- A System Use Case (UML UseCase element) has an empty subject and you want to point it at the block it describes (typically the SOI or the context block).
+
+Returns {elementId, name, subjectId, subjectName, subjectsN} with the resulting subject list.''')
+    @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the System Use Case (UML UseCase). Required.")
+    @McpToolArgument(name = "subjectId", type = "string", description = "Element ID of the classifier block to set as subject (e.g. the context block or SOI). Required.")
+    Map setUseCaseSubject(Map<String, Object> args) {
+        def elementId = args.get("elementId") as String
+        def subjectId = args.get("subjectId") as String
+        if (elementId == null || elementId.isEmpty()) return [error: "elementId is required"]
+        if (subjectId == null || subjectId.isEmpty()) return [error: "subjectId is required"]
+
+        def project = getProject()
+        def uc = resolveElement(elementId)
+        if (uc == null) return [error: "Element not found: " + elementId]
+        if (!(uc instanceof UseCase)) return [error: "Element is not a UseCase: " + safeName(uc) + " (" + uc.getClass().getName() + ")"]
+
+        def subject = resolveElement(subjectId)
+        if (subject == null) return [error: "Subject element not found: " + subjectId]
+        if (!(subject instanceof Classifier)) return [error: "Subject element is not a Classifier: " + safeName(subject)]
+
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "set_use_case_subject")
+        try {
+            ((UseCase) uc).getSubject().add(subject)
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: "Failed to set subject: " + e.getMessage()]
+        }
+
+        def subjects = ((UseCase) uc).getSubject().collect { safeName(it) }
+        return [
+            elementId: elementId,
+            name: safeName(uc),
+            subjectId: subjectId,
+            subjectName: safeName(subject),
+            subjects: subjects
         ]
     }
 
@@ -681,6 +734,74 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
                 collectAll(child, results, depth + 1)
             }
         } catch (ignored) {}
+    }
+
+    // Determine the UML metaclass to instantiate for a SAF element. The SAF
+    // stereotype is authoritative: we read the metaclass(es) it extends via
+    // StereotypesHelper.getBaseClasses and reuse them to pick the factory method
+    // (through createByType's name switch). This ensures e.g. SAF_SystemUseCase
+    // produces a UML UseCase rather than a Class. Falls back to the ClassType-based
+    // sysmlType when there is no stereotype or its base metaclass is unusable.
+    String resolveMetaclassFor(String fallbackType, String stereotypeName) {
+        if (stereotypeName != null && !stereotypeName.isEmpty()) {
+            def st = findStereotype(stereotypeName)
+            if (st != null) {
+                try {
+                    def bases = StereotypesHelper.getBaseClasses(st)
+                    if (bases != null) {
+                        for (b in bases) {
+                            def bName = b != null ? b.getName() : null
+                            if (bName != null && !bName.isEmpty() && supportsType(bName)) {
+                                return bName
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // fall through to fallbackType
+                }
+            }
+        }
+        return fallbackType
+    }
+
+    // True if createByType can instantiate the given UML metaclass name.
+    private static final SUPPORTED_TYPES = [
+        "package", "model", "class", "interface", "activity", "opaquebehavior",
+        "functionbehavior", "property", "port", "proxyport", "connector", "comment",
+        "dependency", "abstraction", "association", "generalization", "controlflow",
+        "objectflow", "activitypartition", "callbehavioraction", "calloperationaction",
+        "accepteventaction", "acceptcallaction", "broadcastsignalaction",
+        "sendobjectaction", "sendsignalaction", "createobjectaction", "destroyobjectaction",
+        "readselfaction", "readstructuralfeatureaction", "readvariableaction",
+        "addstructuralfeaturevalueaction", "addvariablevalueaction",
+        "valuespecificationaction", "startobjectbehavioraction", "replyaction",
+        "opaqueeaction", "opaqueaction", "initialnode", "activityfinalnode", "flowfinalnode",
+        "decisionnode", "mergenode", "forknode", "joinnode", "activityparameternode",
+        "centralbuffernode", "datastorenode", "inputpin", "outputpin", "valuepin",
+        "actioninputpin", "loopnode", "conditionalnode", "sequencenode",
+        "structuredactivitynode", "expansionregion", "exceptionhandler", "valuetype",
+        "datatype", "primitivetype", "enumeration", "enumerationliteral", "signal",
+        "state", "finalstate", "pseudostate", "region", "statemachine",
+        "protocolstatemachine", "transition", "protocoltransition", "trigger",
+        "connectionpointreference", "interaction", "lifeline", "message",
+        "combinedfragment", "interactionoperand", "interactionuse", "gate",
+        "occurrencespecification", "executionoccurrencespecification", "stateinvariant",
+        "continuation", "constraint", "expression", "stringexpression", "opaqueexpression",
+        "literalinteger", "literalreal", "literalstring", "literalboolean",
+        "literalunlimitednatural", "literalnull", "usecase", "actor", "include",
+        "extend", "extensionpoint", "instancespecification", "slot", "component",
+        "node", "device", "artifact", "executionenvironment", "deployment",
+        "deploymentspecification", "communicationpath", "componentrealization",
+        "interfacerealization", "manifestation", "usage", "substitution", "realization",
+        "informationitem", "informationflow", "collaboration", "collaborationuse",
+        "parameter", "templatebinding", "templatesignature", "templateparameter",
+        "generalizationset", "stereotype", "profile", "profileapplication",
+        "elementimport", "packageimport", "packagemerge", "extension", "extensionend",
+        "image",
+    ]
+    boolean supportsType(String type) {
+        if (type == null || type.isEmpty()) return false
+        return SUPPORTED_TYPES.contains(type.toLowerCase())
     }
 
     def createByType(String type) {
