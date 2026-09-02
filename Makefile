@@ -1,4 +1,4 @@
-.PHONY: all classes jar dist deploy install ci-libs clean help
+.PHONY: all classes jar dist plugin deploy install ci-libs clean help
 .DELETE_ON_ERROR:
 
 TARGET ?= 2026x
@@ -69,6 +69,10 @@ dist: jar
 	cp $(LIBS_DIR)/$(JAR_NAME) $(DIST_DIR)/
 	cp -r _data $(DIST_DIR)/_data
 
+plugin: dist
+	mkdir -p dist
+	python3 ci/package-plugin.py --plugin-version $(VERSION) --target $(TARGET) --root .
+
 deploy: dist
 	mkdir -p "$(PLUGIN_DIR)"
 	find "$(PLUGIN_DIR)" -maxdepth 1 -name 'cameo-saf-mcp-server-*.jar' ! -name '$(JAR_NAME)' -delete
@@ -91,6 +95,7 @@ help:
 	@echo "make [TARGET=2026x|2024x] [VERSION=x.y.z] [CAMEO_HOME=/path] [JDK_HOME=/path]"
 	@echo "  all/jar    compile and build $(JAR_NAME)"
 	@echo "  dist       stage build/plugin-dist/$(PLUGIN_ID)"
+	@echo "  plugin     package dist/cameo-saf-mcp-server.zip (no Gradle)"
 	@echo "  deploy     deploy staged plugin files to $(PLUGIN_DIR)"
 	@echo "  install    full deploy including scripts/"
 	@echo "  ci-libs    prepare ci-libs for compile-only testing"
