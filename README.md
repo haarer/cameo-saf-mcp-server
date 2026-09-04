@@ -174,6 +174,20 @@ A management page is served on the same MCP HTTP port (default `18750`):
 
 Both the `admin_set_enabled_tools`/`admin_get_enabled_tools` MCP tools and the `/admin` HTTP endpoints drive the same static filter on `McpSession`, so either mechanism affects all connected sessions immediately. Per-tool call counters are incremented on every `tools/call` and are reset only on server restart.
 
+#### `modelcode.groovy` — In-model code authoring & execution (Groovy, OCL, etc.)
+
+Tools for writing and executing executable-code bodies **stored in the model** (Constraints, OpaqueExpressions, OpaqueBehaviors — validation rules, simulation bodies, document-generator expressions). See the `AGENTS.md` "Groovy code authoring" section for navigation by sub-case.
+
+- `@McpTool(name="modelcode_spec_update")` — Write any executable code/expression body into a Constraint, OpaqueExpression, or OpaqueBehavior (one language/body pair). The generic in-model authoring tool.
+- `@McpTool(name="modelcode_validation_run")` — Run validation-rule Constraints through the real MagicDraw validation engine (`DefaultValidationRuleImpl.run`) and return their violations.
+- `@McpTool(name="modelcode_validation_eval")` — Debug a single rule's logic via `GroovyShell` with per-target pass/fail (validation-engine-style bindings), without the full engine/UI.
+
+#### `plugincode.groovy` — On-disk MCP handler script development
+
+Tools for developing the `.groovy` handler scripts on disk that define the MCP surface itself. Complements the `modelcode_*` tools (model content).
+
+- `@McpTool(name="plugincode_introspect")` — Reflect on a Java class in the running Cameo JVM (constructors/methods with signatures, superclass, interfaces). Shared by both modelcode and plugincode authoring flows.
+
 #### `saf_tools.groovy` — Model Structure and SAF Viewpoints
 
 SAF profile support for Cameo models. Provides tools for creating SAF-typed elements, querying viewpoints, building traceability chains, and exporting structured IR.

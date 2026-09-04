@@ -1,11 +1,22 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
 import com.haarer.saf.mcpserver.handlers.McpToolArgument
 
-class ApiIntrospect {
+/**
+ * plugincode_* tools: develop the on-disk MCP handler scripts themselves —
+ * the .groovy files deployed into the Cameo plugin dir that define the MCP
+ * tool surface. Complement to the modelcode_* tools (code stored in the
+ * model).
+ */
+class PluginCode {
 
     static final int MAX_MEMBERS = 400
 
-    @McpTool(name = "api_introspect", description = '''[API] Introspect a Java class in the RUNNING Cameo JVM: list constructors and methods with full signatures. Use this BEFORE writing code against any com.nomagic.* / groovy.* / jackson API whose exact signature you have not verified in this session - it beats guessing from memory.
+    @McpTool(name = "plugincode_introspect", description = '''Introspect (reflect on) a Java class loaded in the RUNNING Cameo JVM: list constructors and methods with full signatures. SHARED tool for both Groovy-code development flows:
+
+- Writing on-disk MCP HANDLER scripts (plugincode_* world), and
+- Writing in-model code bodies (modelcode_spec_update / modelcode_validation_* world).
+
+PREFER the Javadoc MCP server first: for any signature lookup, use cameo-api_search_docs / cameo-api_lookup_symbol / cameo-api_get_members — the indexed docs are the primary read-only source of truth. Reach for THIS tool only (a) when the signature is not in the Javadoc index, or (b) to confirm how a class actually resolves/loads in the live JVM. Never write code against an unverified API from memory.
 
 Returns for the class: constructors (with parameter types), declared methods, superclass, and implemented interfaces. Use memberFilter to narrow methods by name substring (e.g. memberFilter="closeProject" returns all overloads). Set includeInherited=true to also see inherited public methods (default false = declared only).
 
