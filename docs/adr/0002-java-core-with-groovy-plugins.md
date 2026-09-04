@@ -135,6 +135,17 @@ runtime where all Cameo jars are already on the classpath. This means:
    references only `Plugin` and `Application` from Cameo, so CI stubs
    are manageable. See `ci/prepare-ci-libs.sh` and `ci.yml`.
 
+5. **Dynamically-created GroovyShells inside a script need no classloader
+   wiring** (verified 2026-09). The Groovy `GroovyClassLoader` used to run
+   handler scripts delegates to the Cameo application classloader. So a
+   *second*, nested `GroovyClassLoader` created at runtime inside a script —
+   even one constructed with a `CompilerConfiguration` — still resolves the
+   full `com.nomagic.*` API (e.g. `StereotypesHelper`). A `CameoMcpServer`
+   `getPluginClassLoader()` change was implemented to "fix" class loading for
+   `modelcode_validation_eval`, then **reverted as unnecessary** once the real
+   culprit was found to be a wrong FQN (see the cheat-sheet). Do not add
+   classloader plumbing to the Java core for this. See ADR-0012.
+
 ## Related
 
 - README § Internal Architecture describes the component layering.

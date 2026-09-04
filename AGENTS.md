@@ -60,7 +60,12 @@ Workflow guidance:
    optionally `specLanguage='Groovy'`).
 4. While authoring, debug the rule with `modelcode_validation_eval` (per-target
    pass/fail). For authoritative verification use `modelcode_validation_run`.
-5. The `cameo-api_*` tools (a separate MCP server) provide navigation through the
+5. Before writing a `com.nomagic.*` FQN, check the session-verified cheat-sheet
+   `docs/cameo-2026x-api-notes.md` — several "obvious" FQNs are wrong in 2026x
+   (e.g. `com.nomagic.uml2.ext.jmi.helpers.StereotypesHelper`, not
+   `com.nomagic.magicdraw.uml2...`). The live JVM (`plugincode_introspect`) and
+   the Javadoc index resolve truth over memory.
+6. The `cameo-api_*` tools (a separate MCP server) provide navigation through the
    Cameo Javadoc; `plugincode_introspect` reflects on classes in the live JVM.
 
 Do not duplicate SAF semantics or model knowledge into these tools; keep semantic
@@ -110,3 +115,12 @@ and use the low-level model/Cameo tools only to perform the actual operations.
   swaps the tool/resource/prompt lists without disconnecting MCP sessions.
 - **`install.sh`** is the FULL deploy (rebuild JAR + copy everything) and requires a
   restart — do NOT use it for script-only changes.
+- **Single jar, full rebuild, version in sync (verified 2026-09).** The deployed
+  plugin dir must contain **exactly one** `cameo-saf-mcp-server-<version>.jar`,
+  matching `plugin.xml`. Always do a FULL clean rebuild and complete replacement —
+  do **not** patch/replace individual `.class` files inside an existing jar (this
+  broke the plugin with a `NoSuchMethodError` when the deployed jar had drifted from
+  the repo source). Keep the repo's version (`build.gradle`/`Makefile` default
+  `VERSION`) aligned with what is deployed; a deployed `plugin.xml` referencing a
+  jar/version not produced by this repo signals source drift — rebuild from this
+  repo and redeploy the whole plugin dir rather than working around it.
