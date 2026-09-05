@@ -164,13 +164,13 @@ public class GroovyScriptScanner {
 
         var handler = new McpResourceDefinition.ResourceHandler() {
             @Override
-            public McpResourceDefinition.ResourceResult read() {
+            public McpResourceDefinition.ResourceResult read(Map<String, String> params) {
                 try {
                     Object result;
                     if (method.getParameterCount() == 0) {
                         result = method.invoke(instance);
                     } else {
-                        result = method.invoke(instance, Map.of());
+                        result = method.invoke(instance, params != null ? params : Map.of());
                     }
                     var text = serialize(result);
                     return new McpResourceDefinition.ResourceResult(text);

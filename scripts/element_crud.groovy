@@ -1,3 +1,4 @@
+import com.haarer.saf.mcpserver.handlers.McpResource
 import com.haarer.saf.mcpserver.handlers.McpTool
 import com.haarer.saf.mcpserver.handlers.McpToolArgument
 import com.nomagic.magicdraw.core.Application
@@ -820,6 +821,42 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         return buildElementDetail(elem, 1)
     }
 
+    String qualifiedNameOf(def elem) {
+        try {
+            def qn = elem.getQualifiedName()
+            if (qn != null && !qn.isEmpty()) return qn
+        } catch (ignored) {}
+        try {
+            def parts = []
+            def cur = elem
+            while (cur != null) {
+                parts.add(cur instanceof NamedElement ? (cur.getName() ?: "") : "")
+                cur = cur.getOwner()
+            }
+            return parts.reverse().join("::")
+        } catch (ignored) {}
+        return ""
+    }
+
+    Map taggedValuesOf(def elem) {
+        def taggedValues = [:]
+        try {
+            for (st in elem.getAppliedStereotype()) {
+                def stereoName = st.getName()
+                if (stereoName == null) continue
+                def values = StereotypesHelper.getStereotypePropertyValues(elem, st)
+                if (values != null) {
+                    values.each { entry ->
+                        def tagName = entry.getKey() as String
+                        def tagVal = entry.getValue()
+                        taggedValues[tagName] = tagVal != null ? tagVal.toString() : ""
+                    }
+                }
+            }
+        } catch (ignored) {}
+        return taggedValues
+    }
+
     String documentationOf(def elem) {
         def bodies = []
         try {
@@ -920,8 +957,10 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         def result = [
             id: elem.getID(),
             name: name,
+            qualifiedName: qualifiedNameOf(elem),
             type: elem.getHumanType(),
             stereotypes: stereos,
+            taggedValues: taggedValuesOf(elem),
             documentation: documentationOf(elem),
             ownedElements: owned,
             relationships: rels
@@ -996,5 +1035,34 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             return [error: "Failed to set constrained element: " + e.getMessage()]
         }
         return [constraintId: constraintId, elementIds: resolved.collect { it.getID() }, set: true]
+    }
+
+    @McpResource(uri = "cameo://element/{id}", name = "Element", description = "Detailed view of a single model element by element ID (resolves across the active project and its used projects). Includes id, name, qualifiedName, type, stereotypes, taggedValues, documentation, the owned element tree and relationships (with stereotype info on dependencies). SAF kind/domain mapping is intentionally not resolved here — use the saf_* tools for SAF semantics.", mimeType = "application/json")
+    Map elementById(Map<String, String> params) {
+        def id = params.get("id")
+        if (!id) return [error: "id is required"]
+        def elem = resolveElement(id)
+        if (elem == null) return [error: "Element not found: " + id]
+        return buildElementDetail(elem, 2)
+    }
+
+    @McpResource(uri = "cameo://element/{id}/children", name = "Element children", description = "Direct owned elements of a model element (their own children collapsed).", mimeType = "application/json")
+    Map elementChildren(Map<String, String> params) {
+        def id = params.get("id")
+        if (!id) return [error: "id is required"]
+        def elem = resolveElement(id)
+        if (elem == null) return [error: "Element not found: " + id]
+        def detail = buildElementDetail(elem, 1)
+        return [id: id, name: detail.name, type: detail.type, children: detail.ownedElements]
+    }
+
+    @McpResource(uri = "cameo://element/{id}/relationships", name = "Element relationships", description = "Relationships involving a model element (outgoing/incoming dependencies with stereotypes, generalizations).", mimeType = "application/json")
+    Map elementRelationships(Map<String, String> params) {
+        def id = params.get("id")
+        if (!id) return [error: "id is required"]
+        def elem = resolveElement(id)
+        if (elem == null) return [error: "Element not found: " + id]
+        def detail = buildElementDetail(elem, 0)
+        return [id: id, name: detail.name, type: detail.type, relationships: detail.relationships]
     }
 }

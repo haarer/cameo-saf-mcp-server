@@ -12,7 +12,7 @@ public record McpResourceDefinition(
 ) {
     @FunctionalInterface
     public interface ResourceHandler {
-        ResourceResult read();
+        ResourceResult read(Map<String, String> params);
     }
 
     public record ResourceResult(

@@ -168,23 +168,50 @@ public class McpProtocolHandler {
 
         for (var res : session.getResources()) {
             if (res.uri().equals(uri)) {
-                try {
-                    var resultText = res.handler().read().text();
-                    var contentsArray = mapper.createArrayNode();
-                    var contentNode = mapper.createObjectNode();
-                    contentNode.put("uri", uri);
-                    contentNode.put("mimeType", res.mimeType());
-                    contentNode.put("text", resultText);
-                    contentsArray.add(contentNode);
-                    var result = mapper.createObjectNode();
-                    result.set("contents", contentsArray);
-                    return HandleResult.ok(buildSuccessResponse(id, result));
-                } catch (Exception e) {
-                    return HandleResult.error(this, id, -32603, "Resource read error: " + e.getMessage());
-                }
+                return readResource(session, res, uri, Map.of(), id);
+            }
+        }
+        for (var res : session.getResources()) {
+            var templateParams = matchTemplate(res.uri(), uri);
+            if (templateParams != null) {
+                return readResource(session, res, uri, templateParams, id);
             }
         }
         return HandleResult.error(this, id, -32602, "Resource not found: " + uri);
+    }
+
+    private HandleResult readResource(McpSession session, McpResourceDefinition res, String uri, Map<String, String> params, Object id) {
+        try {
+            var resultText = res.handler().read(params).text();
+            var contentsArray = mapper.createArrayNode();
+            var contentNode = mapper.createObjectNode();
+            contentNode.put("uri", uri);
+            contentNode.put("mimeType", res.mimeType());
+            contentNode.put("text", resultText);
+            contentsArray.add(contentNode);
+            var result = mapper.createObjectNode();
+            result.set("contents", contentsArray);
+            return HandleResult.ok(buildSuccessResponse(id, result));
+        } catch (Exception e) {
+            return HandleResult.error(this, id, -32603, "Resource read error: " + e.getMessage());
+        }
+    }
+
+    private Map<String, String> matchTemplate(String template, String uri) {
+        String[] t = template.split("/");
+        String[] u = uri.split("/");
+        if (t.length != u.length) return null;
+        Map<String, String> captured = null;
+        for (int i = 0; i < t.length; i++) {
+            String ts = t[i];
+            if (ts.startsWith("{") && ts.endsWith("}") && ts.length() > 2) {
+                if (captured == null) captured = new LinkedHashMap<>();
+                captured.put(ts.substring(1, ts.length() - 1), u[i]);
+            } else if (!ts.equals(u[i])) {
+                return null;
+            }
+        }
+        return captured;
     }
 
     private String handlePromptsList(McpSession session, Object id) throws Exception {

@@ -59,6 +59,34 @@ FQN literally.
   `cameo://selection` in favor of the full `selected_elements` list.
 - Active diagram: `project.getActiveDiagram()`.
 
+## Diagram class: `com.nomagic.magicdraw.uml.symbols.DiagramPresentationElement` (verified 2026-09)
+- `project.getActiveDiagram()` and the elements resolved by diagram element-ID are of type
+  `com.nomagic.magicdraw.uml.symbols.DiagramPresentationElement`.
+- **Wrong FQNs** (plugincode_introspect: "Class not found in any loader"):
+  `com.nomagic.magicdraw.core.diagram.Diagram`, `com.nomagic.magicdraw.diagram.Diagram`,
+  `com.nomagic.magicdraw.core.diagram.PresentationElement`.
+- **Correct method for "what is on this diagram":** `getUsedModelElements()` → the model
+  elements directly (no view unwrap needed). Confirmed on the FFDS Context Definition BDD:
+  42 elements incl. `SAF_ConceptualSystem` parts and environments.
+- Wrong attempts on this class: `getPresentations()` / `getPresentationElements()` return
+  nothing useful on `DiagramPresentationElement` (this is not a `PresentationElement`).
+- **Rendering / meta accessors:** `getDiagramType()`, `getDiagramTypeAsString()`,
+  `getName()`, `getElement()`, `getHumanType()`. See `cameo://diagram/{id}`
+  (`scripts/model_info.groovy`).
+
+## MCP resources: URI templates pass `{param}` to handlers (verified 2026-09)
+- Core (`McpProtocolHandler`): `resources/read` first exact-matches, then splits URIs on
+  `/` and captures `{name}` segments into a `Map<String,String>` handed to the Groovy
+  handler method's single `Map` parameter. Implemented in jar (requires Cameo restart).
+- Resource handler convention (Groovy): no-arg method = static resource
+  (`cameo://project`, `cameo://model/summary`, `cameo://selection`); one `Map` param =
+  parametrized (`cameo://element/{id}`, `cameo://element/{id}/children`,
+  `cameo://element/{id}/relationships`, `cameo://diagram/{id}`).
+- The generic element detail (`cameo://element/{id}`, and `get_element_details`) now
+  carries `qualifiedName`, `parentId`, and `taggedValues` (stereotype property values) in
+  addition to stereotypes/documentation/ownedElements/relationships — SAF kind/domain
+  mapping stays out by design (use `saf_*` tools).
+
 ## Validating rule authoring in-model (verified 2026-09)
 A Constraint + `validationRule` stereotype body like this resolves and runs via
 `modelcode_validation_eval` against 14 ports (13 pass, 1 fail — the untyped one):

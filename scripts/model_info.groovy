@@ -1,5 +1,6 @@
 import com.haarer.saf.mcpserver.handlers.McpTool
 import com.haarer.saf.mcpserver.handlers.McpResource
+import com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement
 
 class ModelInfo {
 
@@ -225,5 +226,63 @@ class ModelInfo {
     )
     Map modelSummary() {
         return getModelInfo()
+    }
+
+    @McpResource(
+        uri = "cameo://project",
+        name = "Project",
+        description = "Currently open project info (same payload as the get_model_info tool)",
+        mimeType = "application/json"
+    )
+    Map projectResource() {
+        return getModelInfo()
+    }
+
+    @McpResource(
+        uri = "cameo://diagram/{id}",
+        name = "Diagram",
+        description = "Summary of a diagram by element ID plus the model elements presented on it, unwrapped from their diagram views. SAF kind/domain mapping is intentionally not resolved here — use the saf_* tools for SAF semantics.",
+        mimeType = "application/json"
+    )
+    Map diagramById(Map<String, String> params) {
+        def id = params.get("id")
+        if (!id) return [error: "id is required"]
+        def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()
+        if (project == null) return [error: "No model open"]
+        def d = project.getElementByID(id)
+        if (d == null) return [error: "Diagram not found: " + id]
+
+        def out = [id: id, name: "", type: "Diagram"]
+        try { out.name = d.getName() ?: "" } catch (ignored) {}
+        try {
+            def t = d.getHumanType()
+            if (t) out.type = t
+        } catch (ignored) {}
+        try {
+            def qn = d.getQualifiedName()
+            if (qn) out.qualifiedName = qn
+        } catch (ignored) {}
+
+        def elements = []
+        def used = null
+        try { used = d.getUsedModelElements() } catch (ignored) {}
+        if (used != null) {
+            for (el in used) {
+                try {
+                    if (elements.size() >= 300) break
+                    if (el == null) continue
+                    def e = [id: el.getID(), name: "", type: "Element"]
+                    try { e.name = el instanceof NamedElement ? (el.getName() ?: "") : "" } catch (ignored) {}
+                    try {
+                        def t = el.getHumanType()
+                        if (t) e.type = t
+                    } catch (ignored) {}
+                    elements.add(e)
+                } catch (ignored) {}
+            }
+        }
+        out.elementCount = elements.size()
+        out.elements = elements
+        return out
     }
 }
