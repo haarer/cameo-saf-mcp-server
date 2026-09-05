@@ -6,6 +6,19 @@ class ContextResources {
         return com.nomagic.magicdraw.core.Application.getInstance().getProject()
     }
 
+    String metaclassOf(def e) {
+        try {
+            if (e instanceof com.nomagic.magicdraw.uml.symbols.DiagramPresentationElement) return "Diagram"
+        } catch (ignored) {}
+        try {
+            def simple = e.getClass().getSimpleName()
+            if (simple == null) return ""
+            if (simple.endsWith("Impl")) simple = simple.substring(0, simple.length() - 4)
+            return simple
+        } catch (ignored) {}
+        return ""
+    }
+
     Map elementSummary(def e) {
         if (e == null) return null
         try {
@@ -17,8 +30,14 @@ class ContextResources {
         def out = [
             id: e.getID(),
             name: (e instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement) ? (e.getName() ?: "") : "",
-            type: e.getHumanType()
+            metaclass: metaclassOf(e),
+            type: ""
         ]
+        try {
+            def t = e.getHumanType()
+            if (t != null && !t.isEmpty()) out.type = t
+        } catch (ignored) {}
+        if ((out.type as String).isEmpty()) out.type = out.metaclass
         def qn = ""
         try { qn = e.getQualifiedName() ?: "" } catch (ignored) {}
         if (qn.isEmpty()) {
@@ -84,7 +103,7 @@ class ContextResources {
     @McpResource(
         uri = "cameo://selection",
         name = "Current Selection",
-        description = "Currently selected context in the active Cameo model: selected_elements (the ordered list of currently selected element summaries: id, name, type, qualifiedName, stereotypes; empty when nothing is selected), the active diagram (id, name, type) if any, and the active project name. Resolves context phrases like 'analyze this model' — 'this' refers to the selected element(s).",
+        description = "Currently selected context in the active Cameo model: selected_elements (the ordered list of currently selected element summaries: id, name, metaclass (structural), type (semantic label MagicDraw resolves from applied stereotypes; equals the metaclass name when unstereotyped), qualifiedName, stereotypes; empty when nothing is selected), the active diagram (id, name, type) if any, and the active project name. Resolves context phrases like 'analyze this model' — 'this' refers to the selected element(s).",
         mimeType = "application/json"
     )
     Map selection() {

@@ -4,6 +4,27 @@ import com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement
 
 class ModelInfo {
 
+    String metaclassOf(def elem) {
+        try {
+            if (elem instanceof com.nomagic.magicdraw.uml.symbols.DiagramPresentationElement) return "Diagram"
+        } catch (ignored) {}
+        try {
+            def simple = elem.getClass().getSimpleName()
+            if (simple == null) return ""
+            if (simple.endsWith("Impl")) simple = simple.substring(0, simple.length() - 4)
+            return simple
+        } catch (ignored) {}
+        return ""
+    }
+
+    String typeOf(def elem) {
+        try {
+            def t = elem.getHumanType()
+            if (t != null && !t.isEmpty()) return t
+        } catch (ignored) {}
+        return metaclassOf(elem)
+    }
+
     List getModelRoots(def project) {
         def roots = []
         try {
@@ -218,24 +239,141 @@ class ModelInfo {
         } catch (ignored) {}
     }
 
+    def activeProject() {
+        try {
+            def pm = com.nomagic.magicdraw.core.Application.getInstance().getProjectsManager()
+            return pm.getActiveProject()
+        } catch (Exception e) {
+            try { return com.nomagic.magicdraw.core.Application.getInstance().getProject() } catch (ignored) {}
+        }
+        return null
+    }
+
+    def resolveProject(String id) {
+        if (id == null) return null
+        try {
+            def pm = com.nomagic.magicdraw.core.Application.getInstance().getProjectsManager()
+            for (p in pm.getProjects()) {
+                try {
+                    if (p.getID() == id) return p
+                } catch (ignored) {}
+            }
+        } catch (ignored) {}
+        return null
+    }
+
+    Map projectFacts(def p, boolean active) {
+        def facts = [id: p.getID(), name: p.getName() ?: "", active: active]
+        def primaryModel = null
+        try { primaryModel = p.getPrimaryModel() } catch (ignored) {}
+        if (primaryModel == null) return facts
+        facts.primaryRoot = [id: primaryModel.getID(), name: primaryModel.getName() ?: "", type: primaryModel.getHumanType()]
+        def info = rootProjectInfo(p, primaryModel)
+        if (info.remote) facts.remote = true
+        if (info.location) facts.location = info.location
+        facts.writable = info.writable
+        return facts
+    }
+
     @McpResource(
-        uri = "cameo://model/summary",
-        name = "Model Summary",
-        description = "Summary of the currently open Cameo model",
+        uri = "cameo://projects",
+        name = "Projects",
+        description = "All currently loaded projects with their project id, name, location, remote and writable flags, and which one is active. Use the project id with cameo://project/{id} and cameo://project/{id}/packages.",
         mimeType = "application/json"
     )
-    Map modelSummary() {
-        return getModelInfo()
+    Map projectsResource() {
+        def projects = []
+        def active = null
+        try { active = activeProject() } catch (ignored) {}
+        try {
+            def pm = com.nomagic.magicdraw.core.Application.getInstance().getProjectsManager()
+            for (p in pm.getProjects()) {
+                try { projects.add(projectFacts(p, p == active)) } catch (ignored) {}
+            }
+        } catch (ignored) {}
+        return [count: projects.size(), projects: projects]
     }
 
     @McpResource(
         uri = "cameo://project",
-        name = "Project",
-        description = "Currently open project info (same payload as the get_model_info tool)",
+        name = "Project (active)",
+        description = "The currently active project (the project the action tools operate on): project id, name, location, remote/writable flags and the primary root element. For all loaded projects use cameo://projects.",
         mimeType = "application/json"
     )
-    Map projectResource() {
-        return getModelInfo()
+    Map activeProjectResource() {
+        def p = activeProject()
+        if (p == null) return [error: "No active project"]
+        return projectFacts(p, true)
+    }
+
+    @McpResource(
+        uri = "cameo://project/{id}",
+        name = "Project by id",
+        description = "Instance facts for one loaded project addressed by project id (from cameo://projects): id, name, active flag, location, remote/writable flags and primary root element (id, name, type).",
+        mimeType = "application/json"
+    )
+    Map projectById(Map<String, String> params) {
+        def id = params.get("id")
+        if (!id) return [error: "id is required"]
+        def p = resolveProject(id)
+        if (p == null) return [error: "Project not found: " + id]
+        def active = false
+        try { active = (p == activeProject()) } catch (ignored) {}
+        return projectFacts(p, active)
+    }
+
+    @McpResource(
+        uri = "cameo://project/{id}/packages",
+        name = "Project packages",
+        description = "Top-level packages of a project's primary model. Each package carries its element id (for cameo://element/{id}), type, childCount, and origin: 'owned' (model content) or 'shared' (mounted from a module/library, with the module name). Use cameo://element/{id}/children to dig deeper.",
+        mimeType = "application/json"
+    )
+    Map projectPackages(Map<String, String> params) {
+        def id = params.get("id")
+        if (!id) return [error: "id is required"]
+        def p = resolveProject(id)
+        if (p == null) return [error: "Project not found: " + id]
+
+        def sharedById = [:]
+        try {
+            def primaryProject = p.getPrimaryProject()
+            def sharedSet = com.nomagic.magicdraw.core.ProjectUtilities.getSharedPackagesIncludingResharedRecursively(primaryProject)
+            if (sharedSet != null) {
+                for (sp in sharedSet) {
+                    def modName = sp.getName()
+                    try {
+                        def ap = com.nomagic.magicdraw.core.ProjectUtilities.getAttachedProject(sp)
+                        if (ap != null && ap.getName()) modName = ap.getName()
+                    } catch (ignored) {}
+                    sharedById[sp.getID()] = modName
+                }
+            }
+        } catch (ignored) {}
+
+        def pkgs = []
+        def primaryModel = null
+        try { primaryModel = p.getPrimaryModel() } catch (ignored) {}
+        if (primaryModel != null) {
+            for (child in primaryModel.getOwnedElement()) {
+                if (!(child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Package)) continue
+                def entry = [id: child.getID(), name: child.getName() ?: "", type: child.getHumanType()]
+                def childCount = 0
+                try {
+                    def owned = child.getOwnedElement()
+                    childCount = owned != null ? owned.size() : 0
+                } catch (ignored) {}
+                entry.childCount = childCount
+                def ownerMod = sharedById[child.getID()]
+                if (ownerMod != null) {
+                    entry.origin = "shared"
+                    entry.module = ownerMod
+                } else {
+                    entry.origin = "owned"
+                }
+                pkgs.add(entry)
+            }
+        }
+        return [project: p.getName() ?: "", count: pkgs.size(), packages: pkgs]
     }
 
     @McpResource(
@@ -271,12 +409,8 @@ class ModelInfo {
                 try {
                     if (elements.size() >= 300) break
                     if (el == null) continue
-                    def e = [id: el.getID(), name: "", type: "Element"]
+                    def e = [id: el.getID(), name: "", metaclass: metaclassOf(el), type: typeOf(el)]
                     try { e.name = el instanceof NamedElement ? (el.getName() ?: "") : "" } catch (ignored) {}
-                    try {
-                        def t = el.getHumanType()
-                        if (t) e.type = t
-                    } catch (ignored) {}
                     elements.add(e)
                 } catch (ignored) {}
             }

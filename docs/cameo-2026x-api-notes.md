@@ -79,13 +79,44 @@ FQN literally.
   `/` and captures `{name}` segments into a `Map<String,String>` handed to the Groovy
   handler method's single `Map` parameter. Implemented in jar (requires Cameo restart).
 - Resource handler convention (Groovy): no-arg method = static resource
-  (`cameo://project`, `cameo://model/summary`, `cameo://selection`); one `Map` param =
-  parametrized (`cameo://element/{id}`, `cameo://element/{id}/children`,
+  (`cameo://project`, `cameo://projects`, `cameo://selection`); one `Map` param =
+  parametrized (`cameo://project/{id}`, `cameo://project/{id}/packages`,
+  `cameo://element/{id}`, `cameo://element/{id}/children`,
   `cameo://element/{id}/relationships`, `cameo://diagram/{id}`).
-- The generic element detail (`cameo://element/{id}`, and `get_element_details`) now
-  carries `qualifiedName`, `parentId`, and `taggedValues` (stereotype property values) in
-  addition to stereotypes/documentation/ownedElements/relationships — SAF kind/domain
-  mapping stays out by design (use `saf_*` tools).
+- Navigation grammar (agreed in grilling): fact → slice → deeper. Fact sheets carry
+  counts/claims plus explicit slice URIs; `/children` is a compact id/name/kind/type
+  list; `cameo://model/summary` and `cameo://requirements` were dropped.
+- Element listings (uniform shape across `cameo://element/{id}/children`,
+  `cameo://diagram/{id}`, `cameo://selection`): `{id, name, metaclass, type}` (+
+  `qualifiedName`, `stereotypes` where relevant). Fact sheet (cameo://element/{id})
+  adds taggedValues/documentation and `children`/`relationships` roll-ups
+  (`count` + per-metaclass `byMetaclass` + slice `uri`). The faithful deep dump
+  lives only in the `get_element_details` tool (still uses humanType).
+- `metaclass` vs `type` (decided 2026-09, revisit later):
+  - `metaclass` = structural identity, invariant: runtime Java class short name
+    (Impl-stripped), equals the UML2 metaclass for standard kinds
+    (`Class`/`Property`/`Connector`/`Interaction`/`Comment`), but `ElementTaggedValue`/
+    `StringTaggedValue` are MagicDraw storage classes (UML2 has no `TaggedValue`
+    metaclass), diagrams are `DiagramPresentationElement` (presentation layer —
+    shows `"Diagram"`), shared/proxy elements may expose proxy class names.
+  - `type` = semantic intent: **`elem.getHumanType()`** — MagicDraw's
+    stereotype-resolved human label (the containment-tree label), equals the metaclass
+    name when unstereotyped. Positively documented, NOT hand-rolled: ranking "the
+    characterizing stereotype" among parallel helper stereotypes (e.g.
+    `CustomImageHolder`, `HyperlinkOwner`) is hard — "most derived stereotype" is the
+    easy case, parallel helpers are not. MagicDraw's profile mapping already resolves
+    this (verified: `SAF_ConceptualSystem`, `Part Property`). `stereotypes[]` remains
+    the full applied set. Reading contract: *"metaclass is what it is; type is what
+    it means."*
+  - Guard: `StereotypesHelper.getStereotypes` throws for `DiagramPresentationElement`
+    — always guard it; diagram-id reads on `element/{id}` return `metaclass` `Diagram`,
+    humanType like `SysML Block Definition Diagram`, name `""`, no stereotypes.
+  - **Open concern (revisit)**: read→mirror→create coherence — an LLM that reads a
+    fact sheet and then *mirrors* the content via `create_*` CRUD tools needs these
+    to conceptually match the create API's `type` vocabulary. Today they diverge:
+    `create_element` types are lowercase and lack e.g. `Interaction`, while `metaclass`
+    yields `Interaction`. Align when the create tooling's type vocabulary is
+    finalized.
 
 ## Validating rule authoring in-model (verified 2026-09)
 A Constraint + `validationRule` stereotype body like this resolves and runs via

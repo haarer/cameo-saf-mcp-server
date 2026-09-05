@@ -899,7 +899,8 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
 
     Map buildElementDetail(elem, int depth) {
         def name = (elem instanceof NamedElement) ? elem.getName() : ""
-        def stereos = StereotypesHelper.getStereotypes(elem).collect { it.getName() }
+        def stereos = []
+        try { stereos = StereotypesHelper.getStereotypes(elem).collect { it.getName() } } catch (ignored) {}
 
         def owned = []
         if (depth > 0) {
@@ -983,6 +984,115 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         return result
     }
 
+    String metaclassOf(def elem) {
+        try {
+            if (elem instanceof com.nomagic.magicdraw.uml.symbols.DiagramPresentationElement) return "Diagram"
+        } catch (ignored) {}
+        try {
+            def simple = elem.getClass().getSimpleName()
+            if (simple == null) return ""
+            if (simple.endsWith("Impl")) simple = simple.substring(0, simple.length() - 4)
+            return simple
+        } catch (ignored) {}
+        return ""
+    }
+
+    String typeOf(def elem) {
+        // MagicDraw's stereotype-resolved human label (semantic intent; equals the
+        // metaclass name when unstereotyped). Deliberately NOT hand-rolled: ranking
+        // "the characterizing stereotype" among parallel helpers (e.g. CustomImageHolder)
+        // is exactly what getHumanType's profile mapping already does.
+        try {
+            def t = elem.getHumanType()
+            if (t != null && !t.isEmpty()) return t
+        } catch (ignored) {}
+        return metaclassOf(elem)
+    }
+
+    Map childMetaclassCounts(def elem) {
+        def byMetaclass = [:] as LinkedHashMap
+        def count = 0
+        try {
+            for (child in elem.getOwnedElement()) {
+                count++
+                def ck = metaclassOf(child)
+                byMetaclass[ck] = (byMetaclass.get(ck) ?: 0) + 1
+            }
+        } catch (ignored) {}
+        return [count: count, byMetaclass: byMetaclass]
+    }
+
+    List relationshipView(def elem) {
+        def rels = []
+        try {
+            for (dep in elem.getClientDependency()) {
+                def depStereos = StereotypesHelper.getStereotypes(dep).collect { it.getName() }
+                for (supplier in dep.getSupplier()) {
+                    def sname = (supplier instanceof NamedElement) ? supplier.getName() : ""
+                    rels.add([type: dep.getHumanType(), direction: "outgoing", target: sname, targetId: supplier.getID(), stereotypes: depStereos])
+                }
+            }
+        } catch (ignored) {}
+        try {
+            for (gen in elem.getGeneralization()) {
+                def general = gen.getGeneral()
+                if (general instanceof NamedElement) {
+                    rels.add([type: "Generalization", direction: "general", target: general.getName(), targetId: general.getID()])
+                }
+            }
+        } catch (ignored) {}
+        try {
+            for (spec in elem.getSpecific()) {
+                if (spec.getClientDependency() != null) {
+                    for (dep in spec.getClientDependency()) {
+                        if (dep.getSupplier().contains(elem)) {
+                            rels.add([type: dep.getHumanType(), direction: "incoming", source: (spec instanceof NamedElement ? spec.getName() : ""), sourceId: spec.getID()])
+                        }
+                    }
+                }
+            }
+        } catch (ignored) {}
+        return rels
+    }
+
+    Map elementFactSheet(def elem) {
+        def id = elem.getID()
+        def name = (elem instanceof NamedElement) ? (elem.getName() ?: "") : ""
+        def stereos = []
+        try { stereos = StereotypesHelper.getStereotypes(elem).collect { it.getName() } } catch (ignored) {}
+        def childCounts = childMetaclassCounts(elem)
+        def rels = relationshipView(elem)
+
+        def result = [
+            id: id,
+            name: name,
+            metaclass: metaclassOf(elem),
+            type: typeOf(elem),
+            qualifiedName: qualifiedNameOf(elem),
+            stereotypes: stereos,
+            taggedValues: taggedValuesOf(elem),
+            documentation: documentationOf(elem),
+            children: [count: childCounts.count, byMetaclass: childCounts.byMetaclass, uri: "cameo://element/" + id + "/children"],
+            relationships: [count: rels.size(), uri: "cameo://element/" + id + "/relationships"]
+        ]
+        // Opaque behaviors carry executable code as parallel language/body lists.
+        try {
+            if (elem instanceof com.nomagic.uml2.ext.magicdraw.commonbehaviors.mdbasicbehaviors.OpaqueBehavior) {
+                def langs = elem.getLanguage()
+                def bodies = elem.getBody()
+                result.languages = (langs != null) ? langs.collect { it } : []
+                result.body = (bodies != null && !bodies.isEmpty()) ? bodies.join("\n--\n") : ""
+            }
+        } catch (ignored) {}
+        // Constraints carry their expression in specification.
+        try {
+            if (elem instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Constraint) {
+                result.specification = specificationOf(elem)
+            }
+        } catch (ignored) {}
+        return result
+    }
+
     @McpTool(name = "get_metaclass_by_name", description = "Resolve a UML2 metamodel metaclass (e.g. 'Class', 'Property', 'Association', 'Connector') for the active project and return its element ID and qualified name. The metaclass element is what you attach to a Constraint's constrained element to scope a validation rule over that element kind. Use the returned ID as an input to set_constrained_element.")
     @McpToolArgument(name = "name", type = "string", description = "UML2 metaclass name, e.g. 'Class', 'Property', 'Association'", required = true)
     Map getMetaclassByName(Map<String, Object> args) {
@@ -1037,32 +1147,40 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         return [constraintId: constraintId, elementIds: resolved.collect { it.getID() }, set: true]
     }
 
-    @McpResource(uri = "cameo://element/{id}", name = "Element", description = "Detailed view of a single model element by element ID (resolves across the active project and its used projects). Includes id, name, qualifiedName, type, stereotypes, taggedValues, documentation, the owned element tree and relationships (with stereotype info on dependencies). SAF kind/domain mapping is intentionally not resolved here — use the saf_* tools for SAF semantics.", mimeType = "application/json")
+    @McpResource(uri = "cameo://element/{id}", name = "Element fact sheet", description = "Compact, navigational view of a single model element by element ID (resolves across the active project and its used projects). Returns identity (id, name, metaclass (structural: UML metaclass e.g. Class/Property; runtime class name for storage kinds like TaggedValue), type (semantic label MagicDraw resolves from the applied stereotypes; equals the metaclass name when unstereotyped), qualifiedName), applied stereotypes, taggedValues, documentation, plus roll-up claims for children (count with per-metaclass breakdown) and relationships (count) with the slice URIs to drill deeper. SAF semantics are intentionally not resolved here — use the saf_* tools for that.", mimeType = "application/json")
     Map elementById(Map<String, String> params) {
         def id = params.get("id")
         if (!id) return [error: "id is required"]
         def elem = resolveElement(id)
         if (elem == null) return [error: "Element not found: " + id]
-        return buildElementDetail(elem, 2)
+        return elementFactSheet(elem)
     }
 
-    @McpResource(uri = "cameo://element/{id}/children", name = "Element children", description = "Direct owned elements of a model element (their own children collapsed).", mimeType = "application/json")
+    @McpResource(uri = "cameo://element/{id}/children", name = "Element children", description = "Direct owned elements of a model element as a compact list (id, name, metaclass, type). Drill deeper by calling cameo://element/{id} on a child.", mimeType = "application/json")
     Map elementChildren(Map<String, String> params) {
         def id = params.get("id")
         if (!id) return [error: "id is required"]
         def elem = resolveElement(id)
         if (elem == null) return [error: "Element not found: " + id]
-        def detail = buildElementDetail(elem, 1)
-        return [id: id, name: detail.name, type: detail.type, children: detail.ownedElements]
+        def list = []
+        try {
+            for (child in elem.getOwnedElement()) {
+                def cname = (child instanceof NamedElement) ? (child.getName() ?: "") : ""
+                list.add([id: child.getID(), name: cname, metaclass: metaclassOf(child), type: typeOf(child)])
+            }
+        } catch (ignored) {}
+        def name = (elem instanceof NamedElement) ? (elem.getName() ?: "") : ""
+        return [id: id, name: name, qualifiedName: qualifiedNameOf(elem), count: list.size(), children: list]
     }
 
-    @McpResource(uri = "cameo://element/{id}/relationships", name = "Element relationships", description = "Relationships involving a model element (outgoing/incoming dependencies with stereotypes, generalizations).", mimeType = "application/json")
+    @McpResource(uri = "cameo://element/{id}/relationships", name = "Element relationships", description = "Relationships involving a model element: outgoing/incoming dependencies (with stereotypes and target/source ids) and generalizations.", mimeType = "application/json")
     Map elementRelationships(Map<String, String> params) {
         def id = params.get("id")
         if (!id) return [error: "id is required"]
         def elem = resolveElement(id)
         if (elem == null) return [error: "Element not found: " + id]
-        def detail = buildElementDetail(elem, 0)
-        return [id: id, name: detail.name, type: detail.type, relationships: detail.relationships]
+        def name = (elem instanceof NamedElement) ? (elem.getName() ?: "") : ""
+        def rels = relationshipView(elem)
+        return [id: id, name: name, count: rels.size(), relationships: rels]
     }
 }
