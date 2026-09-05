@@ -48,3 +48,43 @@ t != null && StereotypesHelper.getStereotypes(t).any {
 `modelcode_validation_eval` bindings: `THIS` = target element, `project` =
 active project, `result` = `groovy.lang.Reference` holder (`set`/`get`).
 Boolean return = pass/fail.
+
+## Recipe: authoring a Cameo validation rule (verified 2026-09)
+
+A validation rule is a `Constraint` with the `validationRule` stereotype. Two
+generic CRUD tools cover the metaclass-scope wiring (`constrainedElement`):
+- `get_metaclass_by_name(name)` → resolves the UML2 metamodel metaclass
+  (`Class`, `Property`, `Association`, …) via `StereotypesHelper.getUML2MetaClassByName`,
+  returns its element `id` + qualified name.
+- `set_constrained_element(constraintId, elementIds:[...])` → clears and sets the
+  Constraint's `constrainedElement` reference list (multi-valued EMF feature; no
+  generated setter — mutated in a session).
+
+Workflow:
+
+1. **Create the rule** (Constraint + `validationRule` stereotype + `abbreviation` /
+   `errorMessage` / `severity` tags).
+2. **Write the body** with `modelcode_spec_update(elementId, language='Groovy', body)`.
+3. **Scope it** — the rule body runs on **every** element of the scoped metaclass, so:
+   - `get_metaclass_by_name("Class"|"Property"|…)` → take `id`.
+   - `set_constrained_element(constraintId, elementIds:[mcId])`.
+4. **Gate the body on stereotypes** (mandatory): because the rule is called on every
+   element of the metaclass, it must `return true` early for non-applicable elements.
+   Detect applicability by stereotype on `THIS` (for Class-scoped rules) or on the
+   owning classifier (`THIS.getOwner()` for Property-scoped rules). Example gates used
+   for C1_SCXD:
+   - Class-scoped subject (a `SAF_ConceptualContext` block): `if (!THIS.getAppliedStereotype()?.any{it.getName()=="SAF_ConceptualContext"}) return true`
+   - Property-scoped subject (a context-element part):
+     `def o=THIS.getOwner(); if(!(o?.getAppliedStereotype()?.any{it.getName()=="SAF_ConceptualContext"})) return true`
+   - Per-part vs set-level decide the subject (see notes below).
+5. **Debug** per-target with `modelcode_validation_eval` (green on applicable elements;
+   green/`true` on non-applicable ones — the gate must prevent false positives).
+
+Notes:
+- Subject semantics: for per-part rules the offending element is the part (`Property`),
+  for set-level rules (e.g. "exactly one SoI") the offending element is the whole block
+  (`Class`). Pick the metaclass and the gate accordingly.
+- `modelcode_validation_run` (the harness's real-engine route) still NPEs in
+  `RuleSelector.getRelevantRules` (`filter` null) — a harness-side bug independent of
+  scope. `modelcode_validation_eval` is the in-harness reference; the UI's native
+  validation runs the scoped rule correctly.

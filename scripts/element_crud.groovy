@@ -943,4 +943,58 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         } catch (ignored) {}
         return result
     }
+
+    @McpTool(name = "get_metaclass_by_name", description = "Resolve a UML2 metamodel metaclass (e.g. 'Class', 'Property', 'Association', 'Connector') for the active project and return its element ID and qualified name. The metaclass element is what you attach to a Constraint's constrained element to scope a validation rule over that element kind. Use the returned ID as an input to set_constrained_element.")
+    @McpToolArgument(name = "name", type = "string", description = "UML2 metaclass name, e.g. 'Class', 'Property', 'Association'", required = true)
+    Map getMetaclassByName(Map<String, Object> args) {
+        def name = args.get("name") as String
+        if (!name) return [error: "name is required"]
+        def project = getProject()
+        def meta = StereotypesHelper.getUML2MetaClassByName(project, name)
+        if (meta == null) return [error: "Metaclass not found: " + name]
+        def qn = ""
+        try { qn = meta.getQualifiedName() } catch (ignored) {}
+        return [name: meta.getName(), id: meta.getID(), qualifiedName: qn ?: "", type: meta.getHumanType()]
+    }
+
+    @McpTool(name = "set_constrained_element", description = "Set the 'constrained element' reference(s) of a Constraint. Constrained elements are the UML elements the constraint/validation-rule applies to; for a validation rule you attach the UML2 metaclass element (e.g. Class/Property — see get_metaclass_by_name) so the engine runs the rule over every element of that kind. Clears any previous constrained elements, then adds the given ones. Returns the scope that was set. Scope is required — without a constrained element a validation rule is not picked up by the engine.")
+    @McpToolArgument(name = "constraintId", type = "string", description = "Element ID of the Constraint", required = true)
+    @McpToolArgument(name = "elementIds", type = "array", description = "Element IDs to add as constrained elements (typically a single UML2 metaclass element from get_metaclass_by_name)", required = true)
+    Map setConstrainedElement(Map<String, Object> args) {
+        def constraintId = args.get("constraintId") as String
+        def elementIds = args.get("elementIds") as List
+        if (!constraintId) return [error: "constraintId is required"]
+        if (elementIds == null || elementIds.isEmpty()) return [error: "elementIds is required (at least one)"]
+
+        def project = getProject()
+        def constraint = resolveElement(constraintId)
+        if (constraint == null) return [error: "Constraint not found: " + constraintId]
+        if (!(constraint instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Constraint)) {
+            return [error: "Element is not a Constraint: " + constraint.getHumanType()]
+        }
+
+        def resolved = []
+        for (def eid : elementIds) {
+            def el = resolveElement(eid as String)
+            if (el == null) return [error: "Element not found: " + eid]
+            resolved.add(el)
+        }
+
+        def sm = com.nomagic.magicdraw.openapi.uml.SessionManager.getInstance()
+        sm.createSession(project, "set_constrained_element")
+        try {
+            def ce = constraint.getConstrainedElement()
+            if (ce != null && !ce.isEmpty()) {
+                ce.clear()
+            }
+            for (def el : resolved) {
+                constraint.getConstrainedElement().add(el)
+            }
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: "Failed to set constrained element: " + e.getMessage()]
+        }
+        return [constraintId: constraintId, elementIds: resolved.collect { it.getID() }, set: true]
+    }
 }

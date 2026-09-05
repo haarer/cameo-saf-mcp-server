@@ -199,7 +199,18 @@ lesen → Fix → Deploy → Test).
 
 - **Echte Engine-Integration**: herausfinden, wie MD intern Script-Regeln verdrahtet
   (RuleSelector/Suites), oder akzeptieren, dass `rule_eval` der Weg ist und die UI
-  weiter die Referenz bleibt.
+  weiter die Referenz bleibt. **Stand 2026-09:** Der Scope-Blocker ist gelöst — Rules
+  brauchen einen `constrainedElement`-Verweis auf einen UML-Metaclass (z.B. `Class`,
+  `Property`, `Association`), sonst tauchen sie im Engine nicht auf. Zwei generische
+  CRUD-Tools decken das ab: `get_metaclass_by_name(name)` (holt den UML2-Metaclass via
+  `StereotypesHelper.getUML2MetaClassByName`) und
+  `set_constrained_element(constraintId, elementIds:[...])` (setzt ihn in
+  `Constraint.getConstrainedElement()`). (*Ursprünglich als enges
+  `validation_set_scope` angelegt, auf generische Tool-Kombination + Recipe verallgemeinert.*)
+  Für C1_SCXD gesetzt: N1→`Class`, N2–N4→`Property`. Verbleibender Rest ist rein Harness-seitig: `modelcode_validation_run`
+  NPEt weiter in `RuleSelector.getRelevantRules` weil `filter` null — unabhängig vom Scope
+  und nur die `_run`-Route betreffend; `rule_eval` bleibt Referenz, die UI runnt die Rules
+  jetzt korrekt.
 - **`projectId`-Parameter** durch die Read-Tools ziehen, um mehrere geladene Modelle
   parallel abfragbar zu machen (aktuell: nur aktiv).
 - **Einheitliche Fehlerform** (`{error: ...}` vs. Listen mit eingebetteten Fehlern).
