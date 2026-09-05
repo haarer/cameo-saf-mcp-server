@@ -59,6 +59,29 @@ A `getPluginClassLoader()` Java change was implemented to "fix" class loading,
 then reverted as unnecessary — the original code works as-is. See ADR-0002's
 correction.
 
+### Update (2026-09): the actual engine contract for a rule to run
+
+The Context above hypothesised that the `RuleSelector` NPE was caused by a
+missing `constrainedElementsFilter`/parent rule registration. The verified
+mechanism is narrower and concrete:
+
+- The engine only picks up a rule when its **`constrainedElement`** carries a
+  **UML2 metaclass** reference (`Class`, `Property`, `Association`, …;
+  resolved via `StereotypesHelper.getUML2MetaClassByName`). With an empty
+  `constrainedElement`, the rule is invisible to `RuleSelector`. This — not a
+  filter object — is the primary reason a freshly-authored rule "does nothing".
+- A metaclass-scoped rule runs over **every** element of that metaclass, so the
+  rule body must gate on stereotype applicability (`return true` for
+  non-applicable elements) or it produces false positives model-wide. Gate on
+  `THIS` for Class-scoped rules, on `THIS.getOwner()` for Property-scoped
+  (context-part) rules.
+- The remaining `modelcode_validation_run` NPE (`this.filter` null) is purely
+  harness-side (the MCP runner builds an unfiltered `RuleSelector`), separate
+  from scope. `modelcode_validation_eval` remains the in-harness reference.
+
+The full authoring workflow (create → body → scope via the generic CRUD tools →
+stereotype gates → eval) is the recipe in `docs/cameo-2026x-api-notes.md`.
+
 ## Consequences
 
 1. Fast authoring loop: `modelcode_spec_update` to write → `modelcode_validation_eval`
@@ -73,6 +96,7 @@ correction.
 
 ## Related
 
-- ADR-0011 (modelcode/plugincode namespacing).
+- ADR-0011 (modelcode/plugincode namespacing, incl. the generic `set_constrained_element` tool).
 - ADR-0002 (classloader correction).
 - `docs/mcp-surface-review.md` § "Validierungs-Engine-Interna".
+- `docs/cameo-2026x-api-notes.md` § "Recipe: authoring a Cameo validation rule".

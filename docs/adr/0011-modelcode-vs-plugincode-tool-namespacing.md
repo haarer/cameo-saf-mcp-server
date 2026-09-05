@@ -63,10 +63,23 @@ The navigation contract lives in `AGENTS.md` § "Groovy code authoring"
 4. The `modelcode_*` family carries an implicit execution-environment caveat
    (see ADR-0012): not every `modelcode_*` tool executes in the same
    classloader/runtime as the MCP handler scripts.
+5. **Generic CRUD over purpose-built validation tools (verified 2026-09).** A
+   one-off `validation_set_scope` tool was removed in favour of two generic,
+   validation-agnostic CRUD tools: `get_metaclass_by_name` (resolves a UML2
+   metaclass via `StereotypesHelper.getUML2MetaClassByName`) and
+   `set_constrained_element` (clears + sets a `Constraint`'s
+   `getConstrainedElement()` reference). Metaclass resolution and
+   constrained-element manipulation are plain CRUD; the *how to author a
+   validation rule* knowledge lives in the authoring recipe
+   (`docs/cameo-2026x-api-notes.md`), not encoded in a purpose-built tool.
+   This is a direct instance of this ADR's "no premature abstraction, guidance
+   in docs" decision (see ADR-0012 for the rule-scope engine contract the
+   recipe operationalises).
 
 ## Related
 
-- ADR-0012 (validation debug harness).
+- ADR-0012 (validation debug harness + rule-scope engine contract).
 - ADR-0002 (Java core + Groovy plugin split).
 - `AGENTS.md` § "Groovy code authoring".
 - `agent-architecture-revised-strategy.md` (naming philosophy).
+- `docs/cameo-2026x-api-notes.md` § "Recipe: authoring a Cameo validation rule".
