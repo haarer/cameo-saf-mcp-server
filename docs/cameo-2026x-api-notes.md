@@ -33,6 +33,32 @@ FQN literally.
   `mdkernel.Element`. Good for Groovy bodies that must avoid FQN imports.
   Note: `getStereotypeApplications()` does **not** exist on `ClassImpl`.
 
+## Selection: `SelectionProvider.getSelectedElements()` returns VOLATILE OBJECTS (verified 2026-09)
+- FQN: `com.nomagic.magicdraw.ui.SelectionProvider`; get an instance with
+  `getInstance(project)`, then `getSelectedElements()` / `getMainElement()`.
+- **Gotcha:** for canvas (diagram) selections the returned items are **diagram
+  views** (`com.nomagic.magicdraw.uml.symbols.shapes.ClassView` and siblings),
+  NOT model elements. A model element selected in the browser comes back as an
+  Element; a block selected/rubber-banded on a diagram comes back as its view.
+- Effects of not unwrapping: `getQualifiedName()` / `getOwner()` raise
+  `MissingMethodException` (views have no such methods), so names/qualified
+  names silently come out empty and the reported `getID()` is the **view ID**,
+  not the element ID.
+- **Fix:** detect and unwrap via the `ModelElementProvider` contract
+  (`com.nomagic.magicdraw.uml.core.ModelElementProvider#getElement()`):
+  ```groovy
+  if (e instanceof com.nomagic.magicdraw.uml.core.ModelElementProvider) {
+      def el = e.getElement()
+      if (el != null) e = el
+  }
+  ```
+  `PresentationElement` implements it, so every diagram view unwraps. Reference:
+  `cameo://selection` resource (`scripts/context_resources.groovy`).
+- `getMainElement()` is useless as a "primary/anchor" concept: null on
+  multi-select, duplicate of the sole element on single-select — dropped from
+  `cameo://selection` in favor of the full `selected_elements` list.
+- Active diagram: `project.getActiveDiagram()`.
+
 ## Validating rule authoring in-model (verified 2026-09)
 A Constraint + `validationRule` stereotype body like this resolves and runs via
 `modelcode_validation_eval` against 14 ports (13 pass, 1 fail — the untyped one):
