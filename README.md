@@ -218,6 +218,7 @@ SAF profile support for Cameo models. Provides tools for creating SAF-typed elem
 - `@McpTool(name="saf_check_consistency")` — Check SAF model consistency: verify requirement satisfaction chains, cross-domain alignment, and stereotype compliance. Returns list of issues and summary.
 - `@McpTool(name="saf_get_viewpoint_views")` — Find diagrams that conform to a SAF viewpoint. Search by short code (AM, OV, CV, PV) or name. Returns diagrams ranked by conformance score.
 - `@McpTool(name="saf_export_viewpoint")` — Export a single SAF viewpoint as structured IR. Returns all elements in the viewpoint with their SAF metadata, relationships, and tagged values.
+- `@McpResource(uri="cameo://saf-views", mimeType="application/json")` — Returns JSON listing every viewpoint view (diagram) of the open model that carries a SAF view stereotype; each entry reports the diagram (id, qualifiedName, type) and the SAF viewpoints (id, vpId, name, domain) it conforms to. Returns `count: 0` with an empty `views` list when no diagrams match, and `{error: "No model open"}` when no model is open — both as JSON, not a thrown exception.
 
 ### Python Client Example
 
