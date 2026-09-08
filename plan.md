@@ -139,16 +139,26 @@ Goal: give operators control over which MCP tools are visible and callable, and 
 ##### Transport Configuration (Completed)
 - [x] Added `cameo.mcp.server.bind.host` system property to configure the HTTP listen interface (default `0.0.0.0`, all interfaces). Threaded from `CameoMcpServerPlugin` → `CameoMcpServer` → `StreamableMcpTransportProvider` and replaces the previously hardcoded `"0.0.0.0"` bind. Port remains `cameo.mcp.server.port` (default `18750`). Use `127.0.0.1` to restrict to loopback.
 
-### Iteration 9: Robustness, session lifecycle, and validation parity
-- [ ] Dirty-state handling: add a `modified` flag to `admin_get_model_status`; give `admin_close_model` / `admin_reset_model` a `discard` parameter (or route through `ProjectsManager.closeProjectNoSave()`, which `plugincode_introspect` confirmed exists) so a dirty close never blocks on a host modal dialog.
-- [ ] offset/limit batch reads instead of size-based truncation (the 1202-constraint sweep required manual 200-element chunking; the server-side `specLanguage` filter shipped, pagination remains).
-- [ ] Result-shell consistency: `get_element_info` qualified-name lookup fails for qualified names with special characters (e.g. `Model::0-Model Management`); align its lookup path and result shell with the find tools.
-- [ ] Promote `rule_eval` to the official validation tool: Jython/Rhino in addition to Groovy, automatic target collection via `constrainedElementsFilter` semantics, results as violation objects (severity/errorMessage from tags).
-- [ ] `modelcode_validation_run` NPE validation parity: `RuleSelector.getRelevantRules` NPEs because `filter` is null (independent of `constrainedElement` scoping; only the `_run` route is affected) — fix or document the route as best-effort with `rule_eval` as reference (the scoping blocker itself is resolved; see ADR-0012).
-- [ ] `projectId` parameter in read tools so multiple loaded models can be queried in parallel (currently only the active project is visible to the finders).
-- [ ] Unified error format: `{error: ...}` vs. lists with embedded errors.
-- [ ] Structural read/write enrichment (folded Tier 2+ follow-ups from the 2026-08-23 surface review): diagrams, port/part detail enrichment (incl. exposing `propertyPath`/interface on the read side), multiplicity/aggregation/navigability setters, `get_connectors(blockId)` (currently folded into `get_block_structure`), explicit `NestedConnectorEnd`/`propertyPath` surfaced by `get_port_type_info` / `get_block_structure`.
-- [ ] README tool catalog gaps: audit the README tool listing against the live tool set and complete missing entries (planned README update).
+### Iteration 9: Read-Surface Reform — Resources as the Sole Generic Element Read (In Progress)
+
+Goal: remove the tool-vs-resource bias observed in agent sessions. Element-dump tools
+(`get_element_details`, `get_elements_details_batch`, `saf_get_element_details`) advertised
+"everything about one element in one call" and trained agents to hoard blobs instead of
+navigating — an N+1 drill-down pattern the resources were built to replace. Design decision:
+**shape the surface by query bounds, not by element dumps.** Resources are the only generic
+element-read path; a single narrow inference tool serves the SAF interpretation layer the
+resources intentionally do not carry. See `.scratch/mcp-agent-efficiency/` and ADR-0015.
+
+- [ ] **#1 Drop `get_element_details` and `get_elements_details_batch`** (element_crud.groovy:797,811). Generic element facts are covered by `cameo://element/{id}` fact sheet, `/children` and `/relationships` slices, `list_owned_elements`, and `get_block_structure` (structure-specific). No replacement needed.
+- [ ] **#2 Drop `saf_get_element_details`** (saf_tools.groovy:1029). Its non-SAF content (tags, owned summary, inline traceability) duplicates the resources; its SAF content is replaced by #3. Keep internal helpers (`collectTraceability`, `resolveSafKind`, `resolveSafDomain`) — still used by `saf_build_traceability_chain` / `saf_check_consistency`.
+- [ ] **#3 Add narrow `saf_get_element_semantics(elementIds[])`** (saf_tools.groovy) — the *only* SAF-interpretation read. Per element returns `safKind`, `safDomain`, and the **viewpoints the element is used in**, resolved server-side via the SafDataStore stereotype→concept→viewpoint indexes (`getStereotypeByName`, `getConceptsForStereotype`, `getViewpointsForConcept`). Batch input to annotate finder results in one call. No model dump — no tags/children/edges.
+- [ ] **#4 Sweep tool descriptions referencing the removed tools** — `get_stereotype_tags` (element_crud.groovy:388), `get_element_info` (model_query.groovy:29), `modelcode.groovy:74`, `list_owned_elements` (model_find.groovy:156), `get_block_structure` (structural_tools.groovy:231,243), and saf_tools.groovy:240,501,509,951,984. Repoint every "use get_element_details/saf_get_element_details" to the resource URIs.
+- [ ] **#5 Rewrite the self-disqualifying resource descriptions** — `cameo://element/{id}` (element_crud.groovy:1150) and `cameo://diagram/{id}` (model_info.groovy:382) currently say "SAF semantics intentionally not resolved here — use the saf_* tools for that", which steers agents away from the whole resource surface. Replace with a narrow pointer to `saf_get_element_semantics`. Also make the `/relationships` slice shape symmetric (target stereotypes on incoming edges, matching `collectTraceability`).
+- [ ] **#6 AGENTS.md model-navigation rule** — replace the tool-only "MCP surface navigation" taxonomy with a read-path hierarchy: `cameo://*` resources for all generic navigation, `spec_*` for the SAF ontology, `saf_get_element_semantics` for element interpretation, CRUD for writes, `saf_build_traceability_chain` for graph collection.
+- [ ] **#7 New ADR-0015** — "Resources as the Sole Generic Element Read": element-dump tools forbidden; knowledge split (navigation / ontology / interpretation / writes).
+- [ ] **#8 Tests + agent-jobs** — update `tests/test_saf_tools.py`, `tests/test_mcp_server.py`, `tests/agent-jobs/selection_analyze.md` for the new surface; add coverage for `saf_get_element_semantics` and the resource fact-sheet/slices. Run `runtests.sh` (target: full suite green).
+- [ ] **#9 Deploy + live verification** — `./deploy-scripts.sh`; confirm removed tools vanish and `saf_get_element_semantics` + resources work against the live Cameo model.
+
 
 ## Lessons Learned
 
