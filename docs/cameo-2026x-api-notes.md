@@ -1,10 +1,12 @@
 # Cameo 2026x API Notes (session-verified cheat-sheet)
 
->"Session-verifiziertes Cheat-Sheet" (M5 in `docs/mcp-surface-review.md`): what
->actually resolves and works in this installed Cameo 2026x instance, verified in
->the running JVM — not from an LLM prior. Ranked source of truth after the live
->JVM and the `cameo-api_*` Javadoc index. Add to this file only what has been
->verified in a session; cite the session date.
+>Origin: the 2026-08-23 MCP surface review session retrospective (measure M5,
+>the session cheat sheet; M1–M5 implemented per `AGENTS.md` "Groovy code
+>authoring (MCP surface navigation)" steps 1-5). What actually resolves and
+>works in this installed Cameo 2026x instance, verified in the running JVM —
+>not from an LLM prior. Ranked source of truth after the live JVM and the
+>`cameo-api_*` Javadoc index. Add to this file only what has been verified in
+>a session; cite the session date.
 
 ## Verifying a signature: always the safe order
 1. Live JVM: `plugincode_introspect(cls, ...)` — what *is*.
@@ -32,6 +34,23 @@ FQN literally.
   directly (singular name, returns a collection). This is on
   `mdkernel.Element`. Good for Groovy bodies that must avoid FQN imports.
   Note: `getStereotypeApplications()` does **not** exist on `ClassImpl`.
+
+## Multi-valued EMF features have no generated setter — use `eSet` (verified 2026-09)
+- `OpaqueExpression.setLanguage(List)` **does not exist**: `language` (and
+  `body`) are multi-valued EMF features, and EMF generates no setters for
+  those. Calling `spec.setLanguage([...])` fails.
+- **Pattern (used by `modelcode_spec_update`, `scripts/modelcode.groovy`):**
+  mutate through `eSet` with `UMLPackage` literals:
+  ```groovy
+  def LIT = com.nomagic.uml2.ext.magicdraw.metadata.UMLPackage.Literals
+  spec.eSet(LIT.OPAQUE_EXPRESSION__LANGUAGE, [language])
+  spec.eSet(LIT.OPAQUE_EXPRESSION__BODY, [body])
+  // OpaqueBehavior holders:
+  holder.eSet(LIT.OPAQUE_BEHAVIOR__LANGUAGE, [language])
+  holder.eSet(LIT.OPAQUE_BEHAVIOR__BODY, [body])
+  ```
+- The `LIT` literal FQN above is session-verified; do not guess a
+  `com.nomagic.magicdraw...` variant.
 
 ## Selection: `SelectionProvider.getSelectedElements()` returns VOLATILE OBJECTS (verified 2026-09)
 - FQN: `com.nomagic.magicdraw.ui.SelectionProvider`; get an instance with

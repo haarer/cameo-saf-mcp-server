@@ -101,7 +101,7 @@ Reduce wasted tool calls by >50% in typical exploration sessions. See `.scratch/
 
 Goal: close the structural-modeling gap surfaced while modeling the Lawnbot physical hardware. The interface could create Classes/Ports/Parts and SAF decomposition relationships, but had **no way to set a Property's type**, **no way to create a block-owned typed part property**, and **no way to read a block's internal structure** (parts, ports, connectors) needed to reconstruct an IBD. SAF `create_relationship(type=composition)` produced package-level association ends, not block-owned internal parts.
 
-Derived from `docs/mcp-surface-review.md` (Tier 1 of the capability proposal).
+Derived from the 2026-08-23 MCP surface review session (see the slim English pointer page `docs/mcp-surface-review.md`).
 
 - [x] #1 `set_type(elementId, typeId)` — set the `type` of any TypedElement (Property, Port, ProxyPort, etc.). The missing primitive that unblocks port and part typing.
 - [x] #2 `create_part(wholeBlockId, name, partTypeBlockId, multiplicity)` — one-call "add typed internal part": create a Property owned by the block, set its type, apply `PartProperty` + optional SAF role stereotype, optional multiplicity.
@@ -112,7 +112,7 @@ Derived from `docs/mcp-surface-review.md` (Tier 1 of the capability proposal).
   - **Read-side fix (empirically corrected)**: a connector's ends were previously hidden because `list_owned_elements`/`collectOwned` filtered owned children by name — it only admitted `NamedElement`s plus a hardcoded `Comment`/`ConnectorEnd` allow-list. But ConnectorEnds (like Comments and many value-specification kinds) are **unnamed** elements that have no `getName()` and are not `NamedElement`. `getOwnedElement()` *does* return them (verified: a connector's `getOwnedElement()` returns its 2 `ConnectorEndImpl`s); they were dropped by the name filter, not by the traversal. The traversal no longer filters by name — **every owned child is surfaced** (name is `""` when an element has none), and an optional `filterType` argument lets callers restrict by type/kind. Connector ends now report `["NestedConnectorEnd"]` like the reference.
 - [x] #6 Applied to the live Lawnbot model: replaced the 6 placeholder connectors (5 unnamed + 1 stray "test") with 5 named, properly-wired connectors (`csi`, `i2c`, `motor`, `power`, `power5v`), each end multiplicity `1`; verification confirmed every end carries `NestedConnectorEnd` with `propertyPath=[part]`, matching the reference. Model persisted via `admin_save_model`.
 
-Follow-ups (Tier 2+ in `docs/mcp-surface-review.md`): diagrams, port/part detail enrichment (incl. exposing `propertyPath`/interface on the read side), multiplicity/aggregation/navigability setters, offset/limit batching, `get_connectors(blockId)` (currently folded into `get_block_structure`), explicit `NestedConnectorEnd`/`propertyPath` surfaced by `get_port_type_info` / `get_block_structure`.
+Follow-ups (formerly the Tier 2+ list of the 2026-08-23 surface review) are tracked in Iteration 9 below.
 
 ### Iteration 7: Tool Surface Administration — Tool Filtering + Admin Web Page (Completed)
 
@@ -130,13 +130,25 @@ Goal: give operators control over which MCP tools are visible and callable, and 
 - [x] Deployed and verified against a live Cameo instance: 63 → 3 filtered listing, disabled-call rejection, enable/disable via HTTP, call counts, and full 112-test suite pass.
 
 ### Iteration 8: Transport Expansion (Pending)
-- [ ] Add SSE transport option for server-initiated notifications.
+- [ ] Add standalone SSE transport option (SSE as an alternative to the POST transport). Note: the SSE *downstream notification channel* on the existing transport is already implemented by ADR-0015 (`GET /mcp` per-session SSE stream, `tools.listChanged` capability, hot-reload broadcast); what remains open is the human decision to offer SSE as a first-class transport alternative.
 - [ ] Add WebSocket transport option.
-- [ ] Add `notifications/initialized` and tool list change notifications.
+- [ ] Add `notifications/initialized` handling.
+- [x] Tool list change notifications — implemented by ADR-0015 (capability + SSE downstream channel + hot-reload broadcast, including the `GroovyScriptScanner` deletion-detection fix).
+- [ ] Session GC — sessions only disappear via `DELETE /mcp`; the session map grew to 160 entries after one test-suite run. Add an idle timeout or LRU eviction in the transport.
 
 ##### Transport Configuration (Completed)
 - [x] Added `cameo.mcp.server.bind.host` system property to configure the HTTP listen interface (default `0.0.0.0`, all interfaces). Threaded from `CameoMcpServerPlugin` → `CameoMcpServer` → `StreamableMcpTransportProvider` and replaces the previously hardcoded `"0.0.0.0"` bind. Port remains `cameo.mcp.server.port` (default `18750`). Use `127.0.0.1` to restrict to loopback.
 
+### Iteration 9: Robustness, session lifecycle, and validation parity
+- [ ] Dirty-state handling: add a `modified` flag to `admin_get_model_status`; give `admin_close_model` / `admin_reset_model` a `discard` parameter (or route through `ProjectsManager.closeProjectNoSave()`, which `plugincode_introspect` confirmed exists) so a dirty close never blocks on a host modal dialog.
+- [ ] offset/limit batch reads instead of size-based truncation (the 1202-constraint sweep required manual 200-element chunking; the server-side `specLanguage` filter shipped, pagination remains).
+- [ ] Result-shell consistency: `get_element_info` qualified-name lookup fails for qualified names with special characters (e.g. `Model::0-Model Management`); align its lookup path and result shell with the find tools.
+- [ ] Promote `rule_eval` to the official validation tool: Jython/Rhino in addition to Groovy, automatic target collection via `constrainedElementsFilter` semantics, results as violation objects (severity/errorMessage from tags).
+- [ ] `modelcode_validation_run` NPE validation parity: `RuleSelector.getRelevantRules` NPEs because `filter` is null (independent of `constrainedElement` scoping; only the `_run` route is affected) — fix or document the route as best-effort with `rule_eval` as reference (the scoping blocker itself is resolved; see ADR-0012).
+- [ ] `projectId` parameter in read tools so multiple loaded models can be queried in parallel (currently only the active project is visible to the finders).
+- [ ] Unified error format: `{error: ...}` vs. lists with embedded errors.
+- [ ] Structural read/write enrichment (folded Tier 2+ follow-ups from the 2026-08-23 surface review): diagrams, port/part detail enrichment (incl. exposing `propertyPath`/interface on the read side), multiplicity/aggregation/navigability setters, `get_connectors(blockId)` (currently folded into `get_block_structure`), explicit `NestedConnectorEnd`/`propertyPath` surfaced by `get_port_type_info` / `get_block_structure`.
+- [ ] README tool catalog gaps: audit the README tool listing against the live tool set and complete missing entries (planned README update).
 
 ## Lessons Learned
 

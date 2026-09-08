@@ -30,9 +30,10 @@ fast authoring/debugging.
 Split the two concerns into two `modelcode_*` tools:
 
 - **`modelcode_validation_run`** — the authoritative path through the real
-  validation engine (returns violations + messages). Known limitation: can
-  currently fail with the `RuleSelector.filter` NPE when a rule is not wired
-  into a validation suite/profile; documented in `docs/mcp-surface-review.md`.
+   validation engine (returns violations + messages). Known limitation: can
+   currently fail with the `RuleSelector.filter` NPE when a rule is not wired
+   into a validation suite/profile; see this ADR's "Update (2026-09)" section
+   and `docs/cameo-2026x-api-notes.md` for the verified mechanism.
 - **`modelcode_validation_eval`** — the debug path. Pre-compiles the rule's
   Groovy spec once, then evaluates it per target with validation-engine-style
   bindings:
@@ -98,5 +99,4 @@ stereotype gates → eval) is the recipe in `docs/cameo-2026x-api-notes.md`.
 
 - ADR-0011 (modelcode/plugincode namespacing, incl. the generic `set_constrained_element` tool).
 - ADR-0002 (classloader correction).
-- `docs/mcp-surface-review.md` § "Validierungs-Engine-Interna".
 - `docs/cameo-2026x-api-notes.md` § "Recipe: authoring a Cameo validation rule".

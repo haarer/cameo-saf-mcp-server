@@ -17,7 +17,7 @@ Versions refer to git tags that define release packages.
 
 ### Pending — iteration 8 (not yet implemented)
 
-- SSE transport option, WebSocket transport option, notifications/initialized and tool-list-changed notifications
+- SSE transport option (the SSE downstream notification channel on the existing transport is implemented — see ADR-0015; a standalone SSE transport remains an open decision), WebSocket transport option, notifications/initialized
 
 ## [v0.1.6] - 2026-09-01
 
