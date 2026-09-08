@@ -1,5 +1,9 @@
 # SAF MCP Agent Architecture — Resource & Recipe Strategy
 
+> **Superseded** (2026-09): this document is superseded by
+> [agent-architecture-revised-strategy.md](agent-architecture-revised-strategy.md).
+> Read the revised strategy first; this original is kept for historical context.
+
 ## Goal
 
 Use the `cameo-saf-mcp-server` to let an LLM create and validate SAF-compliant architecture views in Cameo.
