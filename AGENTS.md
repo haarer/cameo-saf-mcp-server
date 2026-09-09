@@ -9,6 +9,7 @@
 ## Agent behavior
 
 - **Never commit, push, or perform any git-modifying operations** unless the user explicitly asks.
+- **Deep-contract resources**: tool cards guarantee correct calls inline, but the full semantics/examples live in `cameo://tool/*` resources (e.g. `cameo://tool/diff`, `cameo://tool/stereotype-search`). Read the matching resource when you need to interpret output rows, error codes, or worked examples.
 - **Read `README.md` and `plan.md`** at the start of each session for project context and plan.
 - **Never modify `README.md` or `plan.md`** unless the user explicitly asks.
 - Do not add emojis to files.

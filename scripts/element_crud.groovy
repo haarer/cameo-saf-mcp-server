@@ -697,13 +697,9 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
         return result
     }
 
-    @McpTool(name = "find_elements_by_type", description = '''Recursively search for model elements by type name substring, stereotype substring, and/or name substring using Finder.byTypeRecursively. Searches ALL model content including used projects/modules by default (scope='all'); use scope='primary' to restrict to the primary model. Returns matching elements with their IDs, names, types, stereotypes, owning project, and writability. All filters are optional — omit to get all elements. For SAF-enriched results (safKind, safDomain, tagged values), use saf_find_elements_by_type instead.
-
-SAF stereotype naming convention: use full stereotype names with the SAF_ prefix (e.g., 'SAF_ConceptualSystem', not 'conceptual_system').
-All parameters are case-insensitive — don't retry with different casing.
-Use spec_list_stereotypes to see all available stereotype names in the model.''')
+    @McpTool(name = "find_elements_by_type", description = '''Recursively search for model elements by type name, stereotype, and/or name substring. Searches ALL model content including used projects/modules by default (scope='all'); scope='primary' restricts to the primary model. Returns id, name, type, stereotypes, owning project, and writability. All filters optional and case-insensitive. For SAF-enriched results (safKind, safDomain) use saf_find_elements_by_type instead. Naming conventions + examples: read cameo://tool/stereotype-search.''')
     @McpToolArgument(name = "type", type = "string", description = "Substring to match against element type name (case-insensitive). Leave empty to match all types.")
-    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Use full SAF_ stereotype names (e.g., 'SAF_ConceptualSystem'), not concept kind names.")
+    @McpToolArgument(name = "stereotype", type = "string", description = "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Use full SAF_ stereotype names (e.g., 'SAF_ConceptualSystem'), not concept kind names. Convention + examples: cameo://tool/stereotype-search.")
     @McpToolArgument(name = "name", type = "string", description = "Substring to match against element names (case-insensitive). Leave empty to match all.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire model including used projects.")
     @McpToolArgument(name = "scope", type = "string", description = "'all' (default) searches primary model plus all used projects/modules; 'primary' searches only the primary model.")

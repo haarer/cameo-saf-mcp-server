@@ -945,43 +945,11 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         }
     }
 
-    @McpTool(name = "saf_find_elements_by_type", description = '''Recursively search for elements by type, stereotype, and/or name substring using Finder.byTypeRecursively. Returns results enriched with safKind (SAF concept kind like 'conceptual_system', 'operational_performer') and safDomain (architecture_management, operational, conceptual, physical) fields. All filters are optional.
-
-Use this tool when:
-- You need element IDs to use with other tools (saf_get_element_details, saf_create_relationship, etc.)
-- You want SAF metadata (safKind, safDomain) alongside basic element info
-- You're searching within a specific package or the entire model
-- Querying SAF models: prefer this over find_elements_by_type for enriched results
-
-Returns: Array of objects with {id, name, type, stereotypes[], safKind, safDomain, parentId}
-
-SAF stereotype naming convention: SAF_<Domain><ViewpointCode>_<ConceptCode> (e.g., SAF_C1_SCXD, SAF_O2_OPFR).
-Common prefixes: SAF_ (all SAF stereotypes), SAF_C (conceptual domain), SAF_O (operational domain), SAF_P (physical domain).
-All parameters are case-insensitive — don't retry with different casing.
-Use spec_list_stereotypes to see all available stereotype names in the model.
-
-Examples:
-- stereotype='SAF_ConceptualSystem' → find all conceptual systems with IDs
-- name='FFDS', stereotype='SAF_' → find FFDS elements with any SAF stereotype
-- parentId='<pkg-id>', stereotype='SAF_SystemRequirement' → search requirements in a package''')
-    @McpToolArgument(name = "type", type = "string", description = '''Substring to match against element human-readable type (case-insensitive). Leave empty to match all.
-
-Common SysML types: 'Class', 'Package', 'Activity', 'ProxyPort', 'Interface', 'Connector', 'DataType'
-Examples: 'Class' matches all Class instances; 'Package' matches all packages''')
-    @McpToolArgument(name = "stereotype", type = "string", description = '''Substring to match against applied stereotype names (case-insensitive). Leave empty to match all.
-
-SAF stereotypes follow the pattern: SAF_<Domain><Viewpoint>_<Concept>
-Examples: 
-- 'SAF_ConceptualSystem' → exact match for conceptual systems
-- 'SAF_C1_' → matches all C1_OSTY viewpoint concepts (SAF_ConceptualContext, SAF_Mission, etc.)
-- 'SAF_SystemRequirement' → matches system requirements
-- 'SAF_' → matches any SAF stereotype''')
-    @McpToolArgument(name = "name", type = "string", description = '''Substring to match against element names (case-insensitive). Leave empty to match all.
-
-Examples: 'FFDS' matches "FFDS Context", "Fire Department FFDS"; 'Fire' matches "Fire Department", "Fire Chief"''')
-    @McpToolArgument(name = "parentId", type = "string", description = '''Element ID to search within instead of the entire primary model. Omit or leave empty to search the entire model.
-
-Use this to scope searches to specific packages or sub-models. Get parent IDs from previous search results or use get_element_details on a known element.''')
+    @McpTool(name = "saf_find_elements_by_type", description = '''Recursively search for elements by type, stereotype, and/or name substring. Returns results enriched with safKind (SAF concept kind like 'conceptual_system') and safDomain (architecture_management, operational, conceptual, physical). All filters optional and case-insensitive. Prefer this over find_elements_by_type when querying SAF models or when you need element IDs for other saf_* tools. Returns: {id, name, type, stereotypes[], safKind, safDomain, parentId}. Naming conventions + examples: read cameo://tool/stereotype-search.''')
+    @McpToolArgument(name = "type", type = "string", description = '''Substring to match against element human-readable type (case-insensitive). Leave empty to match all. Common SysML types: cameo://tool/stereotype-search.''')
+    @McpToolArgument(name = "stereotype", type = "string", description = '''Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Naming convention + examples: cameo://tool/stereotype-search.''')
+    @McpToolArgument(name = "name", type = "string", description = '''Substring to match against element names (case-insensitive). Leave empty to match all.''')
+    @McpToolArgument(name = "parentId", type = "string", description = '''Element ID to search within instead of the entire primary model. Omit to search the whole model. Get parent IDs from prior search results or get_element_details.''')
     List safFindElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
