@@ -160,6 +160,51 @@ resources intentionally do not carry. See `.scratch/mcp-agent-efficiency/` and A
 - [ ] **#9 Deploy + live verification** — `./deploy-scripts.sh`; confirm removed tools vanish and `saf_get_element_semantics` + resources work against the live Cameo model.
 
 
+### Iteration 10: Model-Diff Capability (Completed — spike M1–M5)
+
+A "semantic diff surface" spike so an agent can, after editing a Cameo model, diff the
+live model against a saved baseline snapshot and report precisely what it changed — as
+typed rows, not raw `ProjectDifference` noise. Full spec, milestone evidence, and
+decisions live in `/workspace/diffing-models/` (see `diffing-models/` = this repo's
+spike home; `plans/01-diff-surface-mvp.md` for M1–M5, `plans/03-integration-contract.md`
+for the shipped contract, `decisions.md` for choice log).
+
+Milestone summary:
+
+- **M1** — Compare mechanism + change surfacing proven (CompareUtil, row schema
+  ADDED/MODIFIED/DELETED/REL_CHANGED, SAF-enriched identity, endpoint pairs for
+  relations, symbol-layer changes counted but never listed).
+- **M2** — Location handling + readable semantic diff: `open_model` / `file:<path>`
+  sides, exactly one side open, client-side self-open/close and restore, typed errors.
+- **M3** — Relation changes resolved to endpoint-pairs; tagged-value/bucket cleanup;
+  change ownership (`ChangeOwnerInfo`) surfacing.
+- **M4** — **Shipped `diff(from, to, scope?)` tool** (`scripts/diff_tool.groovy`):
+  scope-by-subtree iteration (decision A6), identical-inputs fast-path, `diffRestored`
+  regression guard (open model untouched after compare). Contract in
+  `diffing-models/plans/03-integration-contract.md`.
+- **M5** — Fixture-based integration suite (`diffing-models/m5/run_m5.sh`, 21/21 green):
+  six injection mutations (add element → ADDED, retype port → MODIFIED, rename part →
+  MODIFIED, delete connector → REL_CHANGED, reroute connector end → REL_CHANGED, re-own
+  → MODIFIED), plus negative identical-inputs, fixture-integrity, and independence tests.
+
+Key lessons:
+
+- The SAF baseline `.mdzip` stores module URIs pointing at the authoring machine; copies
+  in another directory load **empty**. Fixtures are made by patching those URIs to
+  host-resolved paths (`diffing-models/m5/patch_baseline.py`) and persisting via
+  `ProjectDescriptorsFactory.createLocalProjectDescriptor` save-as, so they reload
+  without module-resolution dialogs.
+- Loading the same file path twice in one session reuses the stale open project —
+  per-scenario pristine copies, each opened once, avoid the "already open" trap.
+- The `diff` tool's client-side baseline self-open reuses modules already loaded in the
+  active fixture project, which keeps the comparison fast and dialog-free.
+
+Deliverables live OUTSIDE the server repo: spike Groovy tools
+(`m2_diff_probe`, `m2_diff_readable`, `m3_extract`, `m5_mutate`) in
+`/workspace/diffing-models/spike-scripts/` (redeploy with `deploy_spike.sh`). Only the
+product `diff` tool ships from `scripts/`.
+
+
 ## Lessons Learned
 
 ### Jackson Classloader Conflict
