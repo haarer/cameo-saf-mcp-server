@@ -175,6 +175,68 @@ def test_saf_get_element_semantics_invalid_id(client, tool_names):
     assert "error" in data[0]
 
 
+def test_saf_get_element_semantics_ambiguity_contract(client, tool_names):
+    """Every element must carry ambiguous, candidateKinds, safKind, safDomain.
+    The ambiguous flag must be True iff candidateKinds has >1 entry, and safKind
+    (when non-empty) must be one of the candidate kinds."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_get_element_semantics")
+    session_id = _mcp_init(client)
+
+    # Sample a few elements of different types
+    cap = _call_tool(client, session_id, "saf_find_elements_by_type",
+                     {"stereotype": "SAF_OperationalCapability"})
+    req = _call_tool(client, session_id, "saf_find_elements_by_type",
+                     {"stereotype": "SAF_SystemRequirement"})
+    flow = _call_tool(client, session_id, "saf_find_elements_by_type",
+                      {"type": "Flow", "name": "flow for Visual Observation"})
+    ids = [e["id"] for e in (cap[:1] + req[:1] + flow[:1])]
+    assert len(ids) >= 1, "need at least one test element"
+
+    data = _call_tool(client, session_id, "saf_get_element_semantics", {"elementIds": ids})
+    assert len(data) == len(ids)
+
+    for row in data:
+        if "error" in row:
+            continue
+        assert isinstance(row.get("candidateKinds"), list), f"candidateKinds missing: {row}"
+        assert isinstance(row.get("ambiguous"), bool), f"ambiguous missing: {row}"
+        n_candidates = len(row["candidateKinds"])
+        assert row["ambiguous"] == (n_candidates > 1), \
+            f"ambiguous flag inconsistent with {n_candidates} candidates: {row}"
+        if row["safKind"] and n_candidates > 1:
+            kind_set = {c["kind"] for c in row["candidateKinds"]}
+            assert row["safKind"] in kind_set, \
+                f"safKind '{row['safKind']}' not in candidates {kind_set}: {row}"
+
+
+def test_saf_get_element_semantics_ambiguous(client, tool_names):
+    """An ItemFlow element must report ambiguous=True and list all three item-exchange
+    candidate kinds (conceptual/operational/physical) from the ItemFlow stereotype.
+    When conveyed items resolve a domain, disambiguation should be present."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_get_element_semantics")
+    session_id = _mcp_init(client)
+
+    found = _call_tool(client, session_id, "saf_find_elements_by_type",
+                       {"type": "Flow", "name": "flow for Visual Observation"})
+    assert len(found) >= 1, "need at least one ItemFlow 'flow for Visual Observation'"
+    elem_id = found[0]["id"]
+
+    data = _call_tool(client, session_id, "saf_get_element_semantics", {"elementIds": [elem_id]})
+    row = data[0]
+
+    assert row["ambiguous"] is True
+    kind_names = {c["kind"] for c in row["candidateKinds"]}
+    assert {"conceptual_item_exchange", "operational_item_exchange", "physical_item_exchange"} == kind_names
+    for c in row["candidateKinds"]:
+        assert "concept" in c
+        assert "stereotype" in c
+        assert "domain" in c
+        assert c["domain"] in ("conceptual", "operational", "physical")
+    # safKind is either a single disambiguated kind or "" if unresolved
+    assert row["safKind"] in kind_names or row["safKind"] == ""
+    assert row["safDomain"] in ("conceptual", "operational", "physical", "")
+
+
 # -- saf_build_traceability_chain --
 
 def test_saf_build_traceability_chain_structure(client, tool_names):

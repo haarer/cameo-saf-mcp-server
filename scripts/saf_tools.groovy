@@ -71,6 +71,15 @@ class SafTools {
     static Map STEREO_TO_KIND = [:]
     static Map KIND_TO_DOMAIN = [:]
 
+    static String safKindKey(String conceptName) {
+        if (conceptName == null || conceptName.isEmpty()) return ""
+        return conceptName.toLowerCase()
+            .replaceAll(/[^a-z0-9 ]/, "")
+            .replaceAll(/ /, "_")
+            .replaceAll(/_+/, "_")
+            .replaceAll(/^_|_$/, "")
+    }
+
     // API domain name -> JSON data domain name
     private static final DOMAIN_TO_JSON = [
         "architecture_management": "Architecture Management",
@@ -130,11 +139,7 @@ class SafTools {
             def sysmlType = CLASSTYPE_TO_SYSML[classType]
             if (sysmlType == null) continue
 
-            def kindKey = name.toLowerCase()
-                .replaceAll(/[^a-z0-9 ]/, "")
-                .replaceAll(/ /, "_")
-                .replaceAll(/_+/, "_")
-                .replaceAll(/^_|_$/, "")
+            def kindKey = safKindKey(name)
 
             if (kindKey.isEmpty()) continue
             if (dynConceptMap.containsKey(kindKey)) continue
@@ -1057,7 +1062,7 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
         }
     }
 
-    @McpTool(name = "saf_find_elements_by_type", description = '''Recursively search for elements by type, stereotype, and/or name substring. Returns results enriched with safKind (SAF concept kind like 'conceptual_system') and safDomain (architecture_management, operational, conceptual, physical). All filters optional and case-insensitive. Prefer this over find_elements_by_type when querying SAF models or when you need element IDs for other saf_* tools. Returns: {id, name, type, stereotypes[], safKind, safDomain, parentId}. Naming conventions + examples: read cameo://tool/stereotype-search.''')
+    @McpTool(name = "saf_find_elements_by_type", description = '''Recursively search for elements by type, stereotype, and/or name substring. Returns results enriched with safKind (SAF concept kind like 'conceptual_system') and safDomain (architecture_management, operational, conceptual, physical). All filters optional and case-insensitive. Prefer this over find_elements_by_type when querying SAF models or when you need element IDs for other saf_* tools. Returns: {id, name, type, stereotypes[], safKind, safDomain, ambiguous, candidateKinds, parentId}. AMBIGUITY-AWARE: each row includes ambiguous (true if the element's stereotypes realize more than one SAF concept kind) and candidateKinds (the full list). Naming conventions + examples: read cameo://tool/stereotype-search.''')
     @McpToolArgument(name = "type", type = "string", description = '''Substring to match against element human-readable type (case-insensitive). Leave empty to match all. Common SysML types: cameo://tool/stereotype-search.''')
     @McpToolArgument(name = "stereotype", type = "string", description = '''Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Naming convention + examples: cameo://tool/stereotype-search.''')
     @McpToolArgument(name = "name", type = "string", description = '''Substring to match against element names (case-insensitive). Leave empty to match all.''')
@@ -1093,13 +1098,16 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             }
             .map { obj ->
                 def stereosList = StereotypesHelper.getStereotypes(obj).collect { it.getName() }
+                def sem = resolveElementSemantics(obj, stereosList)
                 [
                     id: obj.getID(),
                     name: obj.getName() ?: "",
                     type: obj.getHumanType(),
                     stereotypes: stereosList,
-                    safKind: resolveSafKind(stereosList),
-                    safDomain: resolveSafDomain(stereosList),
+                    ambiguous: sem.ambiguous,
+                    candidateKinds: sem.candidateKinds,
+                    safKind: sem.safKind,
+                    safDomain: sem.safDomain,
                     parentId: obj.getOwner() != null ? obj.getOwner().getID() : ""
                 ]
             }
@@ -1107,6 +1115,13 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
     }
 
     @McpTool(name = "saf_get_element_semantics", description = '''Get the SAF interpretation of one or more elements by ID: which SAF concept kind each element realizes (safKind), which SAF domain (architecture_management/operational/conceptual/physical), and which SAF viewpoints use that kind. This is the ONLY SAF-interpretation read — for raw model facts (name, stereotypes, tagged values, owned elements, relationships) use the cameo://element/{id} resource and its /children and /relationships slices instead. Batch input: pass all element IDs whose semantics you want, in one call (e.g. to annotate every result of saf_find_elements_by_type).
+
+AMBIGUITY-AWARE: a single SAF stereotype can realize SEVERAL concept kinds (e.g. ItemFlow realizes Conceptual/Operational/Physical Item Exchange simultaneously). This tool never hides that. Every row carries:
+- candidateKinds: the FULL list of distinct concept kinds the element's stereootypes realize, each with {kind, concept, stereotype, domain}
+- ambiguous: true iff more than one distinct candidate kind applies
+- safKind/safDomain: the resolved kind/domain when it can be uniquely determined — the single candidate, OR the candidate selected by context (the element's conveyed/source/target ends' domain when it narrows to exactly one); otherwise safKind/safDomain are empty strings
+- disambiguation (only when context resolved an ambiguity): a human-readable note of which context signal >selected the kind
+So a row for an ItemFlow that conveys a conceptual item shows candidateKinds with all three item-exchange kinds and a safKind narrowed to the conceptual one when the conveyed classifier's own domain says so.
 
 Use this tool when:
 - You have element IDs from a search and need their SAF meaning (kind, domain, viewpoints)
@@ -1118,7 +1133,8 @@ Do NOT use this tool for: raw tagged values, owned elements, or relationship lis
 Returns a list, one object per element:
 - id, name, type, stereotypes[]
 - safKind (e.g. 'conceptual_system'), safDomain (e.g. 'conceptual')
-- viewpoints: [{id, vpId, name}] — SAF viewpoints that expose the element's concept kind
+- ambiguous, candidateKinds, disambiguation (see AMBIGUITY-AWARE above)
+- viewpoints: [{id, vpId, name}] — SAF viewpoints that expose the element's concept kind(s)
 - requirement: {id, text} when the element carries SAF_SystemRequirement (incl. EAP-migrated StringTaggedValue text)
 - error: "Element not found: <id>" for unresolvable IDs
 
@@ -1154,8 +1170,7 @@ Get element IDs from:
                 }
             } catch (ignored) {}
 
-            def safKind = resolveSafKind(stereos)
-            def safDomain = resolveSafDomain(stereos)
+            def semantics = resolveElementSemantics(element, stereos)
             def viewpoints = resolveViewpointsForStereos(stereos)
 
             def row = [
@@ -1163,10 +1178,13 @@ Get element IDs from:
                 name: (element instanceof NamedElement) ? ((NamedElement) element).getName() : "",
                 type: element.getHumanType(),
                 stereotypes: stereos,
-                safKind: safKind,
-                safDomain: safDomain,
+                ambiguous: semantics.ambiguous,
+                candidateKinds: semantics.candidateKinds,
+                safKind: semantics.safKind,
+                safDomain: semantics.safDomain,
                 viewpoints: viewpoints
             ]
+            if (semantics.disambiguation) row.disambiguation = semantics.disambiguation
 
             def reqTags = collectRequirementTags(element)
             if (!reqTags.isEmpty()) {
@@ -1575,6 +1593,135 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
             if (STEREO_TO_KIND.containsKey(stName)) return STEREO_TO_KIND[stName]
         }
         return ""
+    }
+
+    /**
+     * Resolve ALL candidate SAF concept kinds an element can realize, one per distinct kind.
+     * Uses the authoritative reverse map (stereotype -> all directly-realizing concepts)
+     * so a stereotype that realizes several concepts (e.g. ItemFlow -> conceptual/operational/
+     * physical item exchange) yields its full candidate set, not a load-order-dependent pick.
+     * Each is a list of [kind, concept, stereotype, domain] maps, sorted by kind.
+     */
+    List resolveSafKindCandidates(List stereos) {
+        def out = []
+        def seen = [:]
+        if (stereos == null) return out
+        try {
+            def store = SafDataStore.getInstance()
+            def idx = store.getCurrentIndex()
+            if (idx == null) return out
+            for (stName in stereos) {
+                def st = idx.getStereotypeByName(stName as String)
+                if (st == null) continue
+                for (concept in idx.getConceptsForStereotype(st.id())) {
+                    def kind = safKindKey(concept.name())
+                    if (kind.isEmpty() || seen.containsKey(kind)) continue
+                    seen[kind] = true
+                    out.add([
+                        kind: kind,
+                        concept: concept.name(),
+                        stereotype: stName as String,
+                        domain: KIND_TO_DOMAIN[kind] ?: ""
+                    ])
+                }
+            }
+        } catch (ignored) {}
+        return out.sort { it.kind }
+    }
+
+    /** Collect the SAF kind strings an element could realize, used for domain context. */
+    List elementKindCandidates(def element) {
+        if (!(element instanceof Element)) return []
+        def stereos = []
+        try {
+            for (st in element.getAppliedStereotype()) {
+                def n = st.getName()
+                if (n != null && !n.isEmpty()) stereos.add(n)
+            }
+        } catch (ignored) {}
+        return resolveSafKindCandidates(stereos)
+    }
+
+    /**
+     * For a Relation/InformationFlow-style element, use its conveys + source/target ends to
+     * infer the contextual SAF domain. Returns the DOMAIN string ('conceptual'/'operational'/
+     * 'physical') or "" if the context gives no single signal.
+     */
+    String contextDomainForElement(def element) {
+        if (element == null) return ""
+        def flowAPIs = [
+            "getConveyed", "getInformationSource", "getInformationTarget",
+            "getSource", "getTarget", "getEnd", "getConveyedElement"
+        ]
+        def ends = []
+        try {
+            def methods = element.class?.methods?.collect { it.name } as Set
+            if (methods == null) return ""
+            for (m in flowAPIs) {
+                if (!methods.contains(m)) continue
+                def callable = element.metaClass.respondsTo(element, m)
+                if (callable == null || callable.isEmpty()) continue
+                def val
+                try { val = element.invokeMethod(m, null) } catch (ignored) { continue }
+                if (val == null) continue
+                if (val instanceof Collection) ends.addAll(val)
+                else ends.add(val)
+            }
+        } catch (ignored) {}
+
+        def domains = []
+        def dedup = [:]
+        for (e in ends) {
+            if (e == null) continue
+            for (candidate in elementKindCandidates(e)) {
+                if (!candidate.domain || dedup.containsKey(candidate.domain)) continue
+                dedup[candidate.domain] = true
+                domains.add(candidate.domain)
+            }
+        }
+        if (domains.size() == 1) return domains[0]
+        if (domains.size() > 1) {
+            // multiple different domains on the ends -> ambiguous context, no signal
+            return ""
+        }
+        return ""
+    }
+
+    /**
+     * Resolve SAF semantics for an element. Returns a row map with:
+     * - safKind: the kind when it can be uniquely resolved (single candidate, or context-disambiguated)
+     * - safDomain: the corresponding domain
+     * - ambiguous: true when the stereotype set realizes more than one distinct concept kind
+     * - candidateKinds: the full candidate list (always present; size 1 = unambiguous)
+     * - disambiguation: human-readable note when context resolved an ambiguity
+     */
+    Map resolveElementSemantics(def element, List stereos) {
+        def base = [ambiguous: false, candidateKinds: [], safKind: "", safDomain: "",
+                    disambiguation: "", unresolved: false]
+        def candidates = resolveSafKindCandidates(stereos)
+        base.candidateKinds = candidates
+        if (candidates.isEmpty()) return base
+
+        if (candidates.size() == 1) {
+            base.safKind = candidates[0].kind
+            base.safDomain = candidates[0].domain
+            return base
+        }
+
+        base.ambiguous = true
+        def ctxDomain = contextDomainForElement(element)
+        if (ctxDomain) {
+            def matches = candidates.findAll { it.domain == ctxDomain }
+            if (matches.size() == 1) {
+                base.safKind = matches[0].kind
+                base.safDomain = matches[0].domain
+                base.disambiguation = "context domain '" + ctxDomain + "' (from conveyed/source/target ends) selects " +
+                    "'" + matches[0].kind + "' among " + candidates.collect { it.kind }.sort().join(", ")
+                return base
+            }
+        }
+        base.unresolved = true
+        return base
     }
 
     List resolveViewpointsForStereos(List stereos) {
