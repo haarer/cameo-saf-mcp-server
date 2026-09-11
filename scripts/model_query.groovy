@@ -26,7 +26,7 @@ class ModelQuery {
         }
     }
 
-    @McpTool(name = "get_element_info", description = "Get detailed info about a model element by its qualified name (e.g. 'MyModel::MyPackage::MyBlock'). Searches all model content including used projects/modules. Returns name, qualifiedName, type, stereotypes, owning project, owned elements, and relationships (dependencies, generalizations, properties). Use this when you know the element's qualified path. For lookup by element ID, use get_element_details.")
+    @McpTool(name = "get_element_info", description = "Get detailed info about a model element by its qualified name (e.g. 'MyModel::MyPackage::MyBlock'). Searches all model content including used projects/modules. Returns name, qualifiedName, type, stereotypes, owning project, owned elements, and relationships (dependencies, generalizations, properties). Use this when you know the element's qualified path. For lookup by element ID, use the cameo://element/{id} resource (or saf_get_element_semantics for SAF meaning).")
     @McpToolArgument(name = "qualifiedName", type = "string", description = "Fully qualified name of the element (e.g. 'Model::Package::Element')", required = true)
     Map getElementInfo(Map<String, Object> args) {
         def project = com.nomagic.magicdraw.core.Application.getInstance().getProject()

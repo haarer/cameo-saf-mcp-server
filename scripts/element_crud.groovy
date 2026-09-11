@@ -385,7 +385,7 @@ class ElementCrud {
         return [elementId: elementId, stereotype: stereotypeName, tagsSet: setCount]
     }
 
-    @McpTool(name = "get_stereotype_tags", description = "Read all applied stereotypes and their property values ('tags') of an element by ID. Unlike saf_get_element_details (which shows only SAF-enriched tagged values), this returns EVERY applied stereotype with ALL its property values — e.g. abbreviation, errorMessage or severity of a validationRule constraint.")
+    @McpTool(name = "get_stereotype_tags", description = "Read all applied stereotypes and their property values ('tags') of an element by ID. Returns EVERY applied stereotype with ALL its property values — e.g. abbreviation, errorMessage or severity of a validationRule constraint, requirement id/text. This is a low-level read; if you only need SAF semantics (kind/domain/viewpoints), use saf_get_element_semantics instead. For raw element facts use the cameo://element/{id} resource.")
     @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the element to inspect", required = true)
     Map getStereotypeTags(Map<String, Object> args) {
         def id = args.get("elementId") as String
@@ -1029,7 +1029,7 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
         return [constraintId: constraintId, elementIds: resolved.collect { it.getID() }, set: true]
     }
 
-    @McpResource(uri = "cameo://element/{id}", name = "Element fact sheet", description = "Compact, navigational view of a single model element by element ID (resolves across the active project and its used projects). Returns identity (id, name, metaclass (structural: UML metaclass e.g. Class/Property; runtime class name for storage kinds like TaggedValue), type (semantic label MagicDraw resolves from the applied stereotypes; equals the metaclass name when unstereotyped), qualifiedName), applied stereotypes, taggedValues, documentation, plus roll-up claims for children (count with per-metaclass breakdown) and relationships (count) with the slice URIs to drill deeper. SAF semantics are intentionally not resolved here — use the saf_* tools for that.", mimeType = "application/json")
+    @McpResource(uri = "cameo://element/{id}", name = "Element fact sheet", description = "Compact, navigational fact sheet of a single model element by element ID (resolves across the active project and its used projects). Returns identity (id, name, metaclass (structural: UML metaclass e.g. Class/Property; runtime class name for storage kinds like TaggedValue), type (semantic label MagicDraw resolves from the applied stereotypes; equals the metaclass name when unstereotyped), qualifiedName), applied stereotypes, taggedValues, documentation, plus roll-up claims for children (count with per-metaclass breakdown) and relationships (count) with the slice URIs to drill deeper. This is the generic element-read path: use the /children and /relationships slices to navigate, and use saf_get_element_semantics only when you need the SAF interpretation (concept kind, domain, viewpoints) of an already-known element.", mimeType = "application/json")
     Map elementById(Map<String, String> params) {
         def id = params.get("id")
         if (!id) return [error: "id is required"]

@@ -491,6 +491,8 @@ public class SafDataStore {
             var rationaleNodes = readJsonArray(mapper, dir, "rationales.json");
             var exposeNodes = readJsonArray(mapper, dir, "exposes.json");
             var stereotypeNodes = readJsonArray(mapper, dir, "stereotypes.json");
+            var sysmlStereotypeNodes = readJsonArray(mapper, dir, "sysmlstereotypes.json");
+            var umlMetaclassNodes = readJsonArray(mapper, dir, "umlmetaclasses.json");
             var realizeNodes = readJsonArray(mapper, dir, "realizeconcept.json");
             var specialImplNodes = readJsonArray(mapper, dir, "special-implementations.json");
             var domainNodes = readJsonArray(mapper, dir, "domains.json");
@@ -504,6 +506,8 @@ public class SafDataStore {
             var rationales = parseRationales(rationaleNodes);
             var exposes = parseExposes(exposeNodes);
             var stereotypes = parseStereotypes(stereotypeNodes);
+            stereotypes.putAll(parseStereotypes(sysmlStereotypeNodes));
+            stereotypes.putAll(parseStereotypes(umlMetaclassNodes));
             var realizeConcepts = parseRealizeConcepts(realizeNodes);
             var specialImpls = parseSpecialImplementations(specialImplNodes);
             var domains = parseDomains(domainNodes);

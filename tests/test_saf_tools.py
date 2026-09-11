@@ -74,7 +74,7 @@ SAF_TOOLS = [
     "saf_create_relationship",
     "saf_query_viewpoint",
     "saf_find_elements_by_type",
-    "saf_get_element_details",
+    "saf_get_element_semantics",
     "saf_build_traceability_chain",
     "saf_check_consistency",
     "saf_get_viewpoint_views",
@@ -135,42 +135,44 @@ def test_saf_find_elements_by_type_with_stereotype_filter(client, tool_names):
         assert has_req, f"Expected Requirement stereotype, got {elem['stereotypes']}"
 
 
-# -- saf_get_element_details --
+# -- saf_get_element_semantics --
 
-def test_saf_get_element_details_valid(client, tool_names):
-    """Returns details for an existing element."""
-    _require_tools(tool_names, "saf_find_elements_by_type", "saf_get_element_details")
+def test_saf_get_element_semantics_valid(client, tool_names):
+    """Returns SAF interpretation for multiple elements (batch)."""
+    _require_tools(tool_names, "saf_find_elements_by_type", "saf_get_element_semantics")
     session_id = _mcp_init(client)
 
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
-    elem_id = found[0]["id"]
+    ids = [e["id"] for e in found[:3]]
 
-    data = _call_tool(client, session_id, "saf_get_element_details", {"elementId": elem_id})
+    data = _call_tool(client, session_id, "saf_get_element_semantics", {"elementIds": ids})
 
-    assert "name" in data
-    assert "type" in data
-    assert "safKind" in data
-    assert "safDomain" in data
-    assert "stereotypes" in data
-    assert "ownedElements" in data
-    assert isinstance(data["ownedElements"], list)
-    assert "traceability" in data
-    assert isinstance(data["traceability"], list)
+    assert isinstance(data, list)
+    assert len(data) == len(ids)
+    for row in data:
+        if "error" in row:
+            continue
+        assert "id" in row
+        assert "name" in row
+        assert "type" in row
+        assert "stereotypes" in row
+        assert isinstance(row["stereotypes"], list)
+        assert "safKind" in row
+        assert "safDomain" in row
+        assert "viewpoints" in row
 
 
-def test_saf_get_element_details_invalid_id(client, tool_names):
-    """Returns error for nonexistent element ID."""
-    _require_tools(tool_names, "saf_get_element_details")
+def test_saf_get_element_semantics_invalid_id(client, tool_names):
+    """Returns error entry for nonexistent element ID."""
+    _require_tools(tool_names, "saf_get_element_semantics")
     session_id = _mcp_init(client)
 
-    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
-                                  "params": {"name": "saf_get_element_details",
-                                             "arguments": {"elementId": "nonexistent-id"}}},
-                    headers={"Mcp-Session-Id": session_id})
-    body = r.json()
-    assert "result" in body
-    content = body["result"]["content"][0]["text"]
-    assert "error" in content.lower() or "not found" in content.lower() or "null" in content.lower()
+    data = _call_tool(client, session_id, "saf_get_element_semantics",
+                      {"elementIds": ["nonexistent-id"]})
+
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert "error" in data[0]
 
 
 # -- saf_build_traceability_chain --
@@ -470,7 +472,7 @@ def test_saf_full_workflow(client, tool_names):
     """End-to-end: find elements, get details, build traceability, export viewpoint."""
     _require_tools(tool_names,
         "saf_find_elements_by_type",
-        "saf_get_element_details",
+        "saf_get_element_semantics",
         "saf_build_traceability_chain",
         "saf_check_consistency",
         "saf_export_viewpoint",
@@ -482,13 +484,14 @@ def test_saf_full_workflow(client, tool_names):
     found = _call_tool(client, session_id, "saf_find_elements_by_type")
     assert len(found) > 0
 
-    # 2. Get details of first named element
+    # 2. Get semantics of first named element
     #    (unfiltered results may legitimately start with unnamed elements,
     #    e.g. unnamed activity actions in the loaded model)
     elem_id = next(e["id"] for e in found if e.get("name"))
-    details = _call_tool(client, session_id, "saf_get_element_details",
-                         {"elementId": elem_id})
-    assert details["name"]
+    semantics = _call_tool(client, session_id, "saf_get_element_semantics",
+                           {"elementIds": [elem_id]})
+    assert isinstance(semantics, list)
+    assert semantics[0]["name"]
 
     # 3. Build traceability chain
     chain = _call_tool(client, session_id, "saf_build_traceability_chain",

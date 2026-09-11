@@ -71,7 +71,7 @@ class ModelCode {
 
     @McpTool(name = "modelcode_spec_update", description = '''Write executable code (or an expression body) into a model element. This is the generic authoring tool for code STORED IN THE MODEL. It replaces/creates the ValueSpecification of a Constraint as an OpaqueExpression with one language/body pair, and also works directly on OpaqueExpression and OpaqueBehavior elements (sets their language/body lists).
 
-USE THIS for writing any in-model Groovy/OCL/etc. body: validation constraint rules, OpaqueBehavior simulation bodies, or SAF document-generator OpaqueExpressions. To find candidates first, use find_elements_by_type with type='Constraint' (optionally specLanguage='Groovy') or get_element_details. To read the current body, see get_element_details output '<language>\n<body>' format.
+USE THIS for writing any in-model Groovy/OCL/etc. body: validation constraint rules, OpaqueBehavior simulation bodies, or SAF document-generator OpaqueExpressions. To find candidates first, use find_elements_by_type with type='Constraint' (optionally specLanguage='Groovy'). To read the current body, use the cameo://element/{id} resource on the element (its specification appears in the fact sheet).
 
 AFTER writing a validation rule, run it with modelcode_validation_run (real engine) or debug it with modelcode_validation_eval (per-target pass/fail). For on-disk MCP handler scripts (not model content), use the plugincode_* tools instead.''')
     @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the Constraint (or of an OpaqueExpression/OpaqueBehavior)", required = true)

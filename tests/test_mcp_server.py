@@ -185,18 +185,18 @@ def test_mcp_resources(client):
     assert "result" in body
     resources = body["result"]["resources"]
     resource_uris = [r["uri"] for r in resources]
-    assert "cameo://model/summary" in resource_uris
+    assert "cameo://project" in resource_uris
 
-    # Read model summary resource
+    # Read the active-project summary resource
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "resources/read",
-                                  "params": {"uri": "cameo://model/summary"}},
+                                  "params": {"uri": "cameo://project"}},
                     headers={"Mcp-Session-Id": session_id})
     assert r.status_code == 200
     body = r.json()
     assert "result" in body
     text = body["result"]["contents"][0]["text"]
     data = json.loads(text)
-    assert "modelName" in data
+    assert "name" in data
 
 
 def test_mcp_prompts(client):
@@ -309,16 +309,32 @@ def test_mcp_find_elements_by_type_registered(client, tool_names):
         f"find_elements_by_type not in tool list: {tool_names}"
 
 
-def test_mcp_get_element_details_registered(client, tool_names):
-    """get_element_details tool appears in tools/list."""
-    assert "get_element_details" in tool_names, \
-        f"get_element_details not in tool list: {tool_names}"
+def test_mcp_get_element_details_not_registered(client, tool_names):
+    """get_element_details / get_elements_details_batch must NOT exist (ADR-0016)."""
+    assert "get_element_details" not in tool_names, \
+        f"get_element_details still registered (ADR-0016 forbids element dumps): {tool_names}"
+    assert "get_elements_details_batch" not in tool_names, \
+        f"get_elements_details_batch still registered (ADR-0016 forbids element dumps): {tool_names}"
 
 
-def test_mcp_get_elements_details_batch_registered(client, tool_names):
-    """get_elements_details_batch tool appears in tools/list."""
-    assert "get_elements_details_batch" in tool_names, \
-        f"get_elements_details_batch not in tool list: {tool_names}"
+def test_mcp_saf_get_element_details_not_registered(client, tool_names):
+    """saf_get_element_details must NOT exist (ADR-0016); replaced by saf_get_element_semantics."""
+    assert "saf_get_element_details" not in tool_names, \
+        f"saf_get_element_details still registered (ADR-0016): {tool_names}"
+    assert "saf_get_element_semantics" in tool_names, \
+        f"saf_get_element_semantics not in tool list: {tool_names}"
+
+
+def test_mcp_create_information_flow_registered(client, tool_names):
+    """create_information_flow tool appears in tools/list."""
+    assert "create_information_flow" in tool_names, \
+        f"create_information_flow not in tool list: {tool_names}"
+
+
+def test_mcp_get_state_machine_structure_registered(client, tool_names):
+    """get_state_machine_structure tool appears in tools/list."""
+    assert "get_state_machine_structure" in tool_names, \
+        f"get_state_machine_structure not in tool list: {tool_names}"
 
 
 def test_mcp_list_owned_elements_registered(client, tool_names):
@@ -339,18 +355,18 @@ def test_mcp_list_model_stereotypes_registered(client, tool_names):
         f"list_model_stereotypes not in tool list: {tool_names}"
 
 
-def test_mcp_get_elements_details_batch_functional(client, tool_names):
-    """get_elements_details_batch returns details for multiple elements."""
-    required = ["find_elements_by_type", "get_elements_details_batch"]
+def test_mcp_saf_get_element_semantics_functional(client, tool_names):
+    """saf_get_element_semantics returns SAF interpretation for multiple elements."""
+    required = ["saf_find_elements_by_type", "saf_get_element_semantics"]
     missing = [n for n in required if n not in tool_names]
     if missing:
         pytest.skip(f"missing tools: {', '.join(missing)}")
 
     session_id = _mcp_init(client)
 
-    # Grab up to 3 element IDs from find_elements_by_type
+    # Grab up to 3 element IDs from saf_find_elements_by_type
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 20, "method": "tools/call",
-                                  "params": {"name": "find_elements_by_type",
+                                  "params": {"name": "saf_find_elements_by_type",
                                              "arguments": {"type": "Class"}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
@@ -361,8 +377,8 @@ def test_mcp_get_elements_details_batch_functional(client, tool_names):
     ids = [e["id"] for e in elements[:3]]
 
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 21, "method": "tools/call",
-                                  "params": {"name": "get_elements_details_batch",
-                                             "arguments": {"ids": ids}}},
+                                  "params": {"name": "saf_get_element_semantics",
+                                             "arguments": {"elementIds": ids}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False), f"batch failed: {body}"
@@ -371,20 +387,20 @@ def test_mcp_get_elements_details_batch_functional(client, tool_names):
     assert len(results) == len(ids)
     for r in results:
         assert "id" in r
-        assert "name" in r
-        assert "type" in r
-        assert "stereotypes" in r
+        assert "name" in r if "error" not in r else True
+        assert "safKind" in r
+        assert "safDomain" in r
 
 
-def test_mcp_get_elements_details_batch_bad_id(client, tool_names):
-    """get_elements_details_batch handles unknown IDs gracefully."""
-    if "get_elements_details_batch" not in tool_names:
-        pytest.skip("get_elements_details_batch not registered")
+def test_mcp_saf_get_element_semantics_bad_id(client, tool_names):
+    """saf_get_element_semantics handles unknown IDs gracefully."""
+    if "saf_get_element_semantics" not in tool_names:
+        pytest.skip("saf_get_element_semantics not registered")
     session_id = _mcp_init(client)
 
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 22, "method": "tools/call",
-                                  "params": {"name": "get_elements_details_batch",
-                                             "arguments": {"ids": ["_nonexistent_"]}}},
+                                  "params": {"name": "saf_get_element_semantics",
+                                             "arguments": {"elementIds": ["_nonexistent_"]}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False)
@@ -508,7 +524,7 @@ def test_mcp_modify_element_registered(client, tool_names):
 
 def test_mcp_delete_element_create_then_delete(client, tool_names):
     """Create an element, verify it exists, delete it, verify it's gone."""
-    required = ["create_element", "find_elements_by_type", "get_element_details", "delete_element"]
+    required = ["create_element", "find_elements_by_type", "delete_element"]
     missing = [n for n in required if n not in tool_names]
     if missing:
         pytest.skip(f"missing tools: {', '.join(missing)}")
@@ -540,15 +556,16 @@ def test_mcp_delete_element_create_then_delete(client, tool_names):
     elem_id = created["id"]
     assert elem_id
 
-    # 3. Verify element exists
+    # 3. Verify element exists via find_elements_by_type
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 12, "method": "tools/call",
-                                  "params": {"name": "get_element_details",
-                                             "arguments": {"elementId": elem_id}}},
+                                  "params": {"name": "find_elements_by_type",
+                                             "arguments": {"type": "Class",
+                                                           "name": "TempDeleteTest"}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     assert not body["result"].get("isError", False)
-    details = json.loads(body["result"]["content"][0]["text"])
-    assert details["name"] == "TempDeleteTest"
+    found = json.loads(body["result"]["content"][0]["text"])
+    assert any(e["id"] == elem_id for e in found), f"element not found after create: {found}"
 
     # 4. Delete the element
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 13, "method": "tools/call",
@@ -564,12 +581,13 @@ def test_mcp_delete_element_create_then_delete(client, tool_names):
     if "type" in result:
         assert result["type"] is not None
 
-    # 5. Verify element no longer exists (get_element_details should return error text)
+    # 5. Verify element no longer exists (find_elements_by_type returns nothing matching)
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 14, "method": "tools/call",
-                                  "params": {"name": "get_element_details",
-                                             "arguments": {"elementId": elem_id}}},
+                                  "params": {"name": "find_elements_by_type",
+                                             "arguments": {"type": "Class",
+                                                           "name": "TempDeleteTest"}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
     content = json.loads(body["result"]["content"][0]["text"])
-    # The tool should return an error map (not found)
-    assert "error" in content or "not found" in str(content).lower()
+    assert all(e["id"] != elem_id for e in content), f"element still present after delete: {content}"
+    assert content == [], f"expected empty find result after delete, got: {content}"

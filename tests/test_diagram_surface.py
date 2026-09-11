@@ -70,13 +70,12 @@ def test_saf_create_diagram_diagram_type_uses_real_values(client):
     defs = _tool_defs(client)
     assert "saf_create_diagram" in defs
     d = defs["saf_create_diagram"]
-    desc = d.get("description", "")
-    assert "Class Diagram" in desc, f"expected BDD=Class Diagram guidance in: {desc}"
-    assert "Composite Structure Diagram" in desc, f"expected IBD guidance in: {desc}"
     props = d["inputSchema"]["properties"]
     assert "diagramType" in props, "diagramType arg missing"
     dt = props["diagramType"]["description"]
-    assert "class diagram" in dt.lower() and "UML_CLASS_DIAGRAM" in dt, f"diagramType arg unhelpful: {dt}"
+    assert "class diagram" in dt.lower(), f"diagramType arg missing BDD=Class Diagram: {dt}"
+    assert "composite structure diagram" in dt.lower(), f"diagramType arg missing IBD guidance: {dt}"
+    assert "UML_CLASS_DIAGRAM" in dt, f"diagramType arg unhelpful: {dt}"
 
 
 def test_create_relationship_warns_composition_is_not_part(client):
@@ -181,3 +180,65 @@ def test_saf_create_diagram_skips_documentation_comment(client, writable_root):
         _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
     finally:
         _call_tool(client, session_id, "delete_element", {"elementId": owner["id"]})
+
+
+def test_saf_create_diagram_viewpoint_driven_surface(client):
+    """The viewpoint arg must be present and documented as the chain-driven collect
+    (viewpoint--exposes->concept--realizes->stereotype), replacing per-element
+    domain inference; domainFilter must be marked deprecated.
+    """
+    defs = _tool_defs(client)
+    assert "saf_create_diagram" in defs
+    props = defs["saf_create_diagram"]["inputSchema"]["properties"]
+    assert "viewpoint" in props, "viewpoint arg missing"
+    vp_desc = props["viewpoint"]["description"]
+    assert "exposes" in vp_desc and "realizes" in vp_desc, f"viewpoint arg must describe the chain: {vp_desc}"
+    assert "domain inference" in vp_desc.lower() or "domain" in vp_desc.lower(), f"viewpoint arg must contrast with domain inference: {vp_desc}"
+    assert "domainFilter" in props
+    df_desc = props["domainFilter"]["description"]
+    assert "deprecated" in df_desc.lower(), f"domainFilter must be deprecated: {df_desc}"
+
+
+def test_saf_create_diagram_viewpoint_driven_collects_only_realizing_elements(client, writable_root):
+    """saf_create_diagram(viewpoint=...) must collect only owned elements that
+    realize one of the viewpoint's exposed concepts (resolved via the
+    viewpoint--exposes->concept--realizes->stereotype chain). Elements carrying a
+    SAF stereotype outside the viewpoint's concepts must NOT be collected.
+    """
+    session_id = _mcp_init(client)
+
+    pkg = _call_tool(client, session_id, "create_element",
+                     {"type": "Package", "name": "ScratchViewpointPkg",
+                      "parentId": writable_root})
+
+    # O2_OCYD exposes 'Operational Capability' -> realizing stereotype SAF_OperationalCapability.
+    # A concept-drive collect must pick up this element via the chain, not via a domain guess.
+    op_cap = _call_tool(client, session_id, "saf_create_element",
+                        {"kind": "operational_capability", "name": "VP Chain Marker",
+                         "parentId": pkg["id"]})
+
+    # A physical-system-stereotyped element belongs to a DIFFERENT set of exposed
+    # concepts; it must be excluded from an operational-capability-viewpoint diagram.
+    phys = _call_tool(client, session_id, "saf_create_element",
+                      {"kind": "physical_system", "name": "VP Not-Exposed Marker",
+                       "parentId": pkg["id"]})
+
+    try:
+        result = _call_tool(client, session_id, "saf_create_diagram",
+                            {"name": "ScratchViewpointDriven",
+                             "parentId": pkg["id"],
+                             "diagramType": "Class Diagram",
+                             "viewpoint": "O2_OCYD"})
+
+        assert "diagramId" in result, f"expected diagramId, got: {result}"
+        shape_ids = [s["elementId"] for s in result.get("shapes", [])]
+        assert op_cap["id"] in shape_ids, \
+            f"element realizing an exposed concept must be collected: {result}"
+        assert phys["id"] not in shape_ids, \
+            f"element realizing a non-exposed concept must be excluded: {result}"
+
+        _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+    finally:
+        _call_tool(client, session_id, "delete_element", {"elementId": phys["id"]})
+        _call_tool(client, session_id, "delete_element", {"elementId": op_cap["id"]})
+        _call_tool(client, session_id, "delete_element", {"elementId": pkg["id"]})

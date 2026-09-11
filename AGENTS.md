@@ -72,6 +72,29 @@ Workflow guidance:
 Do not duplicate SAF semantics or model knowledge into these tools; keep semantic
 reasoning in `AGENTS.md`/the `spec_*` tools and model manipulation in the CRUD layer.
 
+## Model navigation read path
+
+Pick the read mechanism by **query bound** — generic element facts come from MCP
+resources, not element-dump tools. There are no "everything about one element"
+tools; a narrow inference tool carries the SAF interpretation layer the resources
+intentionally omit.
+
+| Goal | Use |
+|---|---|
+| Any generic element facts (stereotypes, owned children, relationships, tags) | `cameo://element/{id}` + `/children` + `/relationships` resources |
+| What a diagram shows (shapes/subset) | `cameo://diagram/{id}` resource |
+| SAF meaning of an element (kind, domain, viewpoints using it) | `saf_get_element_semantics` (batch) |
+| SAF ontology (viewpoints, concepts, concerns, stereotypes) | `spec_*` tools |
+| Owning subtree / drill-down listings | `list_owned_elements`, `get_element_info` |
+| Composite internal structure (IBD reconstruction) | `get_block_structure` |
+| State-based behavior (regions, states, transitions) | `get_state_machine_structure` |
+| Traceability graph collection | `saf_build_traceability_chain` |
+| Writing/creating/modifying model content | CRUD tools (`create_element`, `create_part`, `saf_create_element`, `saf_create_relationship`, `set_tagged_values`, ...) |
+
+Rule of thumb: **reach for `cameo://*` resources first.** Use `saf_get_element_semantics`
+only to interpret (not to dump) an element you already located, and the SA
+functions/CRUD only when the resources cannot express the question.
+
 ## SAF modeling
 
 The SAF knowledge layer is served authoritatively by the `spec_*` tools in

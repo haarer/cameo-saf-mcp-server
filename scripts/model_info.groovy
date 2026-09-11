@@ -379,7 +379,7 @@ class ModelInfo {
     @McpResource(
         uri = "cameo://diagram/{id}",
         name = "Diagram",
-        description = "Summary of a diagram by element ID plus the model elements presented on it, unwrapped from their diagram views. SAF kind/domain mapping is intentionally not resolved here — use the saf_* tools for SAF semantics.",
+        description = "Summary of a diagram by element ID plus the model elements presented on it, unwrapped from their diagram views. Use saf_get_element_semantics on the returned element ids if you need the SAF interpretation of the presented elements. Diagram presentation/shape details (coordinates, connections) are not surfaced — the resource answers which model elements a diagram shows.",
         mimeType = "application/json"
     )
     Map diagramById(Map<String, String> params) {

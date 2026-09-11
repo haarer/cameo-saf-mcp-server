@@ -228,7 +228,7 @@ class StructuralTools {
     // ------------------------------------------------------------------
     // Tier 1 #3: get_block_structure
     // ------------------------------------------------------------------
-    @McpTool(name = "get_block_structure", description = "Read the internal structure of a Block/Class needed to reconstruct an IBM (internal block diagram): owned parts (name, type, multiplicity, aggregation, stereotypes), owned ports (name, type/interface), and connectors with their end roles (part/port). One call replaces N+1 get_element_details drill-downs when exploring composite structures.")
+    @McpTool(name = "get_block_structure", description = "Read the internal structure of a Block/Class needed to reconstruct an IBM (internal block diagram): owned parts (name, type, multiplicity, aggregation, stereotypes), owned ports (name, type/interface), and connectors with their end roles (part/port). One call replaces N+1 cameo://element/{id}/children drill-downs when exploring composite structures.")
     @McpToolArgument(name = "blockId", type = "string", description = "Element ID of the Block/Class whose internal structure to read", required = true)
     @McpToolArgument(name = "includeConnectors", type = "boolean", description = "Include owned connectors in the result (default true). Set false to only read parts and ports.")
     Map getBlockStructure(Map<String, Object> args) {
@@ -240,7 +240,7 @@ class StructuralTools {
         def block = resolveElement(blockId)
         if (block == null) return [error: "Block not found: " + blockId]
         if (!(block instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Classifier)) {
-            return [error: "Element is not a Classifier (is " + block.getHumanType() + "); use get_element_details instead"]
+            return [error: "Element is not a Classifier (is " + block.getHumanType() + "); use the cameo://element/{id} resource for non-classifier elements"]
         }
 
         def parts = []
@@ -328,6 +328,115 @@ class StructuralTools {
             parts: parts,
             ports: ports,
             connectors: connectors
+        ]
+    }
+
+    String vertexKindLabel(def v) {
+        if (v == null) return ""
+        if (v instanceof com.nomagic.uml2.ext.magicdraw.statemachines.mdbehaviorstatemachines.Pseudostate) {
+            try {
+                def k = v.getKind()
+                if (k != null) return k.toString()
+            } catch (ignored) {}
+            return "pseudostate"
+        }
+        if (v instanceof com.nomagic.uml2.ext.magicdraw.statemachines.mdbehaviorstatemachines.FinalState) return "final"
+        if (v instanceof com.nomagic.uml2.ext.magicdraw.statemachines.mdbehaviorstatemachines.State) return "state"
+        return "vertex"
+    }
+
+    String constraintBody(def constraint) {
+        if (constraint == null) return null
+        try {
+            def spec = constraint.getSpecification()
+            if (spec == null) return null
+            if (spec instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.OpaqueExpression) {
+                def body = spec.getBody()
+                if (body != null && !body.isEmpty()) return body.get(0)
+            }
+            return constraint.getName()
+        } catch (ignored) { return null }
+    }
+
+    Map stateSummary(def v) {
+        def name = (v instanceof NamedElement ? (v.getName() ?: "") : "")
+        return [id: v.getID(), name: name, kind: vertexKindLabel(v), type: v.getHumanType()]
+    }
+
+    Map regionSummary(def region, int depth) {
+        if (depth > 20) return [id: region.getID(), truncated: true]
+        def vertices = []
+        def transitions = []
+        try {
+            for (v in region.getSubvertex()) {
+                vertices.add(stateSummary(v))
+                if (v instanceof com.nomagic.uml2.ext.magicdraw.statemachines.mdbehaviorstatemachines.State) {
+                    try {
+                        for (sub in v.getRegion()) {
+                            vertices.addAll([regionSummary(sub, depth + 1).vertices].flatten())
+                        }
+                    } catch (ignored) {}
+                }
+            }
+        } catch (ignored) {}
+        try {
+            for (t in region.getTransition()) {
+                def trigger = ""
+                try {
+                    for (tr in t.getTrigger()) {
+                        if (tr.getEvent() != null) {
+                            trigger = tr.getEvent().getName()
+                            if (trigger == null || trigger.isEmpty()) trigger = tr.getEvent().getHumanType()
+                        }
+                    }
+                } catch (ignored) {}
+                transitions.add([
+                    id: t.getID(),
+                    name: (t.getName() ?: ""),
+                    source: (t.getSource() != null ? stateSummary(t.getSource()) : null),
+                    target: (t.getTarget() != null ? stateSummary(t.getTarget()) : null),
+                    trigger: trigger,
+                    guard: constraintBody(t.getGuard()),
+                    effect: (t.getEffect() != null ? (t.getEffect().getName() ?: t.getEffect().getHumanType()) : null)
+                ])
+            }
+        } catch (ignored) {}
+        return [id: region.getID(), name: (region.getName() ?: ""), vertices: vertices, transitions: transitions]
+    }
+
+    @McpTool(name = "get_state_machine_structure", description = "Read the structure of a UML StateMachine: regions (with recursively flattened vertices — states, pseudostates, final states) and transitions with trigger, guard, effect, and source/target. Use this to understand state-based behavior (e.g. an Operational State or System State machine) without manually drilling through cameo://element/{id} children.")
+    @McpToolArgument(name = "stateMachineId", type = "string", description = "Element ID of the StateMachine (or a State with subregions).", required = true)
+    Map getStateMachineStructure(Map<String, Object> args) {
+        def stateMachineId = args.get("stateMachineId") as String
+        if (!stateMachineId) return [error: "stateMachineId is required"]
+
+        def project = getProject()
+        def smEl = resolveElement(stateMachineId)
+        if (smEl == null) return [error: "StateMachine not found: " + stateMachineId]
+
+        def regions = []
+        def isStateMachine = smEl instanceof com.nomagic.uml2.ext.magicdraw.statemachines.mdbehaviorstatemachines.StateMachine
+        if (isStateMachine) {
+            try {
+                for (r in smEl.getRegion()) {
+                    regions.add(regionSummary(r, 0))
+                }
+            } catch (ignored) {}
+        } else if (smEl instanceof com.nomagic.uml2.ext.magicdraw.statemachines.mdbehaviorstatemachines.State) {
+            try {
+                for (r in smEl.getRegion()) {
+                    regions.add(regionSummary(r, 0))
+                }
+            } catch (ignored) {}
+        } else {
+            return [error: "Element is not a StateMachine or State (is " + smEl.getHumanType() + ")"]
+        }
+
+        return [
+            stateMachineId: stateMachineId,
+            name: (smEl instanceof NamedElement ? smEl.getName() : ""),
+            type: smEl.getHumanType(),
+            regions: regions
         ]
     }
 

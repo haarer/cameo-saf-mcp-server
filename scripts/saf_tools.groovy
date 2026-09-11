@@ -237,7 +237,7 @@ Use meaningful names that reflect the element's purpose in your architecture.'''
 Get parent IDs from:
 - create_element(type='Package', ...) returns {id, ...}
 - saf_find_elements_by_type(type='Package') 
-- get_element_details(elementId='<known-id>') on a package
+- get parent IDs from the cameo://element/{id} resource on a package
 - Model browser in Cameo
 
 Elements must have a parent package. Create one first if needed.''')
@@ -441,6 +441,44 @@ Example: 'The FFDS system shall detect smoke in any protected area within 10 sec
         return [elementId: elementId, reqId: reqId, text: text, tagsSet: 2]
     }
 
+    // Context-aware SAF relationship stereotype resolution.
+    // Model convention: specific SAF relationship stereotypes exist in the SAF
+    // profile (e.g. SAF_SystemFunctionalRequirementRefinement for FR→function).
+    // The generic base stereotypes (Refine/Satisfy/...) are applied when no
+    // specific one matches the source/target kinds.
+    private static final REFINE_STEREO_BY_KIND_PAIR = [
+        ["functional_requirement", "system_function"]: "SAF_SystemFunctionalRequirementRefinement",
+        ["functional_requirement", "process"]:          "SAF_SystemFunctionalRequirementRefinement",
+        ["system_requirement", "system"]:               "SAF_SystemRequirementRefinement",
+        ["system_requirement", "system_function"]:      "SAF_SystemRequirementRefinement",
+        ["stakeholder_requirement", "functional_requirement"]: "SAF_StakeholderRequirementRefinement",
+        ["stakeholder_requirement", "system_requirement"]:     "SAF_StakeholderRequirementRefinement",
+        ["system_process", "system_process"]:           "SAF_SystemProcessRefinement",
+        ["operational_process", "operational_process"]: "SAF_OperationalProcessRefinement",
+    ]
+
+    String resolveRelationshipStereotype(String type, def source, def target, String fallback) {
+        def key = "refine:" + resolveSafKindFor(source) + ":" + resolveSafKindFor(target)
+        def specific = REFINE_STEREO_BY_KIND_PAIR[[resolveSafKindFor(source), resolveSafKindFor(target)]]
+        if (specific != null) {
+            def st = findStereotype(specific)
+            if (st != null) return specific
+        }
+        return fallback
+    }
+
+    String resolveSafKindFor(def element) {
+        if (element == null) return ""
+        def stereos = []
+        try {
+            for (st in element.getAppliedStereotype()) {
+                def n = st.getName()
+                if (n != null && !n.isEmpty()) stereos.add(n)
+            }
+        } catch (ignored) {}
+        return resolveSafKind(stereos)
+    }
+
     @McpTool(name = "saf_create_relationship", description = '''Create a relationship between two elements using SAF semantics. SAF relationship types (satisfy, derive, trace, refine, verify, allocate) automatically apply the correct SysML base type and SAF stereotype. Also supports raw SysML types (composition, dependency, generalization, association, controlflow, objectflow, connector). Returns the relationship ID.
 
 Use this tool when:
@@ -454,7 +492,7 @@ SAF relationship types (apply stereotypes automatically):
 - 'satisfy': Requirement → System/Function (abstraction + <<Satisfy>>)
 - 'derive': Requirement → Requirement (abstraction + <<DeriveReqt>>)  
 - 'trace': Requirement → Requirement (abstraction + <<Trace>>)
-- 'refine': Abstract → Concrete across viewpoints (abstraction + <<Refine>>)
+- 'refine': Abstract → Concrete across viewpoints (abstraction + <<Refine>>); for known source/target SAF kinds the matching specific SAF stereotype is applied automatically instead (e.g. functional requirement → system function becomes <<SAF_SystemFunctionalRequirementRefinement>>)
 - 'verify': Requirement → Test/Verification (abstraction + <<Verify>>)
 - 'allocate': Function/Capability → System (dependency + <<allocate>>)
 
@@ -498,7 +536,7 @@ For SAF relationships:
 - refine: more-specific/concrete is source, more-abstract is target  
 - allocate: capability/function is source, system is target
 
-Get IDs from saf_find_elements_by_type(), saf_get_element_details(), or creation responses.''')
+Get IDs from saf_find_elements_by_type(), the cameo://element/{id} resource, or creation responses.''')
     @McpToolArgument(name = "targetId", type = "string", description = '''Element ID of the target (supplier/general/part) element. Required.
 
 For SAF relationships:
@@ -506,7 +544,7 @@ For SAF relationships:
 - refine: abstracted capability/system being refined
 - allocate: system that is allocated the function/capability
 
-Get IDs from saf_find_elements_by_type(), saf_get_element_details(), or creation responses.''')
+Get IDs from saf_find_elements_by_type(), the cameo://element/{id} resource, or creation responses.''')
     Map safCreateRelationship(Map<String, Object> args) {
         def type = (args.get("type") ?: "dependency") as String
         def sourceId = args.get("sourceId") as String
@@ -596,8 +634,13 @@ Get IDs from saf_find_elements_by_type(), saf_get_element_details(), or creation
                     break
             }
 
-            if (stereotypeName != null && !stereotypeName.isEmpty() && rel != null) {
-                def st = findStereotype(stereotypeName)
+            def stereotypeToApply = stereotypeName
+            if (type.equalsIgnoreCase("refine")) {
+                stereotypeToApply = resolveRelationshipStereotype(type, source, target, stereotypeName)
+            }
+
+            if (stereotypeToApply != null && !stereotypeToApply.isEmpty() && rel != null) {
+                def st = findStereotype(stereotypeToApply)
                 if (st != null) {
                     StereotypesHelper.addStereotype(rel, st)
                 }
@@ -609,7 +652,76 @@ Get IDs from saf_find_elements_by_type(), saf_get_element_details(), or creation
             return [error: e.getMessage()]
         }
 
-        return [id: rel.getID(), type: type, sysmlType: sysmlType, stereotype: stereotypeName, sourceId: sourceId, targetId: targetId]
+        return [id: rel.getID(), type: type, sysmlType: sysmlType, stereotype: stereotypeToApply, sourceId: sourceId, targetId: targetId]
+    }
+
+    @McpTool(name = "create_information_flow", description = '''Create a package-level InformationFlow with wired ends (source/target participants) and an optional conveyed item classifier. This is the canonical way to model a conceptual/physical item exchange: the flow lives in a package (not an IBD), gets explicit source/target participants, and can convey an exchange-type classifier.
+
+Use this tool when:
+- You need an InformationFlow between two roles/parts/classifiers (e.g. 'flow for SystemOperationalMode' between the FFDS System and a station)
+- You are modeling context exchanges that should appear in a context diagram
+
+The InformationFlow is placed in the given parent package, named, and typed by the optional conveyed classifier (e.g. a SAF_ConceptualExchangeType). The ItemFlow stereotype is applied when the conveyed item is set. Source/target participants may be Parts (roles) or Classifiers. Returns the created InformationFlow ID.''')
+    @McpToolArgument(name = "name", type = "string", description = "Name for the flow (e.g. 'flow for SystemOperationalMode'). Required.")
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent package that will own the InformationFlow. Required.")
+    @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source participant (a Part role or Classifier). Required. Get IDs from saf_find_elements_by_type or the cameo://element/{id} resource.")
+    @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the target participant (a Part role or Classifier). Required.")
+    @McpToolArgument(name = "conveyedItemId", type = "string", description = "Optional element ID of the conveyed classifier (e.g. a SAF_ConceptualExchangeType Qualification/realization of the exchange). When set, the flow conveys it and the ItemFlow stereotype is applied.")
+    @McpToolArgument(name = "documentation", type = "string", description = "Optional documentation text stored as a comment attached to the flow.")
+    Map createInformationFlow(Map<String, Object> args) {
+        def name = args.get("name") as String
+        def parentId = args.get("parentId") as String
+        def sourceId = args.get("sourceId") as String
+        def targetId = args.get("targetId") as String
+        def conveyedItemId = args.get("conveyedItemId") as String
+        def documentation = args.get("documentation") as String
+
+        if (name == null || name.isEmpty()) return [error: "name is required"]
+        if (parentId == null || parentId.isEmpty()) return [error: "parentId is required"]
+        if (sourceId == null || sourceId.isEmpty()) return [error: "sourceId is required"]
+        if (targetId == null || targetId.isEmpty()) return [error: "targetId is required"]
+
+        def project = getProject()
+        def parent = resolveElement(parentId)
+        if (parent == null) return [error: "Parent element not found: " + parentId]
+        def source = resolveElement(sourceId)
+        if (source == null) return [error: "Source element not found: " + sourceId]
+        def target = resolveElement(targetId)
+        if (target == null) return [error: "Target element not found: " + targetId]
+
+        def conveyed = null
+        if (conveyedItemId != null && !conveyedItemId.isEmpty()) {
+            conveyed = resolveElement(conveyedItemId)
+            if (conveyed == null) return [error: "Conveyed element not found: " + conveyedItemId]
+        }
+
+        def ef = getFactory()
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "create_information_flow")
+        def flow = null
+        try {
+            flow = ef.createInformationFlowInstance()
+            flow.setName(name)
+            ModelElementsManager.getInstance().addElement(flow, parent)
+            flow.getInformationSource().add((NamedElement) source)
+            flow.getInformationTarget().add((NamedElement) target)
+            if (conveyed != null) {
+                flow.getConveyed().add((Classifier) conveyed)
+                def itemFlowStereotype = findStereotype("ItemFlow")
+                if (itemFlowStereotype != null) {
+                    StereotypesHelper.addStereotype(flow, itemFlowStereotype)
+                }
+            }
+            if (documentation != null && !documentation.isEmpty()) {
+                com.nomagic.magicdraw.uml2.Elements.setComment(flow, documentation)
+            }
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getMessage()]
+        }
+
+        return [id: flow.getID(), name: name, type: "InformationFlow", stereotype: conveyed != null ? "ItemFlow" : "", sourceId: sourceId, targetId: targetId, conveyedItem: conveyed != null ? conveyed.getName() : "", parentId: parentId]
     }
 
     @McpTool(name = "saf_query_viewpoint", description = '''Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.
@@ -949,7 +1061,7 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
     @McpToolArgument(name = "type", type = "string", description = '''Substring to match against element human-readable type (case-insensitive). Leave empty to match all. Common SysML types: cameo://tool/stereotype-search.''')
     @McpToolArgument(name = "stereotype", type = "string", description = '''Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Naming convention + examples: cameo://tool/stereotype-search.''')
     @McpToolArgument(name = "name", type = "string", description = '''Substring to match against element names (case-insensitive). Leave empty to match all.''')
-    @McpToolArgument(name = "parentId", type = "string", description = '''Element ID to search within instead of the entire primary model. Omit to search the whole model. Get parent IDs from prior search results or get_element_details.''')
+    @McpToolArgument(name = "parentId", type = "string", description = '''Element ID to search within instead of the entire primary model. Omit to search the whole model. Get parent IDs from prior search results or the cameo://element/{id} resource.''')
     List safFindElementsByType(Map<String, Object> args) {
         def typeFilter = (args.get("type") ?: "") as String
         def stereoFilter = (args.get("stereotype") ?: "") as String
@@ -994,104 +1106,76 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             .toList()
     }
 
-    @McpTool(name = "saf_get_element_details", description = '''Get full SAF-enriched details about an element by ID. Returns name, type, stereotypes, safKind (SAF concept kind), safDomain (architecture_management/operational/conceptual/physical), tagged values (stereotype properties like 'id', 'text' for requirements), owned elements summary, and traceability relationships (satisfy, derive, trace, refine, verify, allocate).
+    @McpTool(name = "saf_get_element_semantics", description = '''Get the SAF interpretation of one or more elements by ID: which SAF concept kind each element realizes (safKind), which SAF domain (architecture_management/operational/conceptual/physical), and which SAF viewpoints use that kind. This is the ONLY SAF-interpretation read — for raw model facts (name, stereotypes, tagged values, owned elements, relationships) use the cameo://element/{id} resource and its /children and /relationships slices instead. Batch input: pass all element IDs whose semantics you want, in one call (e.g. to annotate every result of saf_find_elements_by_type).
 
 Use this tool when:
-- You have an element ID from a search and need complete information
-- You need to see tagged values (e.g., requirement id/text)
-- You want to understand what elements are owned by this element
-- You need to see traceability relationships for impact analysis
+- You have element IDs from a search and need their SAF meaning (kind, domain, viewpoints)
+- You want to annotate finder results without a per-element roundtrip
+- You need requirement id/text (included as 'requirement' when the element is a requirement kind)
 
-Returns comprehensive object with:
-- Basic info: id, name, qualifiedName, type, stereotypes[]
-- SAF metadata: safKind (e.g., 'conceptual_system'), safDomain (e.g., 'conceptual')
-- taggedValues: {id: "REQ-001", text: "...", priority: "high"}
-- ownedElements: [{id, name, type, stereotypes[], safKind}]
-- traceability: [{type, targetId, targetName, targetStereotypes[]}]
+Do NOT use this tool for: raw tagged values, owned elements, or relationship lists — those are resource reads.
+
+Returns a list, one object per element:
+- id, name, type, stereotypes[]
+- safKind (e.g. 'conceptual_system'), safDomain (e.g. 'conceptual')
+- viewpoints: [{id, vpId, name}] — SAF viewpoints that expose the element's concept kind
+- requirement: {id, text} when the element carries SAF_SystemRequirement (incl. EAP-migrated StringTaggedValue text)
+- error: "Element not found: <id>" for unresolvable IDs
 
 Example workflow:
 1. Search: saf_find_elements_by_type(stereotype='SAF_SystemRequirement', name='FFDS')
-2. Get details: saf_get_element_details(elementId='<id from step 1>')
-3. See tagged values (id, text), owned elements, and traceability links''')
-    @McpToolArgument(name = "elementId", type = "string", description = '''Element ID of the element to inspect. Required.
+2. Annotate: saf_get_element_semantics(elementIds=['<id1>', '<id2>', ...])
+3. Read requirements' id/text from the 'requirement' field''')
+    @McpToolArgument(name = "elementIds", type = "array", description = '''Element IDs to interpret. Required. Batch input — annotate many elements in one call.
 
 Get element IDs from:
 - saf_find_elements_by_type() results
-- find_elements_by_type() results  
-- Previous saf_get_element_details() responses
+- find_elements_by_type() results
+- cameo://element/{id}/children slices
 - Model browser in Cameo (right-click → Copy ID)''')
-    Map safGetElementDetails(Map<String, Object> args) {
-        def elementId = args.get("elementId") as String
-        if (elementId == null || elementId.isEmpty()) return [error: "elementId is required"]
+    List safGetElementSemantics(Map<String, Object> args) {
+        def elementIds = args.get("elementIds") as List
+        if (elementIds == null || elementIds.isEmpty()) return [[error: "elementIds is required"]]
 
-        def element = resolveElement(elementId)
-        if (element == null) return [error: "Element not found: " + elementId]
-
-        def stereos = []
-        try {
-            for (st in element.getAppliedStereotype()) {
-                def n = st.getName()
-                if (n != null && !n.isEmpty()) stereos.add(n)
+        def results = []
+        for (rawId in elementIds) {
+            def elementId = rawId as String
+            def element = resolveElement(elementId)
+            if (element == null) {
+                results.add([id: elementId, error: "Element not found: " + elementId])
+                continue
             }
-        } catch (ignored) {}
 
-        def safKind = resolveSafKind(stereos)
-        def safDomain = resolveSafDomain(stereos)
-
-        // Collect tagged values
-        def taggedValues = [:]
-        try {
-            for (st in element.getAppliedStereotype()) {
-                def stereoName = st.getName()
-                if (stereoName == null) continue
-                def values = StereotypesHelper.getStereotypePropertyValues(element, st)
-                if (values != null) {
-                    values.each { entry ->
-                        def tagName = entry.getKey() as String
-                        def tagVal = entry.getValue()
-                        taggedValues[tagName] = tagVal != null ? tagVal.toString() : ""
-                    }
+            def stereos = []
+            try {
+                for (st in element.getAppliedStereotype()) {
+                    def n = st.getName()
+                    if (n != null && !n.isEmpty()) stereos.add(n)
                 }
+            } catch (ignored) {}
+
+            def safKind = resolveSafKind(stereos)
+            def safDomain = resolveSafDomain(stereos)
+            def viewpoints = resolveViewpointsForStereos(stereos)
+
+            def row = [
+                id: elementId,
+                name: (element instanceof NamedElement) ? ((NamedElement) element).getName() : "",
+                type: element.getHumanType(),
+                stereotypes: stereos,
+                safKind: safKind,
+                safDomain: safDomain,
+                viewpoints: viewpoints
+            ]
+
+            def reqTags = collectRequirementTags(element)
+            if (!reqTags.isEmpty()) {
+                row.requirement = reqTags
             }
-        } catch (ignored) {}
 
-        // Collect owned elements (summary)
-        def owned = []
-        try {
-            for (child in element.getOwnedElement()) {
-                def childStereos = []
-                try {
-                    for (st in child.getAppliedStereotype()) {
-                        def n = st.getName()
-                        if (n != null && !n.isEmpty()) childStereos.add(n)
-                    }
-                } catch (ignored) {}
-                owned.add([
-                    id: child.getID(),
-                    name: (child instanceof NamedElement) ? ((NamedElement) child).getName() : "",
-                    type: child.getHumanType(),
-                    stereotypes: childStereos,
-                    safKind: resolveSafKind(childStereos)
-                ])
-            }
-        } catch (ignored) {}
-
-        // Collect traceability relationships
-        def traceabilityRels = collectTraceability(element)
-
-        return [
-            id: elementId,
-            name: (element instanceof NamedElement) ? ((NamedElement) element).getName() : "",
-            qualifiedName: tryNext { element.getQualifiedName() } ?: "",
-            type: element.getHumanType(),
-            stereotypes: stereos,
-            safKind: safKind,
-            safDomain: safDomain,
-            taggedValues: taggedValues,
-            ownedElements: owned,
-            traceability: traceabilityRels,
-            parentId: element.getOwner() != null ? element.getOwner().getID() : ""
-        ]
+            results.add(row)
+        }
+        return results
     }
 
     @McpTool(name = "saf_build_traceability_chain", description = "Build a traceability graph from a starting element by following satisfy, derive, trace, refine, and verify relationships via BFS. Returns a graph with nodes (elements) and edges (relationships). Useful for impact analysis and checking requirement coverage.")
@@ -1493,6 +1577,65 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
         return ""
     }
 
+    List resolveViewpointsForStereos(List stereos) {
+        if (stereos == null) return []
+        def vps = []
+        def seen = [:]
+        try {
+            def store = SafDataStore.getInstance()
+            def idx = store.getCurrentIndex()
+            if (idx == null) return []
+            for (stName in stereos) {
+                def st = idx.getStereotypeByName(stName as String)
+                if (st == null) continue
+                for (concept in idx.getConceptsForStereotype(st.id())) {
+                    for (vp in idx.getViewpointsForConcept(concept.id())) {
+                        def key = vp.vpId() ?: vp.id()
+                        if (key == null || seen.containsKey(key)) continue
+                        seen[key] = true
+                        vps.add([id: vp.id(), vpId: vp.vpId(), name: vp.name()])
+                    }
+                }
+            }
+        } catch (ignored) {}
+        return vps
+    }
+
+    Map collectRequirementTags(def element) {
+        def out = [:]
+        try {
+            def stereo = findStereotype("SAF_SystemRequirement")
+            if (stereo != null && StereotypesHelper.hasStereotype(element, stereo)) {
+                def values = StereotypesHelper.getStereotypePropertyValues(element, stereo)
+                if (values != null) {
+                    values.each { entry ->
+                        def tagName = entry.getKey() as String
+                        def tagVal = entry.getValue()
+                        out[tagName] = tagVal != null ? tagVal.toString() : ""
+                    }
+                }
+            }
+            if (!out.containsKey("text") || !out.get("text")) {
+                for (child in element.getOwnedElement()) {
+                    if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.StringTaggedValue) {
+                        def td = child.getTagDefinition()
+                        def tagName = td != null ? td.getName() : ""
+                        def vals = child.getValue()
+                        def txt = vals != null ? vals.join(", ") : ""
+                        if (txt != null && !txt.isEmpty()) {
+                            if (tagName != null && !tagName.isEmpty() && !out.containsKey(tagName)) {
+                                out[tagName] = txt
+                            } else if (!out.containsKey("text")) {
+                                out["text"] = txt
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (ignored) {}
+        return out
+    }
+
     String resolveSafDomain(List stereos) {
         def kind = resolveSafKind(stereos)
         return KIND_TO_DOMAIN[kind] ?: ""
@@ -1774,16 +1917,19 @@ THINK FIRST - decide WHICH elements to show. A diagram does NOT show everything 
 
 SELECTIVE (recommended): pass elementIds - add shapes for exactly the elements you chose and nothing else. This is how you build the correct, focused diagram for the viewpoint. Example - System Context BDD: pass the context block and each context element as elementIds, then call saf_add_association_paths to draw the composition links between them. Example - IBD: pass the part properties you want visible; connectors are drawn with the connector/port tools, not as elementIds shapes.
 
-LEGACY AUTO (avoid): omit elementIds to auto-collect the scope element (or all children of parentId). The auto path skips comments, literal integers, and relationship views, but it still cannot represent the deliberate subset each viewpoint needs - so prefer elementIds and reason about the subset.
+VIEWPOINT-DRIVEN AUTO: omit elementIds and pass a viewpoint (name, VP_ID like C1_SCXD, or ID). The tool walks the viewpoint--exposes->concept--realizes->stereotype/metaclass chain and auto-collects only owned elements whose applied stereotype is one of the viewpoint's realizing stereotypes. This is the correct way to get 'the subset this viewpoint cares about' without guessing per-element domains.
+
+LEGACY AUTO (avoid): omit elementIds and viewpoint to auto-collect the scope element (or all children of parentId). The auto path skips comments, literal integers, and relationship views, but it still cannot represent the deliberate subset each viewpoint needs - so prefer elementIds or the viewpoint arg.
 
 Note: Package-level Association/Composition relationships are NOT rendered as connector lines by this tool - call saf_add_association_paths afterwards to draw them between the shapes you added.''')
     @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
     @McpToolArgument(name = "diagramType", type = "string", description = "Diagram kind. Default: 'Composite Structure Diagram' (IBD). BDD uses 'Class Diagram'. Accepted: friendly names ('Class Diagram', 'Composite Structure Diagram', 'Package Diagram', ...) and UMLConstants-style aliases ('UML_CLASS_DIAGRAM', 'UML_COMPOSITE_STRUCTURE_DIAGRAM', ...).")
     @McpToolArgument(name = "elementIds", type = "array", description = "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.")
-    @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds is omitted. If set, adds the scope element and its owned children; if omitted, adds all direct children of parentId. Avoid - prefer elementIds for selective diagrams.")
+    @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds all direct children of parentId. Avoid - prefer elementIds or viewpoint for the correct subset.")
     @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Does NOT render package-level Association/Composition relationships - use saf_add_association_paths for those. Default: false")
-    @McpToolArgument(name = "domainFilter", type = "string", description = "Optional SAF domain filter: architecture_management, operational, conceptual, physical. Only elements matching this domain are added (auto path only).")
+    @McpToolArgument(name = "viewpoint", type = "string", description = "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). When set (with elementIds omitted), only owned elements that realize one of the viewpoint's exposed concepts are collected - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference. ")
+    @McpToolArgument(name = "domainFilter", type = "string", description = "DEPRECATED. Ignored when viewpoint is set. Inferres elements by per-element domain - use viewpoint instead. Only elements matching this domain are added (auto path only).")
     @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when auto-collecting owned elements. Default: 2")
     Map safCreateDiagram(Map<String, Object> args) {
         def name = args.get("name") as String
@@ -1793,6 +1939,7 @@ Note: Package-level Association/Composition relationships are NOT rendered as co
         def elementIds = args.get("elementIds") as List
         def includeConnectors = (args.get("includeConnectors") as Boolean) ?: false
         def domainFilter = args.get("domainFilter") as String
+        def viewpoint = args.get("viewpoint") as String
         def maxDepth = (int) (args.get("maxDepth") ?: 2)
 
         if (!name) return [error: "name is required"]
@@ -1807,6 +1954,27 @@ Note: Package-level Association/Composition relationships are NOT rendered as co
 
         def elementsToAdd = []
         def connectorsToAdd = []
+
+        // Viewpoint-driven collect: resolve the viewpoint's exposed concepts and
+        // their realizing stereotypes (SAF stereotype, SysML stereotype, or UML
+        // metaclass), then collect elements that carry one of those stereotypes.
+        // This is the authoritative chain (viewpoint--exposes->concept--realizes->stereotype);
+        // it replaces the underdetermined per-element safDomain inference.
+        def viewpointStereoNames = null
+        if (viewpoint) {
+            def vp = SafDataStore.getInstance().getCurrentIndex()?.getViewpoint(viewpoint)
+            if (vp == null) {
+                return [error: "Viewpoint not found: " + viewpoint + ". Use spec_get_viewpoint (name/VP_ID/ID) to find a valid viewpoint."]
+            }
+            viewpointStereoNames = new LinkedHashSet<String>()
+            for (concept in SafDataStore.getInstance().getCurrentIndex().getConceptsForViewpoint(vp.id())) {
+                def stereos = SafDataStore.getInstance().getCurrentIndex().getAllStereotypesForConcept(concept.id())
+                for (st in stereos) {
+                    def n = st.name()
+                    if (n != null && !n.isEmpty()) viewpointStereoNames.add(n)
+                }
+            }
+        }
 
         boolean selective = elementIds != null && !elementIds.isEmpty()
         if (selective) {
@@ -1823,6 +1991,8 @@ Note: Package-level Association/Composition relationships are NOT rendered as co
             if (!missing.isEmpty()) {
                 return [error: "Some elementIds could not be resolved: " + missing.join(", ")]
             }
+        } else if (viewpointStereoNames != null) {
+            collectElementsByViewpoint(parent, elementsToAdd, connectorsToAdd, 0, maxDepth, viewpointStereoNames)
         } else if (scopeElementId) {
             def scope = resolveElement(scopeElementId)
             if (scope == null) return [error: "Scope element not found: " + scopeElementId]
@@ -2045,12 +2215,46 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
                         def domain = resolveSafDomain(childStereos)
                         if (domain && domain.toLowerCase() == domainFilter.toLowerCase()) {
                             elements.add(child)
-                        } else if (domainFilter && childStereos.isEmpty()) {
-                            elements.add(child)
                         }
-                    } else {
+                    } else if (!domainFilter) {
                         elements.add(child)
                     }
+                }
+            }
+        } catch (ignored) {}
+    }
+
+    /**
+     * Viewpoint-driven collect: add owned elements that carry one of the
+     * viewpoint's realizing stereotypes (resolved from the
+     * viewpoint--exposes->concept--realizes->stereotype chain). No per-element
+     * domain inference; elements without any of the realizing stereotypes are
+     * not added. Recurses into nested containers up to maxDepth.
+     */
+    void collectElementsByViewpoint(def parent, List elements, List connectors, int depth, int maxDepth, Set<String> viewpointStereoNames) {
+        if (depth > maxDepth) return
+        try {
+            for (child in parent.getOwnedElement()) {
+                def childStereos = []
+                try {
+                    for (st in child.getAppliedStereotype()) {
+                        def n = st.getName()
+                        if (n != null) childStereos.add(n)
+                    }
+                } catch (ignored) {}
+
+                if (isNonShapeableGroup(child)) continue
+                def isConnector = child.getHumanType().toLowerCase().contains("connector")
+                if (isConnector) {
+                    connectors.add(child)
+                    continue
+                }
+                def matches = childStereos.any { viewpointStereoNames.contains(it) }
+                if (matches) {
+                    elements.add(child)
+                }
+                if (depth < maxDepth) {
+                    collectElementsByViewpoint(child, elements, connectors, depth + 1, maxDepth, viewpointStereoNames)
                 }
             }
         } catch (ignored) {}

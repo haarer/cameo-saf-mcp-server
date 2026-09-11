@@ -92,6 +92,6 @@ Class, Package, Activity, ProxyPort, Interface, Connector, DataType, Constraint,
 ## Which tool to reach for
 - `find_elements`: quick discovery over the whole model (incl. used projects/modules); plain fields (id, name, qualifiedName, type, stereotypes, owning project).
 - `find_elements_by_type`: same engine plus scope='primary' (primary model only), owning-project and writability in results, specLanguage/specTextContains to find Constraint rule bodies.
-- `saf_find_elements_by_type`: SAF-enriched results (safKind, safDomain) - prefer when querying SAF models or when you need element IDs for saf_get_element_details / saf_create_relationship.'''
+- `saf_find_elements_by_type`: SAF-enriched results (safKind, safDomain) - prefer when querying SAF models or when you need element IDs for saf_get_element_semantics / saf_create_relationship.'''
     }
 }
