@@ -38,7 +38,7 @@ The plugin runs **inside** a Cameo Systems Modeler installation. The easiest way
 3. In Cameo, **Help → Resource Manager → Import Modules/Pack-Ins** and select the downloaded zip.
 4. **(Re)start Cameo.** Java changes require a full restart.
 
-The plugin installs to `$CAMEO_HOME/plugins/com.haarer.saf.mcpserver/` (contains the plugin JAR, Groovy scripts, and SAF `_data`). If the server starts correctly you'll see a log line like `Cameo SAF MCP Server: Started on 0.0.0.0:18750`.
+The plugin installs to `$CAMEO_HOME/plugins/com.haarer.saf.mcpserver/` (contains the plugin JAR, Groovy scripts, and SAF `_data`). If the server starts correctly you'll see a log line like `Cameo SAF MCP Server: Started on 127.0.0.1:18750`.
 
 > **For developers / anyone building from source**, see the [Developer Guide](#developer-guide), which covers building from source, `install.sh`, and deploying via `gradle` — that path supersedes the release download above.
 
@@ -46,7 +46,7 @@ The plugin installs to `$CAMEO_HOME/plugins/com.haarer.saf.mcpserver/` (contains
 
 | Setting | System property | Default |
 |---|---|---|
-| Listen interface | `cameo.mcp.server.bind.host` | `0.0.0.0` (all interfaces) |
+| Listen interface | `cameo.mcp.server.bind.host` | `127.0.0.1` (localhost) |
 | HTTP/MCP port | `cameo.mcp.server.port` | `18750` |
 | Groovy scripts dir | `cameo.mcp.server.scripts.dir` | `<plugin>/scripts` |
 | SAF data dir | `cameo.mcp.server.data.dir` | `<plugin>/_data` |
@@ -67,7 +67,7 @@ The server must be restarted for system-property changes to take effect.
 
 ### 4. Set up OpenCode to use it
 
-Add the server as an MCP client in your `opencode.json`. With the default bind (`0.0.0.0`) and port, point OpenCode at the HTTP endpoint:
+Add the server as an MCP client in your `opencode.json`. With the default bind (`127.0.0.1`) and port, point OpenCode at the HTTP endpoint:
 
 ```jsonc
 // opencode.json
@@ -119,7 +119,7 @@ you: > cameo-model_get_model_info
 - **Streamable HTTP Transport**: Single POST endpoint (`/mcp`) with `Mcp-Session-Id` header for session management.
 - **Health Endpoint**: `GET /` returns server status and active session count.
 - **Configurable Port**: Set via system property `cameo.mcp.server.port` (default `18750`).
-- **Configurable Bind Interface**: Set via system property `cameo.mcp.server.bind.host` (default `0.0.0.0` — all interfaces). Use `127.0.0.1` to restrict to loopback, or a specific network address.
+- **Configurable Bind Interface**: Set via system property `cameo.mcp.server.bind.host` (default `127.0.0.1` — localhost). Use `0.0.0.0` to bind to all interfaces, or a specific network address.
 - **Configurable Scripts Directory**: Set via system property `cameo.mcp.server.scripts.dir` (defaults to `scripts/` subdirectory of plugin installation).
 
 ### Example Scripts
@@ -418,7 +418,7 @@ The `/workspace` directory is **shared** between the container and the host via 
 Host machine
 ┌──────────────────────────────────────────┐
 │  Cameo + MCP plugin                     │
-│  0.0.0.0:18750                          │
+│  127.0.0.1:18750                       │
 └──────────────────────┬───────────────────┘
                        │ host.containers.internal:18750
                        ▼

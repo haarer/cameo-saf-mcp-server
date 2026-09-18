@@ -29,7 +29,7 @@ public class CameoMcpServerPlugin extends Plugin {
     @Override
     public void init() {
         try {
-            String host = System.getProperty("cameo.mcp.server.bind.host", "0.0.0.0");
+            String host = System.getProperty("cameo.mcp.server.bind.host", "127.0.0.1");
             int port = Integer.parseInt(System.getProperty("cameo.mcp.server.port", "18750"));
             log("Cameo SAF MCP Server: Starting on " + host + ":" + port + " ...");
             server = new CameoMcpServer(host, port);
