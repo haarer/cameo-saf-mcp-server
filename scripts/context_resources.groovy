@@ -19,14 +19,34 @@ class ContextResources {
         return ""
     }
 
-    Map elementSummary(def e) {
-        if (e == null) return null
+    /**
+     * Diagram views implement ModelElementProvider in 2026x (getElement() returns the
+     * model element). Resolve reflectively so the script also loads on 2024x, where
+     * the class does not exist — there we fall back to the classic PresentationElement
+     * contract, which every view implements in both versions.
+     */
+    private static Object unwrapViewElement(Object e) {
         try {
-            if (e instanceof com.nomagic.magicdraw.uml.core.ModelElementProvider) {
+            def c = Class.forName('com.nomagic.magicdraw.uml.core.ModelElementProvider')
+            if (c.isInstance(e)) {
+                def el = e.getElement()
+                if (el != null) e = el
+                return e
+            }
+        } catch (ignored) {}
+        try {
+            def p = Class.forName('com.nomagic.magicdraw.uml.symbols.PresentationElement')
+            if (p.isInstance(e)) {
                 def el = e.getElement()
                 if (el != null) e = el
             }
         } catch (ignored) {}
+        return e
+    }
+
+    Map elementSummary(def e) {
+        if (e == null) return null
+        e = unwrapViewElement(e)
         def out = [
             id: e.getID(),
             name: (e instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.NamedElement) ? (e.getName() ?: "") : "",
