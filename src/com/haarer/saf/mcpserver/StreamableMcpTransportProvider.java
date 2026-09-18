@@ -136,6 +136,10 @@ public class StreamableMcpTransportProvider {
     }
 
     private void handleSse(HttpExchange exchange) throws IOException {
+        if (!isAuthorized(exchange)) {
+            sendError(exchange, 401, "Unauthorized: Invalid or missing token");
+            return;
+        }
         String sessionId = exchange.getRequestHeaders().getFirst("Mcp-Session-Id");
         if (sessionId != null && sessionManager.get(sessionId) == null) {
             sendError(exchange, 404, "Session not found");
@@ -168,6 +172,10 @@ public class StreamableMcpTransportProvider {
     }
 
     private void handleDelete(HttpExchange exchange) throws IOException {
+        if (!isAuthorized(exchange)) {
+            sendError(exchange, 401, "Unauthorized: Invalid or missing token");
+            return;
+        }
         String sessionId = exchange.getRequestHeaders().getFirst("Mcp-Session-Id");
         if (sessionId != null) {
             sessionManager.remove(sessionId);
@@ -184,7 +192,12 @@ public class StreamableMcpTransportProvider {
         var headers = exchange.getResponseHeaders();
         headers.set("Access-Control-Allow-Origin", "*");
         headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-        headers.set("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
+        headers.set("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Authorization");
+    }
+
+    private boolean isAuthorized(HttpExchange exchange) {
+        return TokenManager.getInstance().isAuthorized(
+            exchange.getRequestHeaders().getFirst("Authorization"));
     }
 
     private void handleExchange(HttpExchange exchange) throws IOException {
@@ -277,6 +290,11 @@ public class StreamableMcpTransportProvider {
         trace("body=" + bodyStr);
 
         var tree = mapper.readTree(bodyStr);
+
+        if (!isAuthorized(exchange)) {
+            sendError(exchange, 401, "Unauthorized: Invalid or missing token");
+            return;
+        }
 
         String sessionId = exchange.getRequestHeaders().getFirst("Mcp-Session-Id");
         McpSession session = (sessionId != null) ? sessionManager.get(sessionId) : null;

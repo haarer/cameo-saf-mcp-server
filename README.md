@@ -109,6 +109,39 @@ you: > cameo-model_get_model_info
 
 > **Note:** path arguments for model operations (`admin_load_model`, `admin_reset_model`) are resolved by the **host** running Cameo, not the machine running OpenCode. In a container, a container path like `/workspace/...` usually maps to a host path such as `/home/<user>/opencode/workspace/...`.
 
+### 5. Token-based Authentication
+
+The server requires an API token on every request. On **first startup** the server generates a token, prints it in the Cameo notification window (GUI Log), and persists it to `<user-home>/.config/com.saf.mcpserver/.token` (the directory is created if missing). On later startups the existing token is reused.
+
+Pass the token to OpenCode via the standard `Authorization: Bearer <token>` header using the `headers` config key (and disable automatic OAuth, otherwise OpenCode will attempt an OAuth flow on the 401):
+
+```jsonc
+// opencode.json
+{
+  "mcp": {
+    "cameo-model": {
+      "type": "remote",
+      "url": "http://localhost:18750/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-the-token-from-console>"
+      },
+      "oauth": false,
+      "enabled": true
+    }
+  }
+}
+```
+
+For the Claude Desktop / Claude Code agents, use the equivalent `headers` transport option. Any MCP client that can send a custom header works the same way:
+
+```bash
+curl -H "Authorization: Bearer <token>" -X POST http://localhost:18750/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"initialize","id":1}'
+```
+
+Auth can be disabled for local testing by starting Cameo with `-Dcameo.mcp.server.auth=false`.
+
 ## User Guide
 
 ### Capabilities (v1.0.0)

@@ -31,6 +31,8 @@ public class CameoMcpServer {
         var scriptsDir = determineDefaultScriptsDir();
         info("scripts dir: " + scriptsDir);
 
+        TokenManager.getInstance().getToken();
+
         var dataDir = determineDefaultDataDir();
         info("SAF data dir: " + dataDir);
         if (dataDir != null) {
