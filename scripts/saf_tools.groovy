@@ -871,6 +871,116 @@ Each provided reference REPLACES that kind's realizing list (clear-then-add) and
         return setInformationFlowRealizing([flowId: flowId, realizingConnectorId: connectorId])
     }
 
+    @McpTool(name = "set_sequence_message_ends", description = '''Give a sequence-diagram Message its send/receive MessageOccurrenceSpecifications. A bare Message created via create_element has no event ends (sendEvent/receiveEvent null) and does not render on a sequence diagram. This tool creates the missing send and receive MessageOccurrenceSpecification, adds them to the owning Interaction's fragment list, and wires them bidirectionally: Message.setSendEvent/ setReceiveEvent -> the occurrence, and each occurrence.getMessage() -> the Message (matching how a message drawn with the palette is structured). Optional sendLifelineId/receiveLifelineId set the occurrence's 'covered' lifeline (the line it sits on). Idempotent: an existing send/receive event is reused, not duplicated. Returns the new occurrence IDs.''')
+    @McpToolArgument(name = "messageId", type = "string", description = "Element ID of the Message whose event ends to fill in. Required.")
+    @McpToolArgument(name = "sendLifelineId", type = "string", description = "Optional element ID of the Lifeline the send event sits on (sets the occurrence's 'covered').")
+    @McpToolArgument(name = "receiveLifelineId", type = "string", description = "Optional element ID of the Lifeline the receive event sits on (sets the occurrence's 'covered').")
+    Map setSequenceMessageEnds(Map<String, Object> args) {
+        def messageId = args.get("messageId") as String
+        def sendLifelineId = args.get("sendLifelineId") as String
+        def receiveLifelineId = args.get("receiveLifelineId") as String
+
+        if (messageId == null || messageId.isEmpty()) return [error: "messageId is required"]
+
+        def project = getProject()
+        def message = resolveElement(messageId)
+        if (message == null) return [error: "Message not found: " + messageId]
+        if (!(message instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message)) {
+            return [error: "messageId does not resolve to a Message: " + messageId]
+        }
+
+        def interaction = message.getInteraction()
+        if (interaction == null) return [error: "Message is not owned by an Interaction: " + messageId]
+
+        def sendLifeline = null
+        if (sendLifelineId != null && !sendLifelineId.isEmpty()) {
+            sendLifeline = resolveElement(sendLifelineId)
+            if (sendLifeline == null) return [error: "Send lifeline not found: " + sendLifelineId]
+            if (!(sendLifeline instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Lifeline)) {
+                return [error: "sendLifelineId does not resolve to a Lifeline: " + sendLifelineId]
+            }
+        }
+        def receiveLifeline = null
+        if (receiveLifelineId != null && !receiveLifelineId.isEmpty()) {
+            receiveLifeline = resolveElement(receiveLifelineId)
+            if (receiveLifeline == null) return [error: "Receive lifeline not found: " + receiveLifelineId]
+            if (!(receiveLifeline instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Lifeline)) {
+                return [error: "receiveLifelineId does not resolve to a Lifeline: " + receiveLifelineId]
+            }
+        }
+
+        def sendEvent = message.getSendEvent()
+        def receiveEvent = message.getReceiveEvent()
+
+        def ef = getFactory()
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "set_sequence_message_ends")
+        try {
+            if (sendEvent == null) {
+                sendEvent = ef.createMessageOccurrenceSpecificationInstance()
+                interaction.getFragment().add((com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.InteractionFragment) sendEvent)
+                sendEvent.setMessage((com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message) message)
+                message.setSendEvent(sendEvent)
+            }
+            if (receiveEvent == null) {
+                receiveEvent = ef.createMessageOccurrenceSpecificationInstance()
+                interaction.getFragment().add((com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.InteractionFragment) receiveEvent)
+                receiveEvent.setMessage((com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message) message)
+                message.setReceiveEvent(receiveEvent)
+            }
+            if (sendLifeline != null && sendEvent != null) {
+                sendEvent.getCovered().add(sendLifeline)
+            }
+            if (receiveLifeline != null && receiveEvent != null) {
+                receiveEvent.getCovered().add(receiveLifeline)
+            }
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getMessage()]
+        }
+
+        return [messageId: messageId, interactionId: interaction.getID(), updated: true,
+                sendEventId: sendEvent != null ? sendEvent.getID() : "", sendEventName: sendEvent != null ? sendEvent.getName() : "",
+                receiveEventId: receiveEvent != null ? receiveEvent.getID() : "", receiveEventName: receiveEvent != null ? receiveEvent.getName() : ""]
+    }
+
+    @McpTool(name = "set_occurrence_spec_covered", description = '''Set (or replace) the 'covered' lifeline of a Message Occurrence Specification (or any OccurrenceSpecification) to a single Lifeline. This is what places the occurrence(end of a message) on its lifeline in a sequence diagram: UML InteractionFragment.covered -> the Lifeline the fragment sits on. Idempotent and replace-semantics: the covered list is cleared then the given lifeline added (an occurrence spec sits on exactly one lifeline). Both ends are validated by metaclass (occurrence must be a Message Occurrence Specification / Occurrence Specification, lifeline must be a Lifeline). Returns occurrenceId, lifelineId, lifelineName.''')
+    @McpToolArgument(name = "occurrenceId", type = "string", description = "Element ID of the Message Occurrence Specification (or Occurrence Specification) whose 'covered' to set. Required.")
+    @McpToolArgument(name = "lifelineId", type = "string", description = "Element ID of the Lifeline this occurrence covers. Required.")
+    Map setOccurrenceSpecCovered(Map<String, Object> args) {
+        def occurrenceId = args.get("occurrenceId") as String
+        def lifelineId = args.get("lifelineId") as String
+        if (occurrenceId == null || occurrenceId.isEmpty()) return [error: "occurrenceId is required"]
+        if (lifelineId == null || lifelineId.isEmpty()) return [error: "lifelineId is required"]
+
+        def project = getProject()
+        def occurrence = resolveElement(occurrenceId)
+        if (occurrence == null) return [error: "Occurrence specification not found: " + occurrenceId]
+        if (!(occurrence instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.MessageOccurrenceSpecification) &&
+            !(occurrence instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.OccurrenceSpecification)) {
+            return [error: "occurrenceId does not resolve to an Occurrence Specification: " + occurrenceId]
+        }
+        def lifeline = resolveElement(lifelineId)
+        if (lifeline == null) return [error: "Lifeline not found: " + lifelineId]
+        if (!(lifeline instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Lifeline)) {
+            return [error: "lifelineId does not resolve to a Lifeline: " + lifelineId]
+        }
+
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "set_occurrence_spec_covered")
+        try {
+            occurrence.getCovered().clear()
+            occurrence.getCovered().add(lifeline)
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getMessage()]
+        }
+        return [occurrenceId: occurrenceId, lifelineId: lifelineId,
+                lifelineName: lifeline.getName() ?: "", coveredCount: 1]
+    }
+
     @McpTool(name = "saf_query_viewpoint", description = '''Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.
 
 All parameters are case-insensitive — don't retry with different casing.
