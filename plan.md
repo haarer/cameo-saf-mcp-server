@@ -78,12 +78,12 @@ This project started as a fork of the `cameo-http-server` plugin (com.haarer.htt
   - `spec_get_special_implementations`
 - [x] Migrate `SafTools.groovy` static maps to derive from `SafDataStore`.
 - [x] See `docs/adr/0008-java-saf-data-store-with-hot-reload.md`.
+### Iteration 4: SAF Viewpoint Awareness (Completed — follow-up still open: ADR-0010 `saf_get_viewpoint_views` fixes)
 
-### Iteration 4: SAF Viewpoint Awareness (Completed — fixed in follow-up per ADR-0010)
 - [x] Migrate `SafTools.groovy` static maps to derive from `SafDataStore`.
-- [ ] **Follow-up:** Fix `saf_get_viewpoint_views`:
-  - Replace hardcoded `getKindsForViewpoint()` with `SafDataStore`-derived mapping.
-  - Fix diagram content traversal: use `PresentationElement.getModelElement()` instead of `getOwnedElement()`.
+- [ ] **Follow-up (OPEN):** Fix `saf_get_viewpoint_views`:
+  - Replace hardcoded `getKindsForViewpoint()` with `SafDataStore`-derived mapping (currently a manual switch; SafDataStore stereotype→concept→viewpoint indexes are the source).
+  - Fix diagram content traversal: use `PresentationElement.getModelElement()` instead of `getOwnedElement()` (diagram content lives in presentation elements, not model-owned children).
   - See `docs/adr/0010-revise-viewpoint-tools-approach.md`.
 
 ### Iteration 5: MCP Agent Efficiency Improvements
@@ -139,7 +139,7 @@ Goal: give operators control over which MCP tools are visible and callable, and 
 ##### Transport Configuration (Completed)
 - [x] Added `cameo.mcp.server.bind.host` system property to configure the HTTP listen interface (default `0.0.0.0`, all interfaces). Threaded from `CameoMcpServerPlugin` → `CameoMcpServer` → `StreamableMcpTransportProvider` and replaces the previously hardcoded `"0.0.0.0"` bind. Port remains `cameo.mcp.server.port` (default `18750`). Use `127.0.0.1` to restrict to loopback.
 
-### Iteration 9: Read-Surface Reform — Resources as the Sole Generic Element Read (In Progress)
+### Iteration 9: Read-Surface Reform — Resources as the Sole Generic Element Read (Completed)
 
 Goal: remove the tool-vs-resource bias observed in agent sessions. Element-dump tools
 (`get_element_details`, `get_elements_details_batch`, `saf_get_element_details`) advertised
@@ -147,17 +147,17 @@ Goal: remove the tool-vs-resource bias observed in agent sessions. Element-dump 
 navigating — an N+1 drill-down pattern the resources were built to replace. Design decision:
 **shape the surface by query bounds, not by element dumps.** Resources are the only generic
 element-read path; a single narrow inference tool serves the SAF interpretation layer the
-resources intentionally do not carry. See `.scratch/mcp-agent-efficiency/` and ADR-0015.
+resources intentionally do not carry. See `.scratch/mcp-agent-efficiency/` and ADR-0016.
 
-- [ ] **#1 Drop `get_element_details` and `get_elements_details_batch`** (element_crud.groovy:797,811). Generic element facts are covered by `cameo://element/{id}` fact sheet, `/children` and `/relationships` slices, `list_owned_elements`, and `get_block_structure` (structure-specific). No replacement needed.
-- [ ] **#2 Drop `saf_get_element_details`** (saf_tools.groovy:1029). Its non-SAF content (tags, owned summary, inline traceability) duplicates the resources; its SAF content is replaced by #3. Keep internal helpers (`collectTraceability`, `resolveSafKind`, `resolveSafDomain`) — still used by `saf_build_traceability_chain` / `saf_check_consistency`.
-- [ ] **#3 Add narrow `saf_get_element_semantics(elementIds[])`** (saf_tools.groovy) — the *only* SAF-interpretation read. Per element returns `safKind`, `safDomain`, and the **viewpoints the element is used in**, resolved server-side via the SafDataStore stereotype→concept→viewpoint indexes (`getStereotypeByName`, `getConceptsForStereotype`, `getViewpointsForConcept`). Batch input to annotate finder results in one call. No model dump — no tags/children/edges.
-- [ ] **#4 Sweep tool descriptions referencing the removed tools** — `get_stereotype_tags` (element_crud.groovy:388), `get_element_info` (model_query.groovy:29), `modelcode.groovy:74`, `list_owned_elements` (model_find.groovy:156), `get_block_structure` (structural_tools.groovy:231,243), and saf_tools.groovy:240,501,509,951,984. Repoint every "use get_element_details/saf_get_element_details" to the resource URIs.
-- [ ] **#5 Rewrite the self-disqualifying resource descriptions** — `cameo://element/{id}` (element_crud.groovy:1150) and `cameo://diagram/{id}` (model_info.groovy:382) currently say "SAF semantics intentionally not resolved here — use the saf_* tools for that", which steers agents away from the whole resource surface. Replace with a narrow pointer to `saf_get_element_semantics`. Also make the `/relationships` slice shape symmetric (target stereotypes on incoming edges, matching `collectTraceability`).
-- [ ] **#6 AGENTS.md model-navigation rule** — replace the tool-only "MCP surface navigation" taxonomy with a read-path hierarchy: `cameo://*` resources for all generic navigation, `spec_*` for the SAF ontology, `saf_get_element_semantics` for element interpretation, CRUD for writes, `saf_build_traceability_chain` for graph collection.
-- [ ] **#7 New ADR-0015** — "Resources as the Sole Generic Element Read": element-dump tools forbidden; knowledge split (navigation / ontology / interpretation / writes).
-- [ ] **#8 Tests + agent-jobs** — update `tests/test_saf_tools.py`, `tests/test_mcp_server.py`, `tests/agent-jobs/selection_analyze.md` for the new surface; add coverage for `saf_get_element_semantics` and the resource fact-sheet/slices. Run `runtests.sh` (target: full suite green).
-- [ ] **#9 Deploy + live verification** — `./deploy-scripts.sh`; confirm removed tools vanish and `saf_get_element_semantics` + resources work against the live Cameo model.
+- [x] **#1 Drop `get_element_details` and `get_elements_details_batch`** (element_crud.groovy). Generic element facts are covered by `cameo://element/{id}` fact sheet, `/children` and `/relationships` slices, `list_owned_elements`, and `get_block_structure` (structure-specific). No replacement needed.
+- [x] **#2 Drop `saf_get_element_details`** (saf_tools.groovy). Its non-SAF content (tags, owned summary, inline traceability) duplicates the resources; its SAF content is replaced by #3. Keep internal helpers (`collectTraceability`, `resolveSafKind`, `resolveSafDomain`) — still used by `saf_build_traceability_chain` / `saf_check_consistency`.
+- [x] **#3 Add narrow `saf_get_element_semantics(elementIds[])`** (saf_tools.groovy) — the *only* SAF-interpretation read. Per element returns `safKind`, `safDomain`, and the **viewpoints the element is used in**, resolved server-side via the SafDataStore stereotype→concept→viewpoint indexes. Batch input to annotate finder results in one call. No model dump — no tags/children/edges.
+- [x] **#4 Sweep tool descriptions referencing the removed tools** — `get_stereotype_tags`, `get_element_info`, `modelcode`, `list_owned_elements`, `get_block_structure`, and the `saf_*` helpers now repoint every "use get_element_details/saf_get_element_details" to the resource URIs (`cameo://element/{id}`, `/children`, `/relationships`) and `saf_get_element_semantics`. Verified: zero references to the dump tools remain in `scripts/`.
+- [x] **#5 Rewrite the self-disqualifying resource descriptions** — `cameo://element/{id}` (element_crud.groovy) and `cameo://diagram/{id}` (model_info.groovy) now point to `saf_get_element_semantics` instead of steering agents away from the resource surface. The `/relationships` slice was also made symmetric: every edge (outgoing, incoming, general) now carries `targetStereotypes` (the far-end element's stereotypes), matching `collectTraceability`.
+- [x] **#6 AGENTS.md model-navigation rule** — the tool-only "MCP surface navigation" taxonomy is replaced with a read-path hierarchy: `cameo://*` resources for all generic navigation, `spec_*` for the SAF ontology, `saf_get_element_semantics` for element interpretation, CRUD for writes, `saf_build_traceability_chain` for graph collection.
+- [x] **#7 ADR-0016** — "Resources as the Sole Generic Element Read": element-dump tools forbidden; knowledge split (navigation / ontology / interpretation / writes).
+- [x] **#8 Tests + agent-jobs** — `tests/test_mcp_server.py` gains not-registered tests for the three dump tools plus coverage of the resource fact sheet, `/children` and `/relationships` slices (incl. the symmetric-edge contract); `tests/test_saf_tools.py` covers `saf_get_element_semantics` (valid, invalid id, ambiguity contract). `tests/agent-jobs/selection_analyze.md` / `resource_navigation.md` reflect the new surface.
+- [x] **#9 Deploy + live verification** — earlier deploy removed the dump tools from the live session and added `saf_get_element_semantics`. The slice-symmetry change was hot-deployed and its contract (far-end `targetStereotypes` on outgoing/general edges) verified live over MCP; the pytest harness needs the bearer auth token to run against this container's Cameo (`host.containers.internal`).
 
 
 ### Iteration 10: Model-Diff Capability (Completed — spike M1–M5)

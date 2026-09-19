@@ -6,12 +6,6 @@ import json
 SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:18750")
 
 
-@pytest.fixture(scope="session")
-def client():
-    with httpx.Client(base_url=SERVER_URL, timeout=30) as c:
-        yield c
-
-
 def _mcp_init(client):
     payload = {
         "jsonrpc": "2.0",

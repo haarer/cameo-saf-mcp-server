@@ -906,12 +906,22 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
 
     List relationshipView(def elem) {
         def rels = []
+        def stereosOf = { el ->
+            def s = []
+            try {
+                for (st in el.getAppliedStereotype()) {
+                    def n = st.getName()
+                    if (n != null && !n.isEmpty()) s.add(n)
+                }
+            } catch (ignored) {}
+            return s
+        }
         try {
             for (dep in elem.getClientDependency()) {
                 def depStereos = StereotypesHelper.getStereotypes(dep).collect { it.getName() }
                 for (supplier in dep.getSupplier()) {
                     def sname = (supplier instanceof NamedElement) ? supplier.getName() : ""
-                    rels.add([type: dep.getHumanType(), direction: "outgoing", target: sname, targetId: supplier.getID(), stereotypes: depStereos])
+                    rels.add([type: dep.getHumanType(), direction: "outgoing", target: sname, targetId: supplier.getID(), stereotypes: depStereos, targetStereotypes: stereosOf(supplier)])
                 }
             }
         } catch (ignored) {}
@@ -919,7 +929,7 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
             for (gen in elem.getGeneralization()) {
                 def general = gen.getGeneral()
                 if (general instanceof NamedElement) {
-                    rels.add([type: "Generalization", direction: "general", target: general.getName(), targetId: general.getID()])
+                    rels.add([type: "Generalization", direction: "general", target: general.getName(), targetId: general.getID(), targetStereotypes: stereosOf(general)])
                 }
             }
         } catch (ignored) {}
@@ -928,7 +938,7 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
                 if (spec.getClientDependency() != null) {
                     for (dep in spec.getClientDependency()) {
                         if (dep.getSupplier().contains(elem)) {
-                            rels.add([type: dep.getHumanType(), direction: "incoming", source: (spec instanceof NamedElement ? spec.getName() : ""), sourceId: spec.getID()])
+                            rels.add([type: dep.getHumanType(), direction: "incoming", source: (spec instanceof NamedElement ? spec.getName() : ""), sourceId: spec.getID(), stereotypes: stereosOf(dep), targetStereotypes: stereosOf(spec)])
                         }
                     }
                 }
@@ -1055,7 +1065,7 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
         return [id: id, name: name, qualifiedName: qualifiedNameOf(elem), count: list.size(), children: list]
     }
 
-    @McpResource(uri = "cameo://element/{id}/relationships", name = "Element relationships", description = "Relationships involving a model element: outgoing/incoming dependencies (with stereotypes and target/source ids) and generalizations.", mimeType = "application/json")
+    @McpResource(uri = "cameo://element/{id}/relationships", name = "Element relationships", description = "Relationships involving a model element: outgoing/incoming dependencies (with dependency stereotypes, target/source ids, and far-end stereotypes) and generalizations. Every edge carries targetStereotypes (the far-end element's stereotypes), symmetric for outgoing and incoming.", mimeType = "application/json")
     Map elementRelationships(Map<String, String> params) {
         def id = params.get("id")
         if (!id) return [error: "id is required"]

@@ -6,12 +6,6 @@ import json
 SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:18750")
 
 
-@pytest.fixture(scope="session")
-def client():
-    with httpx.Client(base_url=SERVER_URL, timeout=10) as c:
-        yield c
-
-
 def _mcp_init(client):
     payload = {
         "jsonrpc": "2.0",
@@ -197,6 +191,72 @@ def test_mcp_resources(client):
     text = body["result"]["contents"][0]["text"]
     data = json.loads(text)
     assert "name" in data
+
+
+def test_mcp_element_fact_sheet_resources(client, tool_names):
+    """cameo://element/{id} fact sheet + /children + /relationships slices (ADR-0016)."""
+    required = ["find_elements_by_type"]
+    missing = [n for n in required if n not in tool_names]
+    if missing:
+        pytest.skip(f"missing tools: {', '.join(missing)}")
+    session_id = _mcp_init(client)
+
+    # resources/list advertises the element resource templates
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 60, "method": "resources/list"},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert "result" in body
+    uris = [res["uri"] for res in body["result"]["resources"]]
+    for template in ["cameo://element/{id}", "cameo://element/{id}/children",
+                     "cameo://element/{id}/relationships"]:
+        assert template in uris, f"resource template {template} missing: {uris}"
+
+    # Find an element id (the primary model root)
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 61, "method": "tools/call",
+                                  "params": {"name": "find_elements_by_type",
+                                             "arguments": {"type": "Model"}}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert not body["result"].get("isError", False)
+    models = json.loads(body["result"]["content"][0]["text"])
+    root_model = next(m for m in models if not m.get("parentId"))
+    eid = root_model["id"]
+
+    # Fact sheet
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 62, "method": "resources/read",
+                                  "params": {"uri": f"cameo://element/{eid}"}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert "result" in body, f"fact-sheet read failed: {body}"
+    data = json.loads(body["result"]["contents"][0]["text"])
+    for key in ["id", "name", "stereotypes", "children", "relationships"]:
+        assert key in data, f"fact sheet missing '{key}': {list(data)}"
+    assert data["children"]["uri"] == f"cameo://element/{eid}/children"
+    assert data["relationships"]["uri"] == f"cameo://element/{eid}/relationships"
+
+    # Children slice
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 63, "method": "resources/read",
+                                  "params": {"uri": f"cameo://element/{eid}/children"}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert "result" in body, f"children slice failed: {body}"
+    children = json.loads(body["result"]["contents"][0]["text"])
+    assert "children" in children
+    for ch in children["children"]:
+        assert "id" in ch and "name" in ch and "metaclass" in ch and "type" in ch
+
+    # Relationships slice — symmetric edge shape (every edge carries far-end stereotypes)
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 64, "method": "resources/read",
+                                  "params": {"uri": f"cameo://element/{eid}/relationships"}},
+                    headers={"Mcp-Session-Id": session_id})
+    body = r.json()
+    assert "result" in body, f"relationships slice failed: {body}"
+    rels = json.loads(body["result"]["contents"][0]["text"])
+    assert "relationships" in rels
+    for rel in rels["relationships"]:
+        assert "type" in rel
+        assert "direction" in rel
+        assert "targetStereotypes" in rel, f"relationships slice not symmetric (ADR-0016): {rel}"
 
 
 def test_mcp_prompts(client):

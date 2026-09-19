@@ -28,12 +28,6 @@ def writable_root(client):
     return root["id"]
 
 
-@pytest.fixture(scope="session")
-def client():
-    with httpx.Client(base_url=SERVER_URL, timeout=30) as c:
-        yield c
-
-
 def _mcp_init(client):
     r = client.post("/mcp", json={
         "jsonrpc": "2.0", "id": 1, "method": "initialize",

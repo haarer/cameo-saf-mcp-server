@@ -13,12 +13,6 @@ KNOWN_STAKEHOLDER = "System Architect"
 KNOWN_STEREOTYPE = "SAF_SystemRequirement"
 
 
-@pytest.fixture(scope="session")
-def client():
-    with httpx.Client(base_url=SERVER_URL, timeout=30) as c:
-        yield c
-
-
 def _mcp_init(client):
     payload = {
         "jsonrpc": "2.0",
