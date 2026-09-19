@@ -50,11 +50,14 @@ public class CameoMcpServer {
 
         scanner = new GroovyScriptScanner(scriptsDir, mapper);
 
+        // Establish the file-cache baseline BEFORE the poller starts: the first
+        // hasChanges() poll otherwise sees an empty cache and triggers a second,
+        // duplicate reload right after the one below.
+        reloadScripts();
+
         hotReloadThread = new Thread(this::hotReloadLoop, "mcp-hot-reload");
         hotReloadThread.setDaemon(true);
         hotReloadThread.start();
-
-        reloadScripts();
     }
 
     public int getPort() {
