@@ -660,18 +660,21 @@ Get IDs from saf_find_elements_by_type(), the cameo://element/{id} resource, or 
         return [id: rel.getID(), type: type, sysmlType: sysmlType, stereotype: stereotypeToApply, sourceId: sourceId, targetId: targetId]
     }
 
-    @McpTool(name = "create_information_flow", description = '''Create a package-level InformationFlow with wired ends (source/target participants) and an optional conveyed item classifier. This is the canonical way to model a conceptual/physical item exchange: the flow lives in a package (not an IBD), gets explicit source/target participants, and can convey an exchange-type classifier.
+    @McpTool(name = "create_information_flow", description = '''Create a package-level InformationFlow with wired ends (source/target participants), an optional conveyed item classifier, and an optional realizing connector. This is the canonical way to model a conceptual/physical item exchange: the flow lives in a package (not an IBD), gets explicit source/target participants, can convey an exchange-type classifier, and can be linked to the Connector that realizes it.
 
 Use this tool when:
 - You need an InformationFlow between two roles/parts/classifiers (e.g. 'flow for SystemOperationalMode' between the FFDS System and a station)
 - You are modeling context exchanges that should appear in a context diagram
 
-The InformationFlow is placed in the given parent package, named, and typed by the optional conveyed classifier (e.g. a SAF_ConceptualExchangeType). The ItemFlow stereotype is applied when the conveyed item is set. Source/target participants may be Parts (roles) or Classifiers. Returns the created InformationFlow ID.''')
+The InformationFlow is placed in the given parent package, named, and typed by the optional conveyed classifier (e.g. a SAF_ConceptualExchangeType). The ItemFlow stereotype is applied when the conveyed item is set. Source/target participants may be Parts (roles) or Classifiers. Any of the three realizing references may be wired at creation — realizingConnectorId (the connector the item flow drapes over on an IBD), realizingActivityEdgeId (an activity object flow the item flow runs along), or realizingMessageId (a sequence-diagram message the flow realizes). Each is managed bidirectionally with its far-end informationFlowOfRealizing* reference. Returns the created InformationFlow ID.''')
     @McpToolArgument(name = "name", type = "string", description = "Name for the flow (e.g. 'flow for SystemOperationalMode'). Required.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent package that will own the InformationFlow. Required.")
     @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the source participant (a Part role or Classifier). Required. Get IDs from saf_find_elements_by_type or the cameo://element/{id} resource.")
     @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the target participant (a Part role or Classifier). Required.")
     @McpToolArgument(name = "conveyedItemId", type = "string", description = "Optional element ID of the conveyed classifier (e.g. a SAF_ConceptualExchangeType Qualification/realization of the exchange). When set, the flow conveys it and the ItemFlow stereotype is applied.")
+    @McpToolArgument(name = "realizingConnectorId", type = "string", description = "Optional element ID of the Connector that realizes this flow (the 'realizing connector' reference; on an IBD the item flow is draped over this connector).")
+    @McpToolArgument(name = "realizingActivityEdgeId", type = "string", description = "Optional element ID of the ActivityEdge/ObjectFlow that realizes this flow (the 'realizing activity edge' reference; links the flow to an object flow on an activity diagram).")
+    @McpToolArgument(name = "realizingMessageId", type = "string", description = "Optional element ID of the Message that realizes this flow (the 'realizing message' reference; links the flow to a message on a sequence diagram).")
     @McpToolArgument(name = "documentation", type = "string", description = "Optional documentation text stored as a comment attached to the flow.")
     Map createInformationFlow(Map<String, Object> args) {
         def name = args.get("name") as String
@@ -679,6 +682,9 @@ The InformationFlow is placed in the given parent package, named, and typed by t
         def sourceId = args.get("sourceId") as String
         def targetId = args.get("targetId") as String
         def conveyedItemId = args.get("conveyedItemId") as String
+        def realizingConnectorId = args.get("realizingConnectorId") as String
+        def realizingActivityEdgeId = args.get("realizingActivityEdgeId") as String
+        def realizingMessageId = args.get("realizingMessageId") as String
         def documentation = args.get("documentation") as String
 
         if (name == null || name.isEmpty()) return [error: "name is required"]
@@ -700,6 +706,33 @@ The InformationFlow is placed in the given parent package, named, and typed by t
             if (conveyed == null) return [error: "Conveyed element not found: " + conveyedItemId]
         }
 
+        def realizingConn = null
+        if (realizingConnectorId != null && !realizingConnectorId.isEmpty()) {
+            realizingConn = resolveElement(realizingConnectorId)
+            if (realizingConn == null) return [error: "Realizing connector not found: " + realizingConnectorId]
+            if (!(realizingConn instanceof com.nomagic.uml2.ext.magicdraw.compositestructures.mdinternalstructures.Connector)) {
+                return [error: "realizingConnectorId does not resolve to a Connector: " + realizingConnectorId]
+            }
+        }
+
+        def realizingActivityEdge = null
+        if (realizingActivityEdgeId != null && !realizingActivityEdgeId.isEmpty()) {
+            realizingActivityEdge = resolveElement(realizingActivityEdgeId)
+            if (realizingActivityEdge == null) return [error: "Realizing activity edge not found: " + realizingActivityEdgeId]
+            if (!(realizingActivityEdge instanceof com.nomagic.uml2.ext.magicdraw.activities.mdbasicactivities.ActivityEdge)) {
+                return [error: "realizingActivityEdgeId does not resolve to an ActivityEdge: " + realizingActivityEdgeId]
+            }
+        }
+
+        def realizingMessage = null
+        if (realizingMessageId != null && !realizingMessageId.isEmpty()) {
+            realizingMessage = resolveElement(realizingMessageId)
+            if (realizingMessage == null) return [error: "Realizing message not found: " + realizingMessageId]
+            if (!(realizingMessage instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message)) {
+                return [error: "realizingMessageId does not resolve to a Message: " + realizingMessageId]
+            }
+        }
+
         def ef = getFactory()
         def sm = SessionManager.getInstance()
         sm.createSession(project, "create_information_flow")
@@ -717,6 +750,15 @@ The InformationFlow is placed in the given parent package, named, and typed by t
                     StereotypesHelper.addStereotype(flow, itemFlowStereotype)
                 }
             }
+            if (realizingConn != null) {
+                flow.getRealizingConnector().add((com.nomagic.uml2.ext.magicdraw.compositestructures.mdinternalstructures.Connector) realizingConn)
+            }
+            if (realizingActivityEdge != null) {
+                flow.getRealizingActivityEdge().add((com.nomagic.uml2.ext.magicdraw.activities.mdbasicactivities.ActivityEdge) realizingActivityEdge)
+            }
+            if (realizingMessage != null) {
+                flow.getRealizingMessage().add((com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message) realizingMessage)
+            }
             if (documentation != null && !documentation.isEmpty()) {
                 com.nomagic.magicdraw.uml2.Elements.setComment(flow, documentation)
             }
@@ -726,7 +768,107 @@ The InformationFlow is placed in the given parent package, named, and typed by t
             return [error: e.getMessage()]
         }
 
-        return [id: flow.getID(), name: name, type: "InformationFlow", stereotype: conveyed != null ? "ItemFlow" : "", sourceId: sourceId, targetId: targetId, conveyedItem: conveyed != null ? conveyed.getName() : "", parentId: parentId]
+        def realizingCount = 0
+        try { realizingCount = flow.getRealizingConnector().size() } catch (ignored) {}
+        def activityEdgeCount = 0
+        try { activityEdgeCount = flow.getRealizingActivityEdge().size() } catch (ignored) {}
+        def messageCount = 0
+        try { messageCount = flow.getRealizingMessage().size() } catch (ignored) {}
+        return [id: flow.getID(), name: name, type: "InformationFlow", stereotype: conveyed != null ? "ItemFlow" : "", sourceId: sourceId, targetId: targetId, conveyedItem: conveyed != null ? conveyed.getName() : "", realizingConnectorId: realizingConn != null ? realizingConn.getID() : "", realizingConnectorName: realizingConn != null ? realizingConn.getName() : "", realizingConnectors: realizingCount, realizingActivityEdgeId: realizingActivityEdge != null ? realizingActivityEdge.getID() : "", realizingActivityEdgeName: realizingActivityEdge != null ? realizingActivityEdge.getName() : "", realizingActivityEdges: activityEdgeCount, realizingMessageId: realizingMessage != null ? realizingMessage.getID() : "", realizingMessageName: realizingMessage != null ? realizingMessage.getName() : "", realizingMessages: messageCount, parentId: parentId]
+    }
+
+    @McpTool(name = "set_information_flow_realizing", description = '''Set (or replace) the realizing references on an existing InformationFlow/ItemFlow. The realizing references link the flow to the model elements that carry it in a diagram: a Connector (the item flow draped over it on an IBD), an ActivityEdge/ObjectFlow (an object flow on an activity diagram), or a Message (a message on a sequence diagram).
+
+Each provided reference REPLACES that kind's realizing list (clear-then-add) and leaves the other kinds untouched - so the same flow can be realized by a connector AND a message simultaneously when it is presented in two diagrams. The references are managed bidirectionally (flow.getRealizingX() <-> element.get_informationFlowOfRealizingX). Use this to link already-created flows to their intended realizing element(s). At least one realizing argument is required.''')
+    @McpToolArgument(name = "flowId", type = "string", description = "Element ID of the InformationFlow/ItemFlow to update. Required.")
+    @McpToolArgument(name = "realizingConnectorId", type = "string", description = "Optional element ID of the Connector that realizes this flow. Replaces the flow's realizingConnector list. Required unless another realizing* is given.")
+    @McpToolArgument(name = "realizingActivityEdgeId", type = "string", description = "Optional element ID of the ActivityEdge/ObjectFlow (activity diagram object flow) that realizes this flow. Replaces the flow's realizingActivityEdge list. Required unless another realizing* is given.")
+    @McpToolArgument(name = "realizingMessageId", type = "string", description = "Optional element ID of the Message (sequence diagram message) that realizes this flow. Replaces the flow's realizingMessage list. Required unless another realizing* is given.")
+    Map setInformationFlowRealizing(Map<String, Object> args) {
+        def flowId = args.get("flowId") as String
+        def connectorId = args.get("realizingConnectorId") as String
+        def activityEdgeId = args.get("realizingActivityEdgeId") as String
+        def messageId = args.get("realizingMessageId") as String
+
+        if (flowId == null || flowId.isEmpty()) return [error: "flowId is required"]
+        if ((connectorId == null || connectorId.isEmpty()) && (activityEdgeId == null || activityEdgeId.isEmpty()) && (messageId == null || messageId.isEmpty())) {
+            return [error: "At least one of realizingConnectorId, realizingActivityEdgeId, realizingMessageId is required"]
+        }
+
+        def project = getProject()
+        def flow = resolveElement(flowId)
+        if (flow == null) return [error: "InformationFlow not found: " + flowId]
+        if (!(flow instanceof com.nomagic.uml2.ext.magicdraw.auxiliaryconstructs.mdinformationflows.InformationFlow)) {
+            return [error: "flowId does not resolve to an InformationFlow: " + flowId]
+        }
+
+        def connector = null
+        if (connectorId != null && !connectorId.isEmpty()) {
+            connector = resolveElement(connectorId)
+            if (connector == null) return [error: "Connector not found: " + connectorId]
+            if (!(connector instanceof com.nomagic.uml2.ext.magicdraw.compositestructures.mdinternalstructures.Connector)) {
+                return [error: "realizingConnectorId does not resolve to a Connector: " + connectorId]
+            }
+        }
+
+        def activityEdge = null
+        if (activityEdgeId != null && !activityEdgeId.isEmpty()) {
+            activityEdge = resolveElement(activityEdgeId)
+            if (activityEdge == null) return [error: "ActivityEdge not found: " + activityEdgeId]
+            if (!(activityEdge instanceof com.nomagic.uml2.ext.magicdraw.activities.mdbasicactivities.ActivityEdge)) {
+                return [error: "realizingActivityEdgeId does not resolve to an ActivityEdge: " + activityEdgeId]
+            }
+        }
+
+        def message = null
+        if (messageId != null && !messageId.isEmpty()) {
+            message = resolveElement(messageId)
+            if (message == null) return [error: "Message not found: " + messageId]
+            if (!(message instanceof com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message)) {
+                return [error: "realizingMessageId does not resolve to a Message: " + messageId]
+            }
+        }
+
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "set_information_flow_realizing")
+        try {
+            if (connector != null) {
+                flow.getRealizingConnector().clear()
+                flow.getRealizingConnector().add((com.nomagic.uml2.ext.magicdraw.compositestructures.mdinternalstructures.Connector) connector)
+            }
+            if (activityEdge != null) {
+                flow.getRealizingActivityEdge().clear()
+                flow.getRealizingActivityEdge().add((com.nomagic.uml2.ext.magicdraw.activities.mdbasicactivities.ActivityEdge) activityEdge)
+            }
+            if (message != null) {
+                flow.getRealizingMessage().clear()
+                flow.getRealizingMessage().add((com.nomagic.uml2.ext.magicdraw.interactions.mdbasicinteractions.Message) message)
+            }
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getMessage()]
+        }
+
+        def realizingCount = 0
+        try { realizingCount = flow.getRealizingConnector().size() } catch (ignored) {}
+        def activityEdgeCount = 0
+        try { activityEdgeCount = flow.getRealizingActivityEdge().size() } catch (ignored) {}
+        def messageCount = 0
+        try { messageCount = flow.getRealizingMessage().size() } catch (ignored) {}
+        return [flowId: flowId, updated: true,
+                realizingConnectorId: connector != null ? connector.getID() : "", realizingConnectorName: connector != null ? connector.getName() : "", realizingConnectors: realizingCount,
+                realizingActivityEdgeId: activityEdge != null ? activityEdge.getID() : "", realizingActivityEdgeName: activityEdge != null ? activityEdge.getName() : "", realizingActivityEdges: activityEdgeCount,
+                realizingMessageId: message != null ? message.getID() : "", realizingMessageName: message != null ? message.getName() : "", realizingMessages: messageCount]
+    }
+
+    @McpTool(name = "set_information_flow_realizing_connector", description = '''Set (or replace) the 'realizing connector' reference on an existing InformationFlow/ItemFlow: the Connector that realizes the flow, i.e. the connector the item flow drapes over on an IBD. The reference is managed bidirectionally with the connector's informationFlowOfRealizingConnector. Use this to link already-created flows to the physical connection they run over. Convenience wrapper around set_information_flow_realizing.''')
+    @McpToolArgument(name = "flowId", type = "string", description = "Element ID of the InformationFlow/ItemFlow to update. Required.")
+    @McpToolArgument(name = "connectorId", type = "string", description = "Element ID of the Connector that realizes this flow. Required.")
+    Map setInformationFlowRealizingConnector(Map<String, Object> args) {
+        def flowId = args.get("flowId") as String
+        def connectorId = args.get("connectorId") as String
+        return setInformationFlowRealizing([flowId: flowId, realizingConnectorId: connectorId])
     }
 
     @McpTool(name = "saf_query_viewpoint", description = '''Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.
