@@ -205,6 +205,20 @@ Deliverables live OUTSIDE the server repo: spike Groovy tools
 product `diff` tool ships from `scripts/`.
 
 
+### Iteration 11: Sequence Diagram Message Wiring + Diagram Layout Tools (Proposed)
+
+Goal: close the sequence-diagram gap surfaced while documenting the failed
+OpenVPN connection — the surface can create Interaction/Lifeline/Message model
+elements and the SD view (frame + lifelines), but cannot wire message ends to
+lifelines or draw the arrows, and cannot trigger diagram layout. See
+`.scratch/sequence-message-wiring-and-layout/PRD.md` (design + documented API
+basis, verified against the cameo-api Javadoc index).
+
+- [ ] `diagram_auto_layout(diagramId, layouter?, orientation?)` — `Layouting.layout(diagram, layouterID, optionsGroup)` per the documented recipe (`diagram.open()`, `Application.getInstance().getEnvironmentOptions().getGroup(HierarchicLayouterOptionsGroup.ID)`).
+- [ ] `diagram_add_sequence_message(diagramId, wiring[], layout?)` — wires existing Messages onto lifeline heads (`diagram.findPresentationElement(element, SequenceLifelineView.class)`) and draws arrows via the documented OpenAPI `PresentationElementsManager.createSequenceMessage(...)` (creates the `SeqMessageView` between client/supplier shapes); per-message sort + `insertAfter` stacking.
+- [ ] `saf_create_diagram` cast fix — a Message added to a Sequence Diagram is a `SeqMessageView`, not a `ShapeElement`; special-case the shape-add loop (currently throws `ClassCastException`).
+- [ ] Validate on `Failed OpenVPN Connection` model: wire all 7 messages, auto-layout BDD + SD, export PNGs, inspect.
+
 ## Lessons Learned
 
 ### Jackson Classloader Conflict
