@@ -403,7 +403,10 @@ class ModelInfo {
 
         def elements = []
         def used = null
-        try { used = d.getUsedModelElements() } catch (ignored) {}
+        try {
+            def pres = project.getDiagram(d)
+            if (pres != null) used = pres.getUsedModelElements()
+        } catch (e) { out.diagramError = e.getMessage() }
         if (used != null) {
             for (el in used) {
                 try {
