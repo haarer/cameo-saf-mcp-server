@@ -271,7 +271,7 @@ class ElementCrud {
     }
 
     @McpTool(name = "create_element", description = "Create a new SysML model element (Class, Package, Activity, Port, etc.) as a child of an existing parent element. Optionally apply a stereotype and set documentation. Returns the created element's ID. For SAF-typed elements, use saf_create_element instead.")
-    @McpToolArgument(name = "type", type = "string", description = "SysML type: Class, Package, Model, Interface, Activity, OpaqueBehavior, FunctionBehavior, Operation, Property, Port, ProxyPort, Connector, Comment, Dependency, Abstraction, Association, Generalization, ControlFlow, ObjectFlow, ActivityPartition, Action (CallBehavior, CallOperation, AcceptEvent, SendSignal, SendObject, CreateObject, DestroyObject, ReadSelf, ReadStructuralFeature, ReadVariable, ValueSpecification, Opaque), ActivityNode (Initial, ActivityFinal, FlowFinal, Decision, Merge, Fork, Join, Parameter, CentralBuffer, DataStore, Input/Output/Value/ActionInput Pin, Loop, Conditional, Structured, ExpansionRegion, ExceptionHandler), DataType, ValueType, PrimitiveType, Enumeration, EnumerationLiteral, Signal, State, FinalState, Pseudostate, Region, StateMachine, ProtocolStateMachine, Transition, ProtocolTransition, Trigger, ConnectionPointReference, Interaction, Lifeline, Message, CombinedFragment, InteractionOperand, InteractionUse, Gate, OccurrenceSpecification, StateInvariant, Continuation, Constraint, Expression, StringExpression, OpaqueExpression, LiteralInteger, LiteralReal, LiteralString, LiteralBoolean, LiteralUnlimitedNatural, LiteralNull, Use Case, Actor, Include, Extend, ExtensionPoint, InstanceSpecification, Slot, Component, Node, Device, Artifact, ExecutionEnvironment, Deployment, DeploymentSpecification, CommunicationPath, ComponentRealization, InterfaceRealization, Manifestation, Usage, Substitution, Realization, InformationItem, InformationFlow, Collaboration, CollaborationUse, Parameter, TemplateBinding, TemplateSignature, TemplateParameter, GeneralizationSet, Stereotype, Profile, ProfileApplication, ElementImport, PackageImport, PackageMerge, Extension, ExtensionEnd, Image, etc.")
+    @McpToolArgument(name = "type", type = "string", description = "SysML type: Class, Package, Model, Interface, Activity, OpaqueBehavior, FunctionBehavior, Operation, Property, Port, ProxyPort, Connector, Comment, Dependency, Abstraction, Association, Generalization, ControlFlow, ObjectFlow, ActivityPartition, Action (CallBehavior, CallOperation, AcceptEvent, SendSignal, SendObject, CreateObject, DestroyObject, ReadSelf, ReadStructuralFeature, ReadVariable, ValueSpecification, Opaque), ActivityNode (Initial, ActivityFinal, FlowFinal, Decision, Merge, Fork, Join, Parameter, CentralBuffer, DataStore, Input/Output/Value/ActionInput Pin, Loop, Conditional, Structured, ExpansionRegion, ExceptionHandler), DataType, ValueType, PrimitiveType, Enumeration, EnumerationLiteral, Signal, State, FinalState, Pseudostate, Region, StateMachine, ProtocolStateMachine, Transition, ProtocolTransition, Trigger, ConnectionPointReference, Interaction, Lifeline, Message, CombinedFragment, InteractionOperand, InteractionUse, Gate, OccurrenceSpecification, StateInvariant, Continuation, Constraint, Expression, StringExpression, OpaqueExpression, LiteralInteger, LiteralReal, LiteralString, LiteralBoolean, LiteralUnlimitedNatural, LiteralNull, Use Case, Actor, Include, Extend, ExtensionPoint, InstanceSpecification, Slot, Component, Node, Device, Artifact, ExecutionEnvironment, Deployment, DeploymentSpecification, CommunicationPath, ComponentRealization, InterfaceRealization, Manifestation, Usage, Substitution, Realization, InformationItem, InformationFlow, Collaboration, CollaborationUse, Parameter, TemplateBinding, TemplateSignature, TemplateParameter, GeneralizationSet, Stereotype, Profile, ProfileApplication, ElementImport, PackageImport, PackageMerge, Extension, ExtensionEnd, Image, etc. Use create_association_class for AssociationClass elements (its member ends are typed in the same call).")
     @McpToolArgument(name = "name", type = "string", description = "Name for the new element", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent to contain the new element", required = true)
     @McpToolArgument(name = "stereotype", type = "string", description = "Optional stereotype name to apply to the element")
@@ -332,6 +332,120 @@ class ElementCrud {
         ]
     }
 
+    @McpTool(name = "create_association_class", description = "Create a UML AssociationClass (association + class in one classifier) with BOTH member ends typed to the given source and target classifiers in the same call. This is the correct way to build SCM concepts whose metaclass is AssociationClass (e.g. scenario participation, chronological message): a bare AssociationClass created via create_element has untyped member ends and is structurally invalid ('Relationship has no client. Relationship has no supplier'). Here ends[0] is typed to sourceId and ends[1] to targetId, so the result is a valid relationship. Optionally apply a stereotype (e.g. SCM_Concept) and set documentation.")
+    @McpToolArgument(name = "name", type = "string", description = "Name for the new AssociationClass", required = true)
+    @McpToolArgument(name = "sourceId", type = "string", description = "Element ID of the classifier for member end 1 (e.g. the interaction scenario concept)", required = true)
+    @McpToolArgument(name = "targetId", type = "string", description = "Element ID of the classifier for member end 2 (e.g. the role concept)", required = true)
+    @McpToolArgument(name = "parentId", type = "string", description = "Element ID of the parent package to contain the element")
+    @McpToolArgument(name = "stereotype", type = "string", description = "Optional stereotype name to apply to the element")
+    @McpToolArgument(name = "documentation", type = "string", description = "Optional documentation text stored as a comment")
+    Map createAssociationClass(Map<String, Object> args) {
+        def name = args.get("name") as String
+        def sourceId = args.get("sourceId") as String
+        def targetId = args.get("targetId") as String
+        def parentId = args.get("parentId") as String
+        def stereotype = args.get("stereotype") as String
+        def documentation = args.get("documentation") as String
+
+        if (!name) return [error: "name is required"]
+        if (!sourceId) return [error: "sourceId is required"]
+        if (!targetId) return [error: "targetId is required"]
+
+        def project = getProject()
+        def source = resolveElement(sourceId)
+        def target = resolveElement(targetId)
+        if (source == null) return [error: "Source element not found: " + sourceId]
+        if (target == null) return [error: "Target element not found: " + targetId]
+
+        def roErr = writableCheck(source)
+        if (roErr != null) return roErr
+        roErr = writableCheck(target)
+        if (roErr != null) return roErr
+
+        def ef = getFactory()
+        def ac = null
+        def sm = SessionManager.getInstance()
+        sm.createSession(project, "create_association_class")
+        try {
+            ac = ef.createAssociationClassInstance()
+            if (ac instanceof NamedElement) {
+                ((NamedElement) ac).setName(name)
+            }
+            def ends = ac.getOwnedEnd()
+            if (ends.size() >= 1) {
+                ends.get(0).setType((Type) source)
+            }
+            if (ends.size() >= 2) {
+                ends.get(1).setType((Type) target)
+            }
+            if (parentId) {
+                def owner = resolveElement(parentId)
+                if (owner != null) ModelElementsManager.getInstance().addElement(ac, owner)
+            } else {
+                def owner = source.getOwner() ?: source
+                if (owner instanceof Namespace) {
+                    ModelElementsManager.getInstance().addElement(ac, owner)
+                }
+            }
+
+            if (stereotype != null && !stereotype.isEmpty()) {
+                def st = findStereotype(stereotype)
+                if (st != null) {
+                    StereotypesHelper.addStereotype(ac, st)
+                } else {
+                    sm.cancelSession(project)
+                    return [error: "Stereotype not found: " + stereotype]
+                }
+            }
+
+            if (documentation != null && !documentation.isEmpty()) {
+                com.nomagic.magicdraw.uml2.Elements.setComment(ac, documentation)
+            }
+
+            sm.closeSession(project)
+        } catch (Exception e) {
+            sm.cancelSession(project)
+            return [error: e.getClass().getName() + ": " + (e.getMessage() ?: "")]
+        }
+
+        def endIds = []
+        try {
+            for (e in ac.getOwnedEnd()) endIds.add(e.getID())
+        } catch (ignored) {}
+
+        return [
+            id: ac.getID(),
+            name: name,
+            type: "AssociationClass",
+            stereotype: stereotype,
+            parentId: parentId,
+            memberEndIds: endIds
+        ]
+    }
+
+    def collectAllProperties(Stereotype st) {
+        def result = []
+        def seen = new HashSet()
+        def visited = new HashSet()
+        def stack = []
+        stack.add(st)
+        while (!stack.isEmpty()) {
+            def cur = stack.remove(stack.size() - 1)
+            if (cur == null || !visited.add(cur)) continue
+            for (def p : cur.getOwnedAttribute()) {
+                def name = p.getName()
+                if (!seen.contains(name)) {
+                    seen.add(name)
+                    result.add(p)
+                }
+            }
+            for (def gen : cur.getGeneral()) {
+                if (gen instanceof Stereotype) stack.add(gen)
+            }
+        }
+        return result
+    }
+
     @McpTool(name = "set_tagged_values", description = "Set tagged values (stereotype properties) on an element. The element must have the specified stereotype applied; if not, it will be applied automatically. Pass a map of tag names to values. For SAF requirement id/text, use saf_set_requirement_tags instead.")
     @McpToolArgument(name = "elementId", type = "string", description = "Element ID of the target element", required = true)
     @McpToolArgument(name = "stereotype", type = "string", description = "Name of the stereotype whose tagged values to set", required = true)
@@ -367,14 +481,48 @@ class ElementCrud {
             }
         }
 
+        // Tag definitions: find the owning Property for each tag name to decide
+        // whether the value must be an Element reference (resolve by ID) or a
+        // plain value (enum literal name / string / number). Walk the
+        // generalization closure so inherited properties (e.g. SysML Viewpoint
+        // 'purpose'/'presentation' on SCM_Viewpoint) resolve too.
+        def tagProps = [:]
+        for (def p : collectAllProperties(stereo)) {
+            tagProps[p.getName()] = p
+        }
+
+        def resolveTagValue = { Property tagProp, def v ->
+            if (v == null) return v
+            def t = tagProp?.getType()
+            def isElementTyped = t != null && !(t instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Enumeration) &&
+                    !(t instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.PrimitiveType) &&
+                    !(t instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.DataType)
+            if (!isElementTyped) return v
+            if (v instanceof Collection) {
+                return v.collect { it ->
+                    def e = resolveElement(it as String)
+                    if (e == null) throw new RuntimeException("Element not found for tag value: " + it)
+                    return e
+                }
+            }
+            def el = resolveElement(v as String)
+            if (el == null) throw new RuntimeException("Element not found for tag value: " + v)
+            return el
+        }
+
         def setCount = 0
         def sm = SessionManager.getInstance()
         sm.createSession(project, "set_tagged_values")
         try {
             for (entry in values.entrySet()) {
                 def tagName = entry.getKey() as String
-                def tagValue = entry.getValue()
-                StereotypesHelper.setStereotypePropertyValue(element, stereo, tagName, tagValue)
+                def tagProp = tagProps[tagName]
+                def tagValue = resolveTagValue(tagProp, entry.getValue())
+                if (tagProp != null) {
+                    StereotypesHelper.setStereotypePropertyValue(element, stereo, tagProp, tagValue)
+                } else {
+                    StereotypesHelper.setStereotypePropertyValue(element, stereo, tagName, tagValue)
+                }
                 setCount++
             }
             sm.closeSession(project)
@@ -397,7 +545,7 @@ class ElementCrud {
         def tags = []
         for (st in StereotypesHelper.getStereotypes(el)) {
             try {
-                for (p in st.getAttribute()) {
+                for (p in collectAllProperties(st)) {
                     def vals
                     try {
                         vals = StereotypesHelper.getStereotypePropertyValue(el, st, p.getName())
@@ -534,16 +682,35 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
                     def gen = ef.createGeneralizationInstance()
                     gen.setSpecific((Classifier) source)
                     gen.setGeneral((Classifier) target)
+                    // SCM rule: always pass ownerId = the SPECIFIC classifier so the
+                    // generalization is owned by it (unowned generalizations cannot be
+                    // re-found by id reliably and violate model hygiene).
+                    if (ownerId) {
+                        def owner = resolveElement(ownerId)
+                        if (owner != null) ModelElementsManager.getInstance().addElement(gen, owner)
+                    }
                     rel = gen
                     break
                 case "association":
                     def assoc = ef.createAssociationInstance()
                     def ends = assoc.getOwnedEnd()
-                    if (ends.size() >= 1) {
-                        ends.get(0).setType((Type) source)
-                    }
-                    if (ends.size() >= 2) {
-                        ends.get(1).setType((Type) target)
+                    if (ends == null || ends.isEmpty()) {
+                        // A fresh createAssociationInstance() has NO owned ends: create the two
+                        // member ends explicitly as Properties and type them against source/target
+                        // so the association is structurally valid ('Relationship has no client').
+                        def endA = ef.createPropertyInstance()
+                        def endB = ef.createPropertyInstance()
+                        endA.setType((Type) source)
+                        endB.setType((Type) target)
+                        assoc.getMemberEnd().add(endA)
+                        assoc.getMemberEnd().add(endB)
+                    } else {
+                        if (ends.size() >= 1) {
+                            ends.get(0).setType((Type) source)
+                        }
+                        if (ends.size() >= 2) {
+                            ends.get(1).setType((Type) target)
+                        }
                     }
                     if (ownerId) {
                         def owner = resolveElement(ownerId)
@@ -554,12 +721,22 @@ IMPORTANT: 'composition' here creates a package-level Association whose second e
                 case "composition":
                     def assoc2 = ef.createAssociationInstance()
                     def ends2 = assoc2.getOwnedEnd()
-                    if (ends2.size() >= 1) {
-                        ends2.get(0).setType((Type) source)
-                    }
-                    if (ends2.size() >= 2) {
-                        ends2.get(1).setType((Type) target)
-                        ends2.get(1).setAggregation(com.nomagic.uml2.ext.magicdraw.classes.mdkernel.AggregationKindEnum.COMPOSITE)
+                    if (ends2 == null || ends2.isEmpty()) {
+                        def endA = ef.createPropertyInstance()
+                        def endB = ef.createPropertyInstance()
+                        endA.setType((Type) source)
+                        endB.setType((Type) target)
+                        endB.setAggregation(com.nomagic.uml2.ext.magicdraw.classes.mdkernel.AggregationKindEnum.COMPOSITE)
+                        assoc2.getMemberEnd().add(endA)
+                        assoc2.getMemberEnd().add(endB)
+                    } else {
+                        if (ends2.size() >= 1) {
+                            ends2.get(0).setType((Type) source)
+                        }
+                        if (ends2.size() >= 2) {
+                            ends2.get(1).setType((Type) target)
+                            ends2.get(1).setAggregation(com.nomagic.uml2.ext.magicdraw.classes.mdkernel.AggregationKindEnum.COMPOSITE)
+                        }
                     }
                     if (ownerId) {
                         def owner = resolveElement(ownerId)
