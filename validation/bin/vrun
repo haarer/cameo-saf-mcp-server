@@ -374,6 +374,20 @@ if [[ "$HEALTH" == "degraded" && -z "$REASON" ]]; then REASON="unknown"; fi
 TS_END=$(date -u +%s%3N)
 WALL_MS=$((TS_END - TS_START))
 PLUGIN_COMMIT=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+# The repo commit is NOT what the run was scored against. The running plugin serves its own
+# deployed copy, and the two drift apart on every script edit that is not deployed -- on
+# 2026-09-26 they differed by a whole tool. Hash the deployed scripts, so a run record says
+# which surface the agent actually got rather than which one the repo happens to hold.
+DEPLOYED_SCRIPTS="${CAMEO_HOME:-/workspace/MSOSAref1}/plugins/com.haarer.saf.mcpserver/scripts"
+if [[ -d "$DEPLOYED_SCRIPTS" ]]; then
+  PLUGIN_SCRIPTS_SHA=$(find "$DEPLOYED_SCRIPTS" -maxdepth 1 -name '*.groovy' -type f -print0 \
+    | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+  PLUGIN_SCRIPTS_N=$(find "$DEPLOYED_SCRIPTS" -maxdepth 1 -name '*.groovy' -type f | wc -l)
+else
+  PLUGIN_SCRIPTS_SHA="unavailable"; PLUGIN_SCRIPTS_N=0
+fi
+# And hash the manifest the score is attributed to, so the record is self-describing.
+if [[ -f "$SURFACE" ]]; then SURFACE_SHA=$(sha256sum "$SURFACE" | cut -d' ' -f1); else SURFACE_SHA="missing"; fi
 EVENTS=$(wc -l < "$RUN_DIR/trajectory.jsonl" 2>/dev/null || echo 0)
 
 jq -n \
@@ -382,6 +396,8 @@ jq -n \
   --arg base_url "$BSETTING" --argjson ctx "$CTX" --argjson max_out "$MAXOUT" \
   --arg model_file "$MODEL_FILE" --arg mcp_url "$CAMEO_MCP_URL" --arg api_url "$CAMEO_API_URL" \
   --arg plugin_commit "$PLUGIN_COMMIT" --arg health "$HEALTH" --arg reason "$REASON" \
+  --arg plugin_scripts_sha "$PLUGIN_SCRIPTS_SHA" --argjson plugin_scripts_n "$PLUGIN_SCRIPTS_N" \
+  --arg surface_sha "$SURFACE_SHA" \
   --argjson rc "$RC" --argjson wall_ms "$WALL_MS" --argjson events "$EVENTS" \
   --argjson tools_live "$N_ALL" --argjson tools_enabled "$N_SEL" --argjson admin_withheld "$N_HIDDEN" \
   --argjson enabled "$APPLIED" \
@@ -389,7 +405,9 @@ jq -n \
   '{ts:$ts, task:$task, variant:$variant, surface:$surface, rep:($rep|tonumber),
     controls:{model_key:$model_key, model_id:$model_id, base_url:$base_url, context:$ctx,
               max_output:$max_out, mcp_url:$mcp_url, api_url:$api_url,
-              plugin_commit:$plugin_commit, model_file:$model_file},
+              plugin_commit:$plugin_commit, plugin_scripts_sha:$plugin_scripts_sha,
+              plugin_scripts_n:$plugin_scripts_n, surface_sha:$surface_sha,
+              model_file:$model_file},
     surface_shape:{tools_live:$tools_live, tools_enabled:$tools_enabled,
                    admin_withheld:$admin_withheld, enabled:$enabled},
     health:$health, reason:$reason, rc:$rc, wall_ms:$wall_ms, events:$events,

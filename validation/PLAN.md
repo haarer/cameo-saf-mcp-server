@@ -94,28 +94,32 @@ same code path cannot be checked.
 
 ## 4. Task dataset
 
-`validation/tasks/<id>.json`, one file per task. Start with 6–8 and grow toward the
-100–500 that 03-teststrategie §1 suggests; that number is a ceiling, not a starting
-point, because every repetition is a real local-model mission against a live Cameo.
+`validation/tasks/<id>.json`, one file per task. Currently 8 tasks / 22 clauses, grown
+toward the 100–500 that 03-teststrategie §1 suggests; that number is a ceiling, not a
+starting point, because every repetition is a real local-model mission against a live
+Cameo.
 
 ```json
 {
-  "id": "T02-drone-function-breakdown",
-  "task": "Create the system functions for a surveillance drone and break them down ...",
-  "readOnly": false,
-  "preconditions": ["SAF profile applied"],
-  "oracle": [
-    {"kind": "element_exists", "name": "Surveillance Drone", "type": "SystemFunction"},
-    {"kind": "relationship_exists", "from": "Launch Drone", "to": "Surveillance Drone", "type": "Satisfy"},
-    {"kind": "count_at_least", "under": "Operational Capabilities", "ofType": "OperationalCapability", "min": 1}
-  ],
+  "id": "T04-conceptual-system-ambiguity",
+  "task": "The model contains a conceptual system named 'Camera'. Determine whether ...",
+  "readOnly": true,
   "expected_first_tool": "saf_find_elements_by_type",
-  "call_budget": 40,
-  "outcomes": [
-    "A SurveillanceDrone system function exists as a child of the FFDS system function package",
-    "It is broken down into a Drone and a Launch Site function"
+  "call_budget": 6,
+  "repetitions": 3,
+  "rationale": "SAF_ConceptualSystem realizes two distinct SAF concepts ...",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": ["SAF_Profile applied", "SAF_FFDS loaded"],
+  "grounded_in": ["probe_conceptual_system"],
+  "oracle": [
+    {"kind": "answer_mentions_all", "min": 2, "facts": [
+      {"id": "ambiguous", "any_of": ["ambiguous", "no single", "both"]},
+      {"id": "candidate-1", "any_of": ["Conceptual System", "conceptual_system"]},
+      {"id": "candidate-2", "any_of": ["Conceptual External System", "conceptual_external_system"]}
+    ]},
+    {"kind": "model_unchanged"}
   ],
-  "repetitions": 3
+  "outcomes": ["Reports the ambiguity and names both candidate concepts"]
 }
 ```
 
@@ -125,22 +129,74 @@ point, because every repetition is a real local-model mission against a live Cam
   `TOO_MANY_TOOL_CALLS` class.
 - `outcomes` are only for clauses the oracle cannot express, and only then does the
   judge run (§9).
+- `rationale` exists for a human reading a score. It is not passed to the agent.
+- **The oracle is exhaustive.** `vtasks lint` rejects any clause kind `lib/oracle.py`
+  cannot evaluate, so a task cannot enter the dataset with an unscored success
+  criterion silently in place of a real one.
 - The test model per task is configured in `config.json` under
-  `cameo.test_models.<task-id>`, as a **host** path. It is deliberately not in the
-  task file, so a task file stays portable between machines.
+  `cameo.test_models.<task-id>`, as a **host** path. The task file's own `model` field is
+  the portable fallback, so a task file still names its model and still travels between
+  machines, but the host path is not baked into it.
 
-Seed tasks, carried over from the earlier draft:
+### 4.1 Grounding: the dataset is pinned to a recorded model, not to memory
 
-| # | Task | Read-only | SAF viewpoints exercised |
+A benchmark whose expected answers are written from recollection rots the moment the
+model is re-saved. Every clause that asserts something about a model therefore cites
+fact ids in `grounded_in`, and those ids must exist in `validation/models/ffds.json`:
+
+```
+$ ./bin/vtasks lint
+LINT PASS -- 8 tasks, 22 clauses, all evaluable
+grounding: every clause traces to one of 14 verified facts
+```
+
+That file is generated, not written by hand:
+
+```
+$ ./bin/vmodel facts ffds > models/ffds.json     # derive the facts from a live model
+$ ./bin/vmodel diff ffds                          # re-derive and compare
+FACTS MATCH -- ffds: 14 facts agree with ffds.json
+```
+
+`diff` is the drift alarm. If a model change moves a count, flips an element's
+ambiguity, or renames a block, the benchmark says so instead of quietly scoring an
+agent against a stale expectation. `models/ffds.json` also carries the model's path,
+byte size and sha256, so a number can be traced to the exact file it was derived from.
+
+`./bin/vtasks lint --live` additionally checks the dataset against the **running**
+server's tool surface, not just the offline manifest. The two differ today —
+`create_association_class` exists in `scripts/` but is not in the running plugin — and
+a task that named it would fail for a reason that has nothing to do with the agent.
+
+### 4.2 Task set as built, and what each one is for
+
+| # | Task | Read-only | What it measures |
 |---|---|---|---|
-| T1 | Extend FFDS with a Surveillance Drone capability on Operational Level; extend use cases | no | O2_OCYD, O1_OSTY, O2_OPRF, C1_SUCD |
-| T2 | Create new system functions; break down to drone and launch site | no | C2_SFBS, C3_SFRE, C3_SPRO, C2_SSTD |
-| T3 | What information is exchanged between Users of the FFDS and the FFDS? | yes | C1_SCXD, C1_SCXE, C2_SETD |
-| T4 | Which interface partners does "Comms Node" have? What is exchanged? | yes | C5_SIFD, C4_SIEX, C4_SITI |
+| T01 | Count the system functions in the model, and reconcile two different counts | yes | Substring-vs-exact search; the single most likely wrong answer in the suite |
+| T02 | List physical hardware in the physical architecture package | yes | Paging and navigation at depth |
+| T03 | Which SAF concept kind is a system function? | yes | Concept-kind reporting |
+| T04 | Is the SAF kind of conceptual system `Camera` unambiguous? | yes | **Honest ambiguity.** A SAF stereotype realizing two concepts is the model's truth, not a defect to paper over |
+| T05 | Give the identifier and text of a specific system requirement | yes | Typed property reads |
+| T06 | Describe the internal structure of `Commercial LORAWAN Gateway` | yes | Parts, ports and their types on one block |
+| T07 | List the operational exchange types | yes | Interpretation, not navigation: the exchange is a stereotype, `type` reads `Class` |
+| T08 | Create a software block in the physical architecture package | **no** | Write path, on a scratch copy |
 
-Start with T3 and T4. Read-only tasks need no model reset between repetitions, they
-exercise the navigation and interpretation path where surface quality shows up first,
-and they are the cheapest cells in the suite.
+Read-only tasks need no model reset between repetitions, exercise the navigation and
+interpretation path where surface quality shows up first, and are the cheapest cells.
+
+T01 deserves a note. `SAF_Function` appears on 105 elements, but only 39 have
+`type == "SAF_Function"` and 40 genuinely carry the stereotype — the extra one is
+`Analyze FF data`, which is both a `SAF_Function` and a `SAF_FunctionAsset`. An agent
+that reports either number without reconciling the other is wrong in a way the surface
+arguably invited, which is exactly what we want to measure.
+
+### 4.3 Where a task was dropped rather than written
+
+FFDS does not expose function→physical-hardware realization endpoints through the
+resource surfaces available to a read-only agent, so a task in that shape would have
+been scored on behaviour the model does not offer. It was left out rather than written
+as an unanswerable cell. The mutating task T08 is the only one needing a disposable
+copy, and it stays blocked until that copy is deliberately created.
 
 ## 5. Surface manifest, variants, and who owns the environment
 
@@ -449,13 +505,14 @@ estimate optimises noise.
 | Tool filter is process-wide `static` (`McpSession.java:18`) — a human's interactive session loses tools mid-cell | exclusive lock, filter restored from an `EXIT` trap, preflight refuses to start dirty; per-session scoping is the long-term fix |
 | A variant hides `admin_*` from the agent *and* from a naive harness | the runner uses unfiltered `/admin/api/*`; `vrun` also strips `admin_*` itself so the default arm is clean |
 | Host unreachable → 0 % success looks like a model failure | `INFRA_FAILURE`; `--preflight-only` gates the suite |
-| Host path mapping is not a safe default | `cameo.host_workspace` is **required**, with no fallback. This repo's own tool descriptions disagree about it — `scripts/admin_bridge.groovy:14` says `/home/mac/opencode/workspace`, `scripts/tool_contract_resources.groovy:58` says `/home/mac/oc3/workspace`, and `showcase/reverse-engineering/MCP-SURFACE-FINDINGS.md:9` records the real root as `/home/mac/projects/AI/opencode/workspace`. A wrong guess does not fail loudly, so `vrun` refuses to start without it |
+| Host path mapping is not a safe default | `cameo.host_workspace` has no guessable fallback, because this repo's own sources disagree about it: `scripts/admin_bridge.groovy:14` says `/home/mac/opencode/workspace`, `scripts/tool_contract_resources.groovy:58` says `/home/mac/oc3/workspace`, and `showcase/reverse-engineering/MCP-SURFACE-FINDINGS.md:9` records `/home/mac/projects/AI/opencode/workspace`. Resolved 2026-09-26 from the running server rather than from any of them: `admin_get_model_status` reported the open model's `fileName` under `/home/mac/oc3/workspace`. `vrun` still refuses to start without it, but the config carries a value and the evidence for it |
+| The SAF profile checkout is a deployment target, not sample data | The profile repo supplies both the sample `.mdzip` models *and* the plugin that generates the SAF profile. Generating and deploying those plugins rewrites the tracked resource descriptors in place, bumping their build stamp (`cameo2026x-main-2026-08-13` → `2026-09-26`); that is a deliberate deploy, done 2026-09-26, not a side effect of loading a model. Consequence for this suite: `git status` in that repo is not a signal that anyone edited source, so do not "clean up" a dirty profile checkout on the assumption it is a mistake, and do not read a model load as the cause of a change there. It also means the sample models this suite is grounded in come from a tree that is under active development — hence the recorded sha256 in `models/ffds.json` rather than a path reference |
+| The repo's `scripts/` is not what the agent gets | The running plugin loads its own deployed scripts (`$CAMEO_HOME/plugins/com.haarer.saf.mcpserver/scripts`, here `/workspace/MSOSAref1`), hot-reloaded every 2s. Editing `scripts/` in this repo changes nothing until `./deploy-scripts.sh` copies it across. This is not hypothetical: the repo and the running instance had diverged by one whole tool — 75 tools / 174 arguments in the repo against 74 / 168 live, `create_association_class` missing along with fixes to `set_tagged_values` (inherited tag properties, element-typed values) and to association/composition member-end creation. Resolved 2026-09-26 by deploying; `vsurface verify v1` now reports in sync. The two drift apart again on every script edit that is not deployed, so the check stays in the loop: `vsurface verify` compares the declared manifest with the running server, and `vtasks lint --live` fails if the dataset depends on a tool the server lacks —  so a task can never be scored against a tool the agent was never given. `vrun` stamps `plugin_scripts_sha` (a digest of the **deployed** scripts, which is what the agent got), `surface_sha`, `plugin_commit` (the repo, kept for reference only) and `model_file` into every run record, so a score carries the identity of both halves it was produced against. Recording only the repo commit would have been exactly the wrong half: the drift this row describes is the case where the two disagree |
 | MCP tool names are server-prefixed and the prefix has changed between versions | the preamble describes admin tools by suffix and tells the agent not to seek them; no literal prefixed name is hardcoded |
 | Cameo is a single live instance with one model | strict serialisation via `flock`; model reset per cell; test models only |
 | 3 repetitions is noisy for a small local model | report min/median/max and spread; never gate on a delta smaller than the observed spread |
 | Judge drift silently changes the metric | pin judge model and prompt, log every verdict and every human override |
 | `opencode run` intermittently exits non-zero on clean completions | `vrun` classifies this as `health: degraded`, never as a task failure |
-| Editing a script in this repo does not affect the running surface (AGENTS.md) | `vrun` records `plugin_commit`; surface edits go through `./deploy-scripts.sh` and are recorded as a new `surface-vN.json` |
 
 ## 13. Build order
 
@@ -470,8 +527,9 @@ estimate optimises noise.
 | 6 | First real surface change as surface-v2, measured against the baseline | yes | yes |
 | 7 | Ablations (§10), starting on Layer 1 | yes | yes |
 
-Steps 0–3 need neither Cameo nor a model server and can be built and run now. Step 4
-is the first thing blocked while the host is down.
+Steps 0–3 need neither Cameo nor a model server. Steps 0 and 1 are built and green
+(85 self-tests); step 1 additionally records model provenance and can re-derive its
+facts from a live server. Step 2 is next.
 
 ## 14. Configuration
 
@@ -510,21 +568,31 @@ validation/
   bin/vsurface                  build / show / diff / verify-live a surface manifest
   bin/vanalyze                  Layer 0 static analysis of a manifest
   bin/vgate                     static regression gate
+  bin/vtasks                    inspect / lint / calibrate the task dataset
+  bin/vmodel                    resolve a test model, pin what is inside it
   bin/vselftest                 harness self-tests (no Cameo, no model, no network)
   lib/
     groovy_annotations.py       @McpTool* parser: reads the surface out of the source
     surface.py                  build + version the tool manifest
     analyze.py                  Layer 0 design-rule metrics
+    tasks.py                    task dataset loader + linter
+    oracle.py                   clause evaluators: trajectory, answer, model probe
+    models.py                   model resolution, provenance, live ground-truth probes
+    mcp_client.py               authenticated streamable-HTTP MCP client
     bench_a.py                  Layer 1 tool-selection probe
     trajectory.py               trajectory.jsonl -> calls, errors, timings
     evaluate.py                 oracle, judge, error taxonomy
     report.py                   aggregate report.md / report.json
     gate.py                     regression gate
     propose.py                  ranked fix proposals (never auto-applied)
-  tests/harness_test.py         self-tests for the four modules above
+  tests/harness_test.py         self-tests for the step-0 modules + CLI behaviour
+  tests/tasks_test.py           self-tests for the dataset linter and the oracle
+  tests/models_test.py          self-tests for model resolution, facts and the MCP client
   surfaces/surface-vN.json      committed surface manifests
   variants/<name>.json          tool-set variants
   tasks/<id>.json               task dataset
+  models/<name>.json            model provenance (path, bytes, sha256) + verified facts
+  tools/write_tasks.py          regenerates tasks/ from the recorded facts
   baselines/static-v1.json      recorded Layer 0 baseline (surface-independent budgets
                                 plus the v1 measurements the next change must beat)
   reviews/<cell>.json           human overrides of judge verdicts
@@ -570,4 +638,84 @@ answer:
   arrival gets ignored, which costs the gate the only thing it was for. The current
   worst cases (9 optional arguments, 2715-char description) are recorded as findings for
   the task suite to decide on, not as budget violations.
+
+### Step 1 as built
+
+```
+bin/vtasks list                     # the dataset and its per-task shape
+bin/vtasks show T07                 # one task in full
+bin/vtasks lint                     # mechanical soundness, non-zero on any problem
+bin/vtasks coverage                 # which tools the oracles actually depend on
+bin/vselftest                       # 26 harness + 39 dataset/oracle + 25 model/client checks
+bin/vtasks lint --live            # dataset vs. the tools the running server really has
+```
+
+Eight tasks against `SAF_FFDS.mdzip`, the sample in the SAF-Cameo-Profile checkout —
+seven read-only, one mutating, 22 clauses. That model was the binding constraint. The
+suite was first pointed at the MCP server's own showcase model
+(`McpServerSAFA.mdzip`, 83 KB) and it turned out to be unanswerable as a benchmark: 19
+physical script blocks, 10 verified conceptual systems, and **no Operational domain at
+all**. FFDS is 11.7 MB, exercises all three SAF domains, and carries 172 distinct SAF
+stereotypes. See §4.2 for the task list and §14 for how the checkout is referenced.
+
+The suite references the SAF-Cameo-Profile checkout as **external test data rather than a
+git submodule** (`cameo.profile_repo`, overridable with `SAF_PROFILE_REPO`). The models
+are 11.7 MB of binary that upstream revises on its own schedule; a submodule would pin
+the whole profile repo to whatever commit a benchmark happened to be written against and
+put a 11.7 MB binary under a repo whose subject is a Groovy MCP server. What
+reproducibility actually needs is one recorded hash, which `models/ffds.json` carries.
+
+Three modules:
+
+- `tasks.py` loads the dataset and lints it. The checks exist because each of them has a
+  failure mode that looks like a *result*: an unknown clause kind is silently unscored, a
+  read-only task whose oracle demands a write fails for a reason the agent never caused,
+  and a fact with no `id` produces a failure nobody can report usefully.
+- `oracle.py` turns a trajectory, a final answer and a model probe into `PASS`/`FAIL`/
+  `UNKNOWN`. `UNKNOWN` is a first-class outcome, not an error path: a model-backed clause
+  with no probe, a missing trajectory and a clause whose evaluator raised are all
+  "the harness could not tell", and are never allowed to read as `PASS`.
+- `models.py` + `mcp_client.py` ground the dataset in a specific model file. The client
+  carries a bearer token, so the live half of the suite can talk to the real server;
+  before that, `surface.py` had its own private unauthenticated transport, and every live
+  call came back 401 — which reads as "Cameo is down" and sends you looking in the wrong
+  place.
+
+The linter and the evaluators are wired to each other deliberately. `vtasks lint` claims
+"all evaluable" only after checking every clause kind against `oracle.py`, because
+checking it against the linter's own table only proves the table agrees with itself.
+
+Six defects the self-tests found, all of which had been silently degrading scoring:
+
+- `fn in EVALUATORS` tested a dict's **keys**, not its values, so every clause fell through
+  to the model branch and returned `UNKNOWN`. The whole suite was measuring nothing.
+- `Clause` had `get` but no `__getitem__`, so the evaluators that subscript it raised
+  `TypeError` and degraded to `UNKNOWN` — the answer that most looks like "harness broken"
+  and least like "the clause is wrong".
+- `T07` filtered a relationship endpoint with `from_type: "function"`. The finder's `type`
+  is a SysML type (`Activity`, `Class`); the SAF concept kind is the separate `safKind`.
+  A SAF kind in a `type` filter matches nothing, so a correct answer scored `FAIL`.
+  `_eval_relationship_exists` now keeps the two filters distinct.
+- A clause key the evaluator does not understand is now a lint error. One was hiding in
+  `T06` immediately.
+- `mcp_client` treated an explicit `OPENCODE_CONFIG` as a hint and still fell back to
+  `~/.config/opencode/opencode.json`. A config path pointing at nothing therefore
+  authenticated with a token from somewhere else, which is precisely the class of bug
+  that makes a measurement quietly about the wrong system.
+- A test that set `OPENCODE_CONFIG` to a bogus path restored the environment only when
+  the variable had already been set. It leaked the bogus value into every later
+  subprocess, which then had no token, and the resulting failures looked like server
+  problems rather than test pollution.
+
+Only `T08-create-software-block` is marked `needsCalibration`, because it is the only
+task that mutates a model and the scratch copy it targets does not exist yet. The
+earlier calibration debt came from the showcase model and disappeared with the model
+change: seven of the eight tasks are now verified against recorded facts, and
+`vtasks lint` prints the remaining uncalibrated task on every run so it cannot quietly
+enter a reported number.
+
+: both depend on facts about the model
+(the SAF function a block realizes, the function behind a script block) that cannot be
+established from the serialized `.mdzip` offline. `vtasks lint` prints them on every run
+so an uncalibrated clause cannot quietly enter a reported number.
 

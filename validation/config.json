@@ -1,45 +1,46 @@
 {
-  "_about": "Validation suite config. Every value here is environment-specific -- do not commit a filled-in copy with secrets or machine paths you do not want shared. Env vars of the same name in UPPER_SNAKE override the values below.",
-
+  "_about": "Validation suite config. Every value here is environment-specific -- do not commit a filled-in copy with secrets or machine paths you do not want shared. Env vars of the same name in UPPER_SNAKE override the values below. Model provenance (path + sha256) is recorded per model under models/*.json; `bin/vmodel diff ffds` re-derives the facts and reports any drift.",
   "cameo": {
     "mcp_url": "http://host.containers.internal:18750/mcp",
     "admin_url": "http://host.containers.internal:18750",
     "api_url": "http://host.containers.internal:8600",
-
-    "_host_workspace": "REQUIRED. The path prefix the HOST running Cameo uses for this workspace. The container sees /workspace; Cameo does not. There is NO safe default: this repo's own tool descriptions disagree with each other about it (scripts/admin_bridge.groovy says /home/mac/opencode/workspace, scripts/tool_contract_resources.groovy says /home/mac/oc3/workspace, and showcase/reverse-engineering/MCP-SURFACE-FINDINGS.md records the real root as /home/mac/projects/AI/opencode/workspace). Set CAMEO_HOST_WORKSPACE to the true value.",
-    "host_workspace": "",
-
+    "_host_workspace": "RESOLVED 2026-09-26 from the running server, not from the sources: admin_get_model_status reported the open model's fileName as /home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip. This matches scripts/tool_contract_resources.groovy and contradicts scripts/admin_bridge.groovy, which says /home/mac/opencode/workspace. Override with CAMEO_HOST_WORKSPACE if your checkout lives elsewhere.",
+    "host_workspace": "/home/mac/oc3/workspace",
     "local_workspace": "/workspace",
     "models_dir": "models-test",
-
-    "_test_models": "Test models only, keyed by task id. Values are paths AS THE HOST SEES THEM (use host_workspace). Never point a task at a real model.",
+    "_test_models": "Test models keyed by task id. Values are paths AS THE HOST SEES THEM. The read-only tasks all use the SAF profile's FFDS sample: it exercises all three SAF domains and is 140x the size of the MCP-server showcase model this suite was originally pointed at. The mutating task uses a scratch COPY that must be created deliberately -- see tasks/T08-create-software-block.json.",
     "test_models": {
-      "T01-drone-capability": "",
-      "T03-context-exchange": "",
-      "T04-comms-node-interfaces": ""
-    }
+      "T01-function-count": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T02-hardware-enumeration": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T03-function-saf-kind": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T04-conceptual-system-ambiguity": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T05-requirement-id-and-text": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T06-block-structure": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T07-operational-exchanges": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+      "T08-create-software-block": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.scratch.mdzip"
+    },
+    "_profile_repo": "Container-side path of the SAF-Cameo-Profile checkout, which supplies the sample models the task dataset is grounded in. The suite references a checkout rather than vendoring the models as a git submodule: they are 11.7 MB of binary that upstream revises on its own schedule, and a recorded sha256 (see models/*.json) is the reproducibility we actually need. Override with SAF_PROFILE_REPO.",
+    "profile_repo": "/workspace/SAF-Cameo-Profile"
   },
-
   "models": {
     "_about": "Catalogue of local models under test, keyed by a short name passed to --model. Populate with the models you actually want on the scaling curve. 'provider' + 'base_url' + 'model' + 'context' + 'max_output' are written verbatim into the per-run opencode.json.",
     "default": "",
     "entries": {}
   },
-
   "run": {
     "timeout_seconds": 2700,
     "auto_permissions": true,
-    "containment_allowlist": ["/tmp/opencode"],
+    "containment_allowlist": [
+      "/tmp/opencode"
+    ],
     "settle_after_reset_secs": 3,
     "repetitions_default": 3
   },
-
   "surface": {
     "manifest_dir": "surfaces",
     "variant_dir": "variants",
     "default_variant": "full"
   },
-
   "output": {
     "dir": "output",
     "keep_scratch": false

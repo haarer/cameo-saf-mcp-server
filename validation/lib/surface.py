@@ -129,43 +129,24 @@ def from_scripts(script_dir: pathlib.Path | None = None) -> dict:
 # ---------------------------------------------------------------- live server
 
 def from_live(mcp_url: str, timeout: int = 30) -> dict:
-    """Read tools/list, resources/list and prompts/list from a running server."""
-    import urllib.error
-    import urllib.request
+    """Read tools/list, resources/list and prompts/list from a running server.
 
-    def post(payload: dict, sid: str | None = None):
-        req = urllib.request.Request(mcp_url, data=json.dumps(payload).encode())
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Accept", "application/json, text/event-stream")
-        if sid:
-            req.add_header("Mcp-Session-Id", sid)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", "replace")
-            return resp.headers.get("mcp-session-id"), _unwrap(raw)
+    Goes through mcp_client so it carries the bearer token. The previous private
+    urlopen loop omitted it, so every live call against the real server came back 401
+    -- which reads as "Cameo is down" and sends you looking in the wrong place.
+    """
+    import mcp_client
 
-    def _unwrap(raw: str):
-        raw = raw.strip()
-        if raw.startswith("{"):
-            return json.loads(raw)
-        for line in raw.splitlines():          # text/event-stream framing
-            if line.startswith("data:"):
-                return json.loads(line[5:].strip())
-        raise ValueError(f"unrecognised MCP response: {raw[:200]!r}")
+    c = mcp_client.Client(mcp_url, timeout=timeout).connect()
 
-    sid, body = post({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                      "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                                 "clientInfo": {"name": "validation-harness", "version": "1.0.0"}}})
-    post({"jsonrpc": "2.0", "method": "notifications/initialized"}, sid)
-
-    def listed(method: str) -> list:
+    def listed(method: str, key: str) -> list:
         try:
-            _, b = post({"jsonrpc": "2.0", "id": 2, "method": method}, sid)
-            return b.get("result", {}).get(method.split("/")[1], []) or []
-        except urllib.error.URLError:
+            return c.rpc(method).get(key, []) or []
+        except mcp_client.McpError:
             return []
 
     tools = []
-    for t in listed("tools/list"):
+    for t in listed("tools/list", "tools"):
         schema = t.get("inputSchema") or {}
         props = schema.get("properties") or {}
         required = set(schema.get("required") or [])
@@ -183,16 +164,25 @@ def from_live(mcp_url: str, timeout: int = 30) -> dict:
 
     resources = [{"uri": r.get("uri", ""), "name": r.get("name", ""),
                   "description": r.get("description", ""),
-                  "mimeType": r.get("mimeType", "text/plain"), "decl": {}}
-                 for r in listed("resources/list")]
-    prompts = [{"name": p.get("name", ""), "description": p.get("description", ""),
-                "decl": {}} for p in listed("prompts/list")]
+                  "mimeType": r.get("mimeType", "")}
+                 for r in listed("resources/list", "resources")]
 
-    return _assemble("live-mcp", tools, resources, prompts,
+    prompts = []
+    for pr in listed("prompts/list", "prompts"):
+        prompts.append({
+            "name": pr.get("name", ""),
+            "description": pr.get("description", ""),
+            "arguments": [{"name": a.get("name", ""),
+                           "description": a.get("description", ""),
+                           "required": bool(a.get("required"))}
+                          for a in (pr.get("arguments") or [])],
+        })
+
+    c.close()
+    return _assemble("live", tools, resources, prompts,
                      source={"mcp_url": mcp_url})
 
 
-# ---------------------------------------------------------------- assembly
 
 def _assemble(source_kind: str, tools, resources, prompts,
               anomalies=None, source=None) -> dict:

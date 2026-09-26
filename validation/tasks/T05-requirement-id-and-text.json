@@ -1,0 +1,50 @@
+{
+  "id": "T05-requirement-id-and-text",
+  "title": "What does stakeholder requirement CPBLTY-12 actually say?",
+  "task": "Find the stakeholder requirement with id CPBLTY-12 and quote its text. The id and text are not in the element name, so find the requirement by search and read the field that carries them.",
+  "readOnly": true,
+  "expected_first_tool": "saf_find_elements_by_type",
+  "call_budget": 8,
+  "repetitions": 3,
+  "rationale": "Requirement id and text live on a tagged value reached through the SAF semantics layer, not on the element name or a generic dump. An agent that answers from the name alone cannot produce the text at all, which makes this a clean test of whether the deep-contract path was used.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "probe_requirement"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 1,
+      "facts": [
+        {
+          "id": "id",
+          "any_of": [
+            "CPBLTY-12"
+          ]
+        },
+        {
+          "id": "text",
+          "any_of": [
+            "100% of the terrain",
+            "monitor fire areas"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "trajectory_used",
+      "tool": "saf_get_element_semantics",
+      "min_calls": 1
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Reports id CPBLTY-12 with the terrain-monitoring text"
+  ]
+}

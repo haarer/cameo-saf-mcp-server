@@ -1,0 +1,56 @@
+{
+  "id": "T04-conceptual-system-ambiguity",
+  "title": "Is the SAF kind of the conceptual system 'Camera' unambiguous?",
+  "task": "The model contains a conceptual system named 'Camera'. Determine whether the tooling can tell you a single SAF concept kind for it. If it cannot, say which concepts it is choosing between and why that is not a defect to paper over.",
+  "readOnly": true,
+  "expected_first_tool": "saf_find_elements_by_type",
+  "call_budget": 6,
+  "repetitions": 3,
+  "rationale": "SAF_ConceptualSystem realizes two distinct SAF concepts -- Conceptual System and Conceptual External System -- so the semantics tool reports the element as ambiguous and leaves safKind empty. The correct behaviour is to report the ambiguity and both candidates. An agent that picks one and presents it as settled is fabricating, and this task is how we catch that without the model being at fault.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "probe_conceptual_system"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 2,
+      "facts": [
+        {
+          "id": "ambiguous",
+          "any_of": [
+            "ambiguous",
+            "not unambiguous",
+            "cannot be determined",
+            "no single",
+            "both"
+          ]
+        },
+        {
+          "id": "candidate-1",
+          "any_of": [
+            "Conceptual System",
+            "conceptual_system"
+          ]
+        },
+        {
+          "id": "candidate-2",
+          "any_of": [
+            "Conceptual External System",
+            "conceptual_external_system"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Reports the ambiguity and names both candidate concepts"
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "model": {
+    "path": "/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
+    "exists": true,
+    "bytes": 11740062,
+    "sha256": "197f8381ad12f7d7e27001bf2a0828c8893211fbcb19b8f4bf25e6406d10d5b1"
+  },
+  "open_model": "SAF_FFDS",
+  "facts": {
+    "saf_function_substring_hits": {
+      "value": 105,
+      "query": "saf_find_elements_by_type(stereotype=SAF_Function)"
+    },
+    "saf_function_count_by_type": {
+      "value": 39,
+      "query": "...restricted to type == SAF_Function"
+    },
+    "saf_function_count_by_stereotype": {
+      "value": 40,
+      "query": "...restricted to 'SAF_Function' in the stereotypes list",
+      "note": "39 or 40 is a genuine definitional split in the model, not a bug: one element carries both SAF_Function and SAF_FunctionAsset. A task that asks for 'the number of functions' must accept both and reward the agent for naming the overlap."
+    },
+    "saf_function_overlap": {
+      "value": [
+        "Analyze FF data"
+      ],
+      "query": "stereotyped as SAF_Function but not of type SAF_Function",
+      "note": "the element that makes the two counts differ"
+    },
+    "saf_physical_hardware_count": {
+      "value": 47,
+      "query": "saf_find_elements_by_type(stereotype=SAF_PhysicalHardware)"
+    },
+    "saf_conceptual_system_count": {
+      "value": 26,
+      "query": "saf_find_elements_by_type(stereotype=SAF_ConceptualSystem)"
+    },
+    "saf_physical_system_count": {
+      "value": 15,
+      "query": "saf_find_elements_by_type(stereotype=SAF_PhysicalSystem)"
+    },
+    "saf_operational_exchange_type_count": {
+      "value": 9,
+      "query": "saf_find_elements_by_type(stereotype=SAF_OperationalExchangeType), filtered on the stereotypes list",
+      "note": "these rows report type='Class', not the stereotype, so filtering on the type field finds none of them"
+    },
+    "saf_operational_exchange_type_names": {
+      "value": [
+        "Distress Call",
+        "Fire Alert Report",
+        "Fire Spark",
+        "Heat & Smoke",
+        "Operational State",
+        "Reported Condition",
+        "Reported Location",
+        "Updated Condition",
+        "Updated Location"
+      ],
+      "query": "names of the SAF_OperationalExchangeType elements"
+    },
+    "probe_function": {
+      "name": "measure heat level",
+      "id": "_2021x_2_8710274_1698335210413_946068_81656",
+      "safKind": "system_function",
+      "query": "first element with type SAF_Function and a name"
+    },
+    "probe_function_relationship_count": {
+      "value": 0,
+      "query": "resources/read cameo://element/<measure heat level>/relationships",
+      "note": "0 means the function->hardware link is not exposed on the function; a task that needs it is unanswerable through this surface"
+    },
+    "probe_conceptual_system": {
+      "name": "Camera",
+      "id": "_18_1_3c00182_1450814091167_953401_52464",
+      "ambiguous": true,
+      "candidateKinds": [
+        "conceptual_external_system",
+        "conceptual_system"
+      ],
+      "safKind": "",
+      "query": "saf_get_element_semantics on a named SAF_ConceptualSystem"
+    },
+    "probe_block_structure": {
+      "name": "Commercial LORAWAN Gateway",
+      "id": "_2021x_2_8710274_1695640754374_454310_61374",
+      "parts": 0,
+      "ports": 1,
+      "connectors": 0,
+      "port_names": [
+        "LORa Waveforms"
+      ],
+      "query": "get_block_structure"
+    },
+    "probe_requirement": {
+      "name": "Fire Monitoring",
+      "id": "CPBLTY-12",
+      "text": "Screen 100% of the terrain to have the ability to monitor fire areas.",
+      "count": 16,
+      "query": "saf_get_element_semantics -> requirement field"
+    }
+  }
+}

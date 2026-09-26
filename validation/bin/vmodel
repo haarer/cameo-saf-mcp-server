@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Resolve a test model, record its provenance, and pin what is inside it.
+#
+#   bin/vmodel resolve ffds              # path + bytes + sha256, no server needed
+#   bin/vmodel facts ffds                # ground truths from the LIVE model
+#   bin/vmodel save   ffds               # write the current facts as the baseline
+#   bin/vmodel diff   ffds               # compare the live model to the baseline
+set -euo pipefail
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$here/.." && pwd)
+cd "$root"
+PYTHONPATH="$root/lib:${PYTHONPATH:-}" exec python3 - "$@" <<'PY'
+import json, os, pathlib, sys
+import mcp_client, models
+
+ROOT = pathlib.Path.cwd()
+FACTS = ROOT / "models"
+PROFILE_REPO = os.environ.get("SAF_PROFILE_REPO", models.DEFAULT_PROFILE_REPO)
+
+
+def cfg(name, default=""):
+    return os.environ.get(name.upper(), default)
+
+
+def client():
+    url = os.environ.get("CAMEO_MCP_URL",
+                         "http://host.containers.internal:18750/mcp")
+    return mcp_client.Client(url).connect()
+
+
+def load_baseline(name):
+    p = FACTS / f"{name}.json"
+    if not p.is_file():
+        return None, p
+    return json.loads(p.read_text()), p
+
+
+cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
+name = sys.argv[2] if len(sys.argv) > 2 else "ffds"
+
+if cmd == "resolve":
+    path = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None)
+    prov = models.provenance(path)
+    print(json.dumps(prov, indent=2))
+    if not prov["exists"]:
+        print(f"\n  {path} is missing.\n"
+              f"  The SAF sample models live in the profile repo checkout:\n"
+              f"    {PROFILE_REPO}/SAF_Plugin/samples/SAF/\n"
+              f"  Point SAF_PROFILE_REPO at your checkout, or pass a path.",
+              file=sys.stderr)
+        sys.exit(1)
+
+elif cmd in ("facts", "save", "diff"):
+    path = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None)
+    prov = models.provenance(path)
+    if not prov["exists"]:
+        sys.exit(f"no such model: {path}")
+    c = client()
+    live_model = c.call("admin_get_model_status")
+    loaded = live_model.get("modelName") if isinstance(live_model, dict) else None
+    def norm(x):
+        return x.lower().replace("-", "").replace("_", "").removeprefix("saf")
+    if loaded and norm(loaded) != norm(name):
+        print(f"warning: the server has '{loaded}' open, not '{name}'. The facts below "
+              f"describe the OPEN model, not the file you named.", file=sys.stderr)
+    facts = models.collect_facts(c)
+    c.close()
+
+    if cmd == "facts":
+        print(json.dumps({"model": prov, "open_model": loaded, "facts": facts},
+                         indent=2, ensure_ascii=False))
+    elif cmd == "save":
+        FACTS.mkdir(exist_ok=True)
+        out = {"model": prov, "open_model": loaded, "facts": facts}
+        (FACTS / f"{name}.json").write_text(
+            json.dumps(out, indent=2, ensure_ascii=False) + "\n")
+        print(f"wrote {FACTS / (name + '.json')}  ({len(facts)} facts)")
+        print(f"  {prov['path']}  {prov['bytes']} bytes  sha256:{prov['sha256'][:16]}")
+    else:
+        base, p = load_baseline(name)
+        if base is None:
+            sys.exit(f"no baseline at {p}; run `bin/vmodel save {name}` first")
+        problems = models.diff_facts(base.get("facts", {}), facts)
+        if base.get("model", {}).get("sha256") != prov["sha256"]:
+            print(f"  model file changed: baseline sha256:{base['model']['sha256'][:16]} "
+                  f"-> now {prov['sha256'][:16]}")
+            print("  every fact below may legitimately have moved; review before scoring")
+        if not problems:
+            print(f"FACTS MATCH -- {name}: {len(facts)} facts agree with {p.name}")
+        else:
+            print(f"FACTS DIFFER -- {len(problems)} change(s) vs {p.name}")
+            for x in problems:
+                print(f"  {x}")
+            sys.exit(1)
+
+else:
+    print(__doc__.strip(), file=sys.stderr)
+    sys.exit(2)
+PY

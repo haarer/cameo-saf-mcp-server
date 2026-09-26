@@ -1,0 +1,75 @@
+{
+  "id": "T01-function-count",
+  "title": "How many SAF_Function elements does this model contain?",
+  "task": "Count the SAF_Function elements in this model. Be precise about what you counted: the stereotype search also matches SAF_FunctionAction, SAF_FunctionAsset and the SAF_FunctionContribution relationships, so the raw number of search hits is not the number of functions. If the model makes the definition genuinely ambiguous, say so and give both readings rather than picking one silently.",
+  "readOnly": true,
+  "expected_first_tool": "saf_find_elements_by_type",
+  "call_budget": 8,
+  "repetitions": 3,
+  "rationale": "The most common way to get this wrong is to report the search hit count: SAF_Function is a substring of SAF_FunctionAction, SAF_FunctionAsset and SAF_FunctionContribution, so the search returns 105 rows for 39 functions. The model also contains one element ('Analyze FF data') carrying both SAF_Function and SAF_FunctionAsset, which makes 39-vs-40 a real definitional split. A task that accepts only one number rewards guessing; this one rewards reading the rows and explaining the split.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "saf_function_count_by_type",
+    "saf_function_count_by_stereotype",
+    "saf_function_substring_hits",
+    "saf_function_overlap"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 1,
+      "facts": [
+        {
+          "id": "count",
+          "any_of": [
+            "39",
+            "40"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "answer_mentions_all",
+      "min": 1,
+      "facts": [
+        {
+          "id": "overlap-named",
+          "any_of": [
+            "Analyze FF data",
+            "analyze ff data",
+            "FF data"
+          ]
+        },
+        {
+          "id": "overlap-kind",
+          "any_of": [
+            "FunctionAsset",
+            "Function Asset",
+            "function asset"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "answer_forbids",
+      "none_of": [
+        "105",
+        "105 functions",
+        "105 elements",
+        "105 rows"
+      ],
+      "note": "the substring-inflated hit count is never the answer"
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Reports 39 or 40 and names the element or the reason for the split",
+    "Reports 105 and fails"
+  ]
+}

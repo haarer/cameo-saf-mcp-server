@@ -18,6 +18,7 @@ from __future__ import annotations
 import copy
 import pathlib
 import re
+import subprocess
 import sys
 import tempfile
 import traceback
@@ -303,6 +304,51 @@ def _():
 
 
 # ---------------------------------------------------------------- main
+
+# ------------------------------------------------------------------ CLI behaviour
+
+def cli(*args) -> tuple[int, str]:
+    r = subprocess.run([str(ROOT / "bin" / args[0]), *args[1:]],
+                       capture_output=True, text=True, timeout=120)
+    return r.returncode, r.stdout + r.stderr
+
+
+@check("cli: vsurface show accepts a bare version and an explicit path alike")
+def _():
+    rc_a, out_a = cli("vsurface", "show", "v1")
+    rc_b, out_b = cli("vsurface", "show", "surfaces/surface-v1.json")
+    assert rc_a == 0 and rc_b == 0, (rc_a, rc_b)
+    assert out_a.splitlines()[0] == out_b.splitlines()[0], (out_a, out_b)
+
+
+@check("cli: vsurface rejects a missing manifest with a message, not a traceback")
+def _():
+    rc, out = cli("vsurface", "show", "v9")
+    assert rc != 0, out
+    assert "Traceback" not in out, out
+    assert "no such surface manifest" in out, out
+
+
+@check("cli: vsurface documents verify the way it actually parses it")
+def _():
+    doc = (ROOT / "bin" / "vsurface").read_text()
+    assert "vsurface verify v1" in doc, "usage still says 'verify live v1', which parses the mode as the version"
+    assert "vsurface verify live" not in doc, doc
+
+
+@check("cli: vsurface live default is the MCP endpoint, not the server root")
+def _():
+    doc = (ROOT / "bin" / "vsurface").read_text()
+    assert 'DEFAULT_URL = "http://host.containers.internal:18750/mcp"' in doc, \
+        "live mode POSTs to DEFAULT_URL; without /mcp it queries the wrong endpoint"
+
+
+@check("cli: vrun refuses an uncalibrated task cleanly instead of crashing")
+def _():
+    rc, out = cli("vrun", "--task", "T01-mcp-server-blocks")
+    assert rc != 0, out
+    assert "Traceback" not in out, out
+
 
 def main() -> int:
     width = max(len(n) for _, n, _ in RESULTS)

@@ -1,0 +1,44 @@
+{
+  "id": "T08-create-software-block",
+  "title": "Add a software block to the physical architecture and link it",
+  "task": "Create a new software block named 'ValidationProbeBlock' in the physical architecture package of this model, then report the id the tool assigned to it.",
+  "readOnly": false,
+  "expected_first_tool": "saf_create_element",
+  "call_budget": 12,
+  "repetitions": 1,
+  "rationale": "One mutating task so the suite can measure write behaviour, and it is pointed at a scratch copy on purpose. The pristine SAF_FFDS.mdzip is a human-maintained sample from another repository; a validation run that dirties it would destroy someone else's work to produce a number.",
+  "model": "SAF_FFDS.scratch.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS.scratch.mdzip loaded -- a disposable COPY of SAF_FFDS.mdzip",
+    "NEVER run this task against the pristine SAF_FFDS.mdzip: it is a shared sample model from the SAF profile repo, not a scratch file"
+  ],
+  "grounded_in": [
+    "saf_physical_system_count"
+  ],
+  "oracle": [
+    {
+      "kind": "element_exists",
+      "name": "ValidationProbeBlock",
+      "note": "created by the run; absence means the create did not happen"
+    },
+    {
+      "kind": "count_at_least",
+      "name": "ValidationProbeBlock",
+      "min": 1
+    },
+    {
+      "kind": "count_at_most",
+      "name": "ValidationProbeBlock",
+      "max": 1,
+      "note": "more than one means a retry created a duplicate"
+    }
+  ],
+  "outcomes": [
+    "One ValidationProbeBlock exists with the id the tool returned"
+  ],
+  "needsCalibration": [
+    "confirm the scratch copy exists and is loaded; `bin/vmodel resolve ffds-scratch`",
+    "the create may land in a different package than intended -- check the parentId in the run output before trusting the count clauses"
+  ]
+}

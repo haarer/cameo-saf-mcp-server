@@ -1,0 +1,47 @@
+{
+  "id": "T02-hardware-enumeration",
+  "title": "Which physical hardware items does the model define?",
+  "task": "List the SAF_PhysicalHardware elements in this model. Give the names as the model spells them, including any typos -- a name that looks misspelled is evidence you read the model rather than recalled a catalogue.",
+  "readOnly": true,
+  "expected_first_tool": "saf_find_elements_by_type",
+  "call_budget": 10,
+  "repetitions": 3,
+  "rationale": "Enumeration is the cheapest honest check that an agent read rows rather than pattern-matched a plausible-sounding answer. The model contains a misspelled name ('HmIP-VDMOT modiefied Long Cable'), which a reciting model will silently correct and a reading model will reproduce.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "saf_physical_hardware_count"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 2,
+      "facts": [
+        {
+          "id": "known-hardware-1",
+          "any_of": [
+            "Arduino Mega 2560 R3",
+            "Arduino Mega 2560"
+          ]
+        },
+        {
+          "id": "known-hardware-2",
+          "any_of": [
+            "AAA Battery",
+            "CPU Board",
+            "ValveBlock5"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Names at least two real hardware items"
+  ]
+}

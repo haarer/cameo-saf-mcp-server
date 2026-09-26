@@ -1,0 +1,46 @@
+{
+  "id": "T03-function-saf-kind",
+  "title": "What SAF kind is the function 'measure heat level'?",
+  "task": "Look up the element named 'measure heat level' and report the SAF concept kind and domain the tooling assigns to it. Report what the tool actually returns, not what the name suggests.",
+  "readOnly": true,
+  "expected_first_tool": "saf_find_elements_by_type",
+  "call_budget": 6,
+  "repetitions": 3,
+  "rationale": "The SAF kind comes from a narrow inference over stereotypes, not from the element's name, so it is the cheapest way to see whether an agent used saf_get_element_semantics or just guessed from the word 'function'. This element also reports zero relationships, so an agent that tries to confirm the kind by following links will find nothing and should say so.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "probe_function",
+    "probe_function_relationship_count"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 1,
+      "facts": [
+        {
+          "id": "kind",
+          "any_of": [
+            "system_function",
+            "system function",
+            "System Function"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "trajectory_used",
+      "tool": "saf_get_element_semantics",
+      "min_calls": 1
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Reports system_function"
+  ]
+}

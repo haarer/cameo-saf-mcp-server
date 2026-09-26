@@ -2,4 +2,13 @@
 # Self-tests for the validation harness. No model, no Cameo, no network.
 set -euo pipefail
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-exec python3 "$here/../tests/harness_test.py" "$@"
+status=0
+echo "harness:"
+python3 "$here/../tests/harness_test.py" || status=1
+echo
+echo "dataset + oracle:"
+python3 "$here/../tests/tasks_test.py" || status=1
+echo
+echo "model resolution + MCP client:"
+python3 "$here/../tests/models_test.py" || status=1
+exit $status

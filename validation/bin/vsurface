@@ -3,7 +3,7 @@
 #
 #   vsurface build offline v1        # parse scripts/*.groovy   (Cameo may be down)
 #   vsurface build live v1 --url U   # read tools/list          (Cameo must be up)
-#   vsurface verify live v1 --url U  # is the offline manifest still honest?
+#   vsurface verify v1 --url U       # is the offline manifest still honest?
 #   vsurface diff v1 v2              # what changed between two surfaces
 #   vsurface show v1 [--json]        # counts and families
 set -euo pipefail
@@ -17,11 +17,26 @@ import surface
 
 ROOT = pathlib.Path.cwd()
 SURFACES = ROOT / "surfaces"
-DEFAULT_URL = "http://host.containers.internal:18750"
+DEFAULT_URL = "http://host.containers.internal:18750/mcp"
 
 
 def path_for(version):
-    return SURFACES / f"surface-{version}.json"
+    """Where a manifest for `version` lives. The file need not exist yet (build)."""
+    p = pathlib.Path(version)
+    return p if (p.is_absolute() or "/" in version) else SURFACES / f"surface-{version}.json"
+
+
+def existing_path_for(version):
+    """Like path_for, but the manifest must exist (show/diff/verify).
+
+    Joining a path under SURFACES used to turn "surfaces/surface-v1.json" into
+    "surfaces/surfaces/surface-v1.json.json" and then die with a traceback.
+    """
+    p = path_for(version)
+    if not p.is_file():
+        sys.exit(f"no such surface manifest: {p}\n"
+                 f"  pass a version like 'v1' (looked in {SURFACES}) or a path.")
+    return p
 
 
 def cmd_build(a):
@@ -57,7 +72,7 @@ def cmd_verify(a):
     url = DEFAULT_URL
     if "--url" in a:
         url = a[a.index("--url") + 1]
-    offline = surface.load(path_for(version))
+    offline = surface.load(existing_path_for(version))
     try:
         live = surface.from_live(url)
     except Exception as e:
@@ -78,7 +93,7 @@ def cmd_verify(a):
 
 
 def cmd_diff(a):
-    before, after = (surface.load(path_for(v)) for v in a[:2])
+    before, after = (surface.load(existing_path_for(v)) for v in a[:2])
     d = surface.diff(before, after)
     print(f"surface-{before['version']} -> surface-{after['version']}")
     c = d["counts"]
@@ -95,7 +110,7 @@ def cmd_diff(a):
 
 
 def cmd_show(a):
-    m = surface.load(path_for(a[0]))
+    m = surface.load(existing_path_for(a[0]))
     if "--json" in a:
         json.dump(m, sys.stdout, indent=2, ensure_ascii=False)
         print()
