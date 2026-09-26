@@ -507,7 +507,12 @@ validation/
   03-teststrategie.md
   config.json                   suite config: endpoints, model catalogue, host paths
   bin/vrun                      one cell: preflight -> reset -> filter -> run -> restore
+  bin/vsurface                  build / show / diff / verify-live a surface manifest
+  bin/vanalyze                  Layer 0 static analysis of a manifest
+  bin/vgate                     static regression gate
+  bin/vselftest                 harness self-tests (no Cameo, no model, no network)
   lib/
+    groovy_annotations.py       @McpTool* parser: reads the surface out of the source
     surface.py                  build + version the tool manifest
     analyze.py                  Layer 0 design-rule metrics
     bench_a.py                  Layer 1 tool-selection probe
@@ -516,13 +521,53 @@ validation/
     report.py                   aggregate report.md / report.json
     gate.py                     regression gate
     propose.py                  ranked fix proposals (never auto-applied)
+  tests/harness_test.py         self-tests for the four modules above
   surfaces/surface-vN.json      committed surface manifests
   variants/<name>.json          tool-set variants
   tasks/<id>.json               task dataset
-  baselines/<surface>.json      recorded baselines
+  baselines/static-v1.json      recorded Layer 0 baseline (surface-independent budgets
+                                plus the v1 measurements the next change must beat)
   reviews/<cell>.json           human overrides of judge verdicts
   output/                       per-cell artifacts, ledger.jsonl, report.md, report.json
 ```
 
 Everything the suite needs is in this repository plus the `opencode` binary, `jq`,
 `curl`, and a running Cameo. Nothing else.
+
+### Step 0 as built
+
+```
+bin/vsurface build offline v1     # parses scripts/*.groovy, no server needed
+bin/vselftest                     # 21 checks on the harness itself
+bin/vanalyze v1 --save            # Layer 0 report
+bin/vgate v1                      # budgets + regression, non-zero on regression
+```
+
+Four modules, all offline, all committed:
+
+- `groovy_annotations.py` resolves 262 annotations across 19 scripts, byte-identical to
+  what Groovy 4.0.32's own AST produces. The literal decoder handles the two cases that
+  actually bite here: a triple-quoted description ending in four apostrophes (the closing
+  run of N quotes terminates the literal and donates N−3 of them to the content), and
+  `\n` escapes inside double-quoted descriptions.
+- `surface.py` builds a manifest offline from the source or live from `tools/list`, and
+  `verify_live` reports drift between the two — an offline manifest that no longer
+  describes the running surface is worse than none, because it looks authoritative.
+- `analyze.py` scores rules 1–4 and 8 and **discloses** that 5, 6 and 7 are not decidable
+  from annotations rather than quietly scoring them.
+- `gate.py` separates absolute budgets from baseline regressions, and treats a finding
+  escalating `info`→`warn` as a regression even when no count moved.
+
+Two calibration decisions worth keeping, because both were made against a wrong first
+answer:
+
+- The `create_element`/`saf_create_element` pair was initially flagged as a rule-8
+  violation. It is not: both cards explicitly dispatch to each other. Documented
+  dispatch pairs are reported as `info`; a stem collision with no stated boundary is the
+  `warn`. That reclassification is what surfaced the one real defect of the kind —
+  `saf_create_relationship` never mentions `create_relationship` at all.
+- Budgets start at the observed value, not at an aspiration. A tripwire that is red on
+  arrival gets ignored, which costs the gate the only thing it was for. The current
+  worst cases (9 optional arguments, 2715-char description) are recorded as findings for
+  the task suite to decide on, not as budget violations.
+

@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Build, inspect and compare MCP tool-surface manifests.
+#
+#   vsurface build offline v1        # parse scripts/*.groovy   (Cameo may be down)
+#   vsurface build live v1 --url U   # read tools/list          (Cameo must be up)
+#   vsurface verify live v1 --url U  # is the offline manifest still honest?
+#   vsurface diff v1 v2              # what changed between two surfaces
+#   vsurface show v1 [--json]        # counts and families
+set -euo pipefail
+
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$here/.." && pwd)
+cd "$root"
+PYTHONPATH="$root/lib:${PYTHONPATH:-}" exec python3 - "$@" <<'PY'
+import json, os, pathlib, sys
+import surface
+
+ROOT = pathlib.Path.cwd()
+SURFACES = ROOT / "surfaces"
+DEFAULT_URL = "http://host.containers.internal:18750"
+
+
+def path_for(version):
+    return SURFACES / f"surface-{version}.json"
+
+
+def cmd_build(a):
+    mode = a[0]
+    version = a[1]
+    if mode not in ("offline", "live"):
+        sys.exit(f"unknown build mode {mode!r} (offline|live)")
+    url = DEFAULT_URL
+    if "--url" in a:
+        url = a[a.index("--url") + 1]
+    if mode == "offline":
+        m = surface.from_scripts()
+    else:
+        try:
+            m = surface.from_live(url)
+        except Exception as e:
+            sys.exit(f"could not reach {url}: {e}\n"
+                     "Hint: `vsurface build offline` needs no server.")
+    p = surface.save(m, path_for(version), version)
+    c = m["counts"]
+    print(f"{p.relative_to(ROOT)}  source={m['source']['kind']}  "
+          f"tools={c['tools']} arguments={c['arguments']} "
+          f"resources={c['resources']} prompts={c['prompts']}")
+    print("families: " + "  ".join(f"{k}={v}" for k, v in m["families"].items()))
+    if m["anomalies"]:
+        print(f"WARNING {len(m['anomalies'])} annotation anomalies:")
+        for an in m["anomalies"]:
+            print(f"  {an['file']}:{an['line']} {an['kind']} {an['identifier']} - {an['detail']}")
+
+
+def cmd_verify(a):
+    version = a[0]
+    url = DEFAULT_URL
+    if "--url" in a:
+        url = a[a.index("--url") + 1]
+    offline = surface.load(path_for(version))
+    try:
+        live = surface.from_live(url)
+    except Exception as e:
+        sys.exit(f"could not reach {url}: {e}")
+    r = surface.verify_live(offline, live)
+    print(f"surface-{version}.json vs {url}")
+    print(f"  in sync         : {r['in_sync']}")
+    for key, label in (("only_in_scripts", "only in scripts"),
+                       ("only_in_live", "only in live"),
+                       ("description_differs", "description differs")):
+        if r[key]:
+            print(f"  {label:<16}: {len(r[key])} -> {', '.join(r[key][:8])}")
+            if len(r[key]) > 8:
+                print(f"                     ... and {len(r[key]) - 8} more")
+    if not r["in_sync"]:
+        print("\n  The offline manifest no longer describes the running surface.")
+        print("  Re-run `vsurface build offline` and fix the drift before measuring.")
+
+
+def cmd_diff(a):
+    before, after = (surface.load(path_for(v)) for v in a[:2])
+    d = surface.diff(before, after)
+    print(f"surface-{before['version']} -> surface-{after['version']}")
+    c = d["counts"]
+    print(f"  tools {c['before']['tools']}->{c['after']['tools']} "
+          f"arguments {c['before']['arguments']}->{c['after']['arguments']} "
+          f"resources {c['before']['resources']}->{c['after']['resources']} "
+          f"prompts {c['before']['prompts']}->{c['after']['prompts']}")
+    if d["added_tools"]:
+        print("  + " + ", ".join(d["added_tools"]))
+    if d["removed_tools"]:
+        print("  - " + ", ".join(d["removed_tools"]))
+    for ch in d["changed_tools"]:
+        print(f"  ~ {ch['name']}: {', '.join(ch['fields'])}")
+
+
+def cmd_show(a):
+    m = surface.load(path_for(a[0]))
+    if "--json" in a:
+        json.dump(m, sys.stdout, indent=2, ensure_ascii=False)
+        print()
+        return
+    c = m["counts"]
+    print(f"surface-{m['version']}  generated {m['generated']}  "
+          f"source {m['source']['kind']} @ {m['source']['plugin_commit']}")
+    print(f"  tools={c['tools']}  arguments={c['arguments']}  "
+          f"resources={c['resources']}  prompts={c['prompts']}")
+    print("  families: " + "  ".join(f"{k}={v}" for k, v in m["families"].items()))
+    longest = max(m["tools"], key=lambda t: t["description_chars"])
+    print(f"  longest description: {longest['name']} ({longest['description_chars']} chars)")
+    widest = max(m["tools"], key=lambda t: t["arguments_total"])
+    print(f"  widest tool       : {widest['name']} "
+          f"({widest['required_arguments']} required / {widest['optional_arguments']} optional)")
+
+
+cmd = {"build": cmd_build, "verify": cmd_verify, "diff": cmd_diff, "show": cmd_show}
+if len(sys.argv) < 2 or sys.argv[1] not in cmd:
+    print(__doc__.strip(), file=sys.stderr)
+    sys.exit(2)
+try:
+    cmd[sys.argv[1]](sys.argv[2:])
+except IndexError:
+    sys.exit(f"{sys.argv[1]}: missing argument")
+PY

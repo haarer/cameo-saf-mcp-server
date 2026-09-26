@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Layer 0 static analysis of a surface manifest.
+#
+#   vanalyze v1            # human-readable report on stdout
+#   vanalyze v1 --json     # machine-readable, for gate.py
+#   vanalyze v1 --save     # also write output/analysis-v1.json
+set -euo pipefail
+
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$here/.." && pwd)
+cd "$root"
+PYTHONPATH="$root/lib:${PYTHONPATH:-}" exec python3 - "$@" <<'PY'
+import json, pathlib, sys
+import analyze, surface
+
+root = pathlib.Path.cwd()
+version = sys.argv[1] if len(sys.argv) > 1 else "v1"
+as_json = "--json" in sys.argv
+save = "--save" in sys.argv
+
+path = root / "surfaces" / f"surface-{version}.json"
+if not path.exists():
+    sys.exit(f"no such surface manifest: {path.relative_to(root)}\n"
+             f"Build it first: vsurface build offline {version}")
+
+report = analyze.analyze(surface.load(path))
+
+if as_json:
+    json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
+    print()
+else:
+    print(analyze.render(report), end="")
+
+if save:
+    outdir = root / "output"
+    outdir.mkdir(exist_ok=True)
+    dest = outdir / f"analysis-{version}.json"
+    with open(dest, "w", encoding="utf-8") as fh:
+        json.dump(report, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    print(f"saved {dest.relative_to(root)}")
+PY

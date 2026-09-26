@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Static regression gate for a surface manifest.
+#
+#   vgate v1                          # gate surface-v1 against the committed baseline
+#   vgate v1 --update-baseline "why"  # accept the current numbers as the new baseline
+#   vgate v1 --tol 0.05               # allow 5% growth on regression checks
+#   vgate v1 --explain                # why each failing check exists
+set -euo pipefail
+
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$here/.." && pwd)
+cd "$root"
+PYTHONPATH="$root/lib:${PYTHONPATH:-}" exec python3 - "$@" <<'PY'
+import json, pathlib, sys
+import analyze, gate, surface
+
+root = pathlib.Path.cwd()
+argv = sys.argv[1:]
+version = next((a for a in argv if not a.startswith("-")), "v1")
+tol = 0.0
+if "--tol" in argv:
+    tol = float(argv[argv.index("--tol") + 1])
+
+baseline_path = root / "baselines" / "static-v1.json"
+explain = "--explain" in argv
+update = "--update-baseline" in argv
+note = ""
+if update:
+    rest = argv[argv.index("--update-baseline") + 1:]
+    note = rest[0] if rest and not rest[0].startswith("-") else ""
+
+report = analyze.analyze(surface.load(root / "surfaces" / f"surface-{version}.json"))
+budgets = {}
+if baseline_path.exists():
+    with open(baseline_path, encoding="utf-8") as fh:
+        budgets = json.load(fh).get("budgets", {})
+
+if update:
+    p = gate.write_baseline(baseline_path, report, budgets, note=note)
+    h = report["headline"]
+    print(f"baseline updated: {p.relative_to(root)}")
+    print(f"  tools={h['tools']} arguments={h['arguments']} "
+          f"~{h['approx_description_tokens']} tokens warn={h['warn']} info={h['info']}")
+    if note:
+        print(f"  reason: {note}")
+    print("\nThis does not make the surface better. It makes the new numbers the thing "
+          "the next change has to beat.")
+    sys.exit(0)
+
+baseline = None
+if baseline_path.exists():
+    with open(baseline_path, encoding="utf-8") as fh:
+        baseline = json.load(fh)["report"]
+
+results = gate.run(report, baseline, budgets, tol=tol)
+print(gate.render(results), end="")
+print(f"  surface: {version}   budget overrides: {budgets or 'none'}")
+if explain:
+    print("\nWhy these checks exist:")
+    print("  budget:*        absolute limits; a change past one needs a task run to justify it")
+    print("  regress:*       a surface edit may not make the last known-good surface worse")
+    print("  regress:new_warns  a new rule violation is a regression even if counts are flat")
+print("\nPassing this gate is not evidence the surface works. That is the task suite.")
+
+sys.exit(0 if gate.ok(results) else 1)
+PY

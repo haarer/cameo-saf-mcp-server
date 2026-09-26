@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Self-tests for the validation harness. No model, no Cameo, no network.
+set -euo pipefail
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+exec python3 "$here/../tests/harness_test.py" "$@"
