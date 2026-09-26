@@ -1,0 +1,47 @@
+{
+  "_about": "Validation suite config. Every value here is environment-specific -- do not commit a filled-in copy with secrets or machine paths you do not want shared. Env vars of the same name in UPPER_SNAKE override the values below.",
+
+  "cameo": {
+    "mcp_url": "http://host.containers.internal:18750/mcp",
+    "admin_url": "http://host.containers.internal:18750",
+    "api_url": "http://host.containers.internal:8600",
+
+    "_host_workspace": "REQUIRED. The path prefix the HOST running Cameo uses for this workspace. The container sees /workspace; Cameo does not. There is NO safe default: this repo's own tool descriptions disagree with each other about it (scripts/admin_bridge.groovy says /home/mac/opencode/workspace, scripts/tool_contract_resources.groovy says /home/mac/oc3/workspace, and showcase/reverse-engineering/MCP-SURFACE-FINDINGS.md records the real root as /home/mac/projects/AI/opencode/workspace). Set CAMEO_HOST_WORKSPACE to the true value.",
+    "host_workspace": "",
+
+    "local_workspace": "/workspace",
+    "models_dir": "models-test",
+
+    "_test_models": "Test models only, keyed by task id. Values are paths AS THE HOST SEES THEM (use host_workspace). Never point a task at a real model.",
+    "test_models": {
+      "T01-drone-capability": "",
+      "T03-context-exchange": "",
+      "T04-comms-node-interfaces": ""
+    }
+  },
+
+  "models": {
+    "_about": "Catalogue of local models under test, keyed by a short name passed to --model. Populate with the models you actually want on the scaling curve. 'provider' + 'base_url' + 'model' + 'context' + 'max_output' are written verbatim into the per-run opencode.json.",
+    "default": "",
+    "entries": {}
+  },
+
+  "run": {
+    "timeout_seconds": 2700,
+    "auto_permissions": true,
+    "containment_allowlist": ["/tmp/opencode"],
+    "settle_after_reset_secs": 3,
+    "repetitions_default": 3
+  },
+
+  "surface": {
+    "manifest_dir": "surfaces",
+    "variant_dir": "variants",
+    "default_variant": "full"
+  },
+
+  "output": {
+    "dir": "output",
+    "keep_scratch": false
+  }
+}

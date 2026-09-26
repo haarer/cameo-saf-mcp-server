@@ -32,7 +32,12 @@ __pycache__/
 tests/.venv/
 tests/__pycache__/
 tests/.pytest_cache/
-bin
+/tests/bin
+
+# Validation suite — generated artifacts only.
+# validation/bin/ is deliberately NOT ignored: it holds the runner.
+validation/output/
+validation/baselines/*.local.json
 
 #md docu
 docs/openapi

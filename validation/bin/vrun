@@ -1,0 +1,405 @@
+#!/usr/bin/env bash
+# vrun — run one validation mission against the live SAF MCP surface.
+#
+#   task brief in  ->  measured evidence out
+#
+# One invocation = one (task, variant, model, repetition) cell. The runner owns the
+# whole lifecycle of that cell so that the measurement is not contaminated by the
+# harness:
+#
+#   1. preflight   Cameo reachable, config sane, tool filter in a known state
+#   2. resolve     variant -> the exact set of tool names the agent will be able to see
+#   3. reset       reload the task's test model (unfiltered, harness-controlled)
+#   4. filter      apply the variant (admin tools withheld, see --allow-admin)
+#   5. run         headless `opencode run --format json` pinned to one catalogue model
+#   6. restore     clear the filter, always, even on failure or Ctrl-C
+#   7. record      trajectory.jsonl + usage.json + meta.json + one ledger row
+#
+# The agent under test never controls the model lifecycle or the tool filter. Both
+# belong to the harness, otherwise a cell can silently reset its own work and the
+# post-run oracle would score a model the agent never actually built.
+#
+# This script measures the surface. It does not change it: surface changes are made
+# in the repo, deployed with ./deploy-scripts.sh, and recorded as a new
+# surfaces/surface-vN.json before a cell is run against them.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VALIDATION_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_DIR="$(dirname "$VALIDATION_DIR")"
+CONFIG_JSON="${VALIDATION_CONFIG:-$VALIDATION_DIR/config.json}"
+
+die() { echo "vrun: $*" >&2; exit 2; }
+note() { echo "vrun: $*" >&2; }
+
+usage() {
+  cat <<'EOF'
+vrun --task <id> [--variant <name>] [--model <key>] [--rep <n>] [options]
+
+Required:
+  --task <id>          task id; must exist as validation/tasks/<id>.json
+
+Selection:
+  --variant <name>     tool-surface variant (default: config.surface.default_variant)
+  --model <key>        catalogue key from config.models.entries
+  --rep <n>            repetition number, 1-based (default: 1)
+
+Control:
+  --surface <version>  surface manifest version to record in meta.json
+  --brief-file <path>  override the task's own text with a brief from a file
+  --allow-admin        let the agent see the admin_* tools (off by default)
+  --preflight-only     run the preflight checks and exit
+  --keep               keep the scratch workspace (diagnostics)
+  --config <path>      alternate config file
+
+Env overrides: CAMEO_HOST_WORKSPACE, VALIDATION_CONFIG
+EOF
+  exit 2
+}
+
+# ---------------------------------------------------------------- args
+TASK=""; VARIANT=""; MODEL=""; REP=""; SURFACE=""; BRIEF_FILE=""
+ALLOW_ADMIN=0; PREFLIGHT_ONLY=0; KEEP=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --task) TASK="$2"; shift 2 ;;
+    --variant) VARIANT="$2"; shift 2 ;;
+    --model) MODEL="$2"; shift 2 ;;
+    --rep) REP="$2"; shift 2 ;;
+    --surface) SURFACE="$2"; shift 2 ;;
+    --brief-file) BRIEF_FILE="$2"; shift 2 ;;
+    --allow-admin) ALLOW_ADMIN=1; shift ;;
+    --preflight-only) PREFLIGHT_ONLY=1; shift ;;
+    --keep) KEEP=1; shift ;;
+    --config) CONFIG_JSON="$2"; shift 2 ;;
+    -h|--help) usage ;;
+    *) usage ;;
+  esac
+done
+
+[[ -z "$TASK" ]] && usage
+[[ ! -f "$CONFIG_JSON" ]] && die "config not found: $CONFIG_JSON"
+command -v jq >/dev/null || die "jq is required"
+command -v curl >/dev/null || die "curl is required"
+jq -e . "$CONFIG_JSON" >/dev/null 2>&1 || die "invalid config JSON: $CONFIG_JSON"
+
+TASK_FILE="$VALIDATION_DIR/tasks/$TASK.json"
+[[ -f "$TASK_FILE" ]] || die "no such task: $TASK_FILE"
+
+# ---------------------------------------------------------------- config
+cfg() { jq -r "$1 // empty" "$CONFIG_JSON"; }
+
+CAMEO_MCP_URL=$(cfg '.cameo.mcp_url'); CAMEO_MCP_URL="${CAMEO_MCP_URL:-http://host.containers.internal:18750/mcp}"
+CAMEO_ADMIN_URL=$(cfg '.cameo.admin_url'); CAMEO_ADMIN_URL="${CAMEO_ADMIN_URL:-http://host.containers.internal:18750}"
+CAMEO_API_URL=$(cfg '.cameo.api_url'); CAMEO_API_URL="${CAMEO_API_URL:-http://host.containers.internal:8600}"
+HOST_WORKSPACE="${CAMEO_HOST_WORKSPACE:-$(cfg '.cameo.host_workspace')}"
+LOCAL_WORKSPACE=$(cfg '.cameo.local_workspace'); LOCAL_WORKSPACE="${LOCAL_WORKSPACE:-/workspace}"
+MODELS_DIR=$(cfg '.cameo.models_dir'); MODELS_DIR="${MODELS_DIR:-models-test}"
+TIMEOUT=$(cfg '.run.timeout_seconds'); TIMEOUT="${TIMEOUT:-2700}"
+AUTO=$(cfg '.run.auto_permissions'); AUTO="${AUTO:-true}"
+SETTLE=$(cfg '.run.settle_after_reset_secs'); SETTLE="${SETTLE:-3}"
+ALLOWLIST=$(jq -c '[.run.containment_allowlist[]?]' "$CONFIG_JSON")
+VARIANT="${VARIANT:-$(cfg '.surface.default_variant')}"; VARIANT="${VARIANT:-full}"
+SURFACE="${SURFACE:-$(cfg '.surface.variant_dir')/../$(cfg '.surface.manifest_dir')/current.json}"
+OUT_DIR_RAW=$(cfg '.output.dir'); OUT_DIR_RAW="${OUT_DIR_RAW:-output}"
+[[ "$OUT_DIR_RAW" != /* ]] && OUT_DIR="$VALIDATION_DIR/$OUT_DIR_RAW" || OUT_DIR="$OUT_DIR_RAW"
+KEEP="${KEEP:-$(cfg '.output.keep_scratch')}"
+[[ "$KEEP" == "true" ]] && KEEP=1 || KEEP=0
+
+if [[ -z "$HOST_WORKSPACE" ]]; then
+  cat >&2 <<EOF
+vrun: refusing to run without cameo.host_workspace.
+
+  Paths are resolved by the HOST running Cameo, not by this container, and this
+  repo's own tool descriptions disagree about the mapping (see
+  showcase/reverse-engineering/MCP-SURFACE-FINDINGS.md). A wrong guess does not
+  fail loudly -- it loads the wrong file or writes into the wrong place.
+
+  Set it once:
+    export CAMEO_HOST_WORKSPACE=/the/real/host/path/to/workspace
+  or fill in cameo.host_workspace in $CONFIG_JSON.
+EOF
+  exit 2
+fi
+
+# ---------------------------------------------------------------- model catalogue
+if [[ -z "$MODEL" ]]; then
+  MODEL=$(cfg '.models.default')
+  [[ -z "$MODEL" ]] && MODEL=$(jq -r '.models.entries | keys[0] // empty' "$CONFIG_JSON")
+fi
+[[ -z "$MODEL" ]] && die "no model given and no default in config.models.default / .entries"
+if ! jq -e --arg k "$MODEL" '.models.entries | has($k)' "$CONFIG_JSON" >/dev/null 2>&1; then
+  die "model '$MODEL' not in config.models.entries (have: $(jq -r '.models.entries|keys|join(", ")' "$CONFIG_JSON"))"
+fi
+CAT=$(jq -c --arg k "$MODEL" '.models.entries[$k]' "$CONFIG_JSON")
+BPROVIDER=$(jq -r '.provider // empty' <<<"$CAT")
+BMODEL=$(jq -r '.model // empty' <<<"$CAT")
+BSETTING=$(jq -r '.base_url // empty' <<<"$CAT")
+CTX=$(jq -r '.context // empty' <<<"$CAT")
+MAXOUT=$(jq -r '.max_output // empty' <<<"$CAT")
+[[ -z "$BMODEL" || -z "$BSETTING" ]] && die "catalogue entry '$MODEL' needs both 'model' and 'base_url'"
+[[ "$CTX" =~ ^[0-9]+$ ]] || CTX=70000
+[[ "$MAXOUT" =~ ^[0-9]+$ ]] || MAXOUT=8192
+MODEL_ID="$BPROVIDER/$BMODEL"
+
+# ---------------------------------------------------------------- task
+TASK_TEXT=$(jq -r '.task // empty' "$TASK_FILE")
+[[ -z "$TASK_TEXT" ]] && die "task $TASK has no 'task' text"
+[[ -n "$BRIEF_FILE" ]] && { [[ -f "$BRIEF_FILE" ]] || die "no such brief file: $BRIEF_FILE"; TASK_TEXT="$(cat "$BRIEF_FILE")"; }
+MODEL_FILE=$(jq -r --arg id "$TASK" '.cameo.test_models[$id] // empty' "$CONFIG_JSON")
+if [[ -z "$MODEL_FILE" ]]; then
+  MODEL_FILE=$(jq -r '.model // empty' "$TASK_FILE")
+  [[ -n "$MODEL_FILE" && "$MODEL_FILE" != /* ]] && MODEL_FILE="$HOST_WORKSPACE/$MODEL_FILE"
+fi
+[[ -z "$MODEL_FILE" ]] && die "no model for task $TASK (set cameo.test_models[\"$TASK\"] in config, or 'model' in the task file)"
+
+REP="${REP:-1}"
+[[ "$REP" =~ ^[0-9]+$ ]] || die "--rep must be a positive integer"
+
+# ---------------------------------------------------------------- variant resolution
+VARIANT_FILE="$VALIDATION_DIR/$(cfg '.surface.variant_dir')/$VARIANT.json"
+[[ -f "$VARIANT_FILE" ]] || die "no such variant: $VARIANT_FILE"
+V_SURFACE=$(jq -r '.surface // empty' "$VARIANT_FILE")
+V_MODE=$(jq -r '.mode // "all"' "$VARIANT_FILE")
+V_LIST=$(jq -c '.tools // []' "$VARIANT_FILE")
+
+ALL_TOOLS=$(curl -sS -m 10 "$CAMEO_ADMIN_URL/admin/api" | jq -c '[.tools[].name]')
+[[ -z "$ALL_TOOLS" || "$ALL_TOOLS" == "null" ]] && die "could not read the tool list from $CAMEO_ADMIN_URL/admin/api"
+N_ALL=$(jq 'length' <<<"$ALL_TOOLS")
+
+case "$V_MODE" in
+  all)    SELECTED="$ALL_TOOLS" ;;
+  only)   SELECTED=$(jq -c --argjson have "$ALL_TOOLS" --argjson want "$V_LIST" \
+             '[ $want[] | select(. as $w | $have | index($w)) ]' <<<"$ALL_TOOLS") ;;
+  except) SELECTED=$(jq -c --argjson have "$ALL_TOOLS" --argjson drop "$V_LIST" \
+             '[ $have[] | select(. as $h | ($drop | index($h)) | not) ]' <<<"$ALL_TOOLS") ;;
+  *) die "variant $VARIANT: mode must be all|only|except (got '$V_MODE')" ;;
+esac
+
+# The agent must not be able to reset or reconfigure the environment it is measured
+# in. Withhold admin_* unless the caller explicitly opted in.
+if [[ "$ALLOW_ADMIN" == "0" ]]; then
+  N_BEFORE=$(jq 'length' <<<"$SELECTED")
+  SELECTED=$(jq -c '[ .[] | select(startswith("admin_") | not) ]' <<<"$SELECTED")
+  N_HIDDEN=$((N_BEFORE - $(jq 'length' <<<"$SELECTED")))
+else
+  N_HIDDEN=0
+fi
+[[ "$(jq 'length' <<<"$SELECTED")" == "0" ]] && die "variant $VARIANT resolved to an empty tool set"
+N_SEL=$(jq 'length' <<<"$SELECTED")
+[[ -z "$SURFACE" ]] && SURFACE="$V_SURFACE"
+[[ "$PREFLIGHT_ONLY" == "1" ]] && { echo "preflight ok: $N_ALL tools live, variant $VARIANT -> $N_SEL enabled ($N_HIDDEN admin withheld), model $MODEL_ID"; exit 0; }
+
+# ---------------------------------------------------------------- singleton lock
+# The live Cameo instance holds exactly one open model and one process-wide tool
+# filter, so two cells can never run at once. This is not a throughput setting.
+LOCK_FILE="${TMPDIR:-/tmp}/cameo-saf-mcp-validation.lock"
+exec 9>"$LOCK_FILE"
+flock -n 9 || die "another validation cell is running (the live Cameo model is a singleton; runs are strictly serial)"
+
+# ---------------------------------------------------------------- harness MCP client
+MCP_SID=""
+mcp_init() {
+  local hdr body
+  hdr=$(mktemp); body=$(mktemp)
+  curl -sS -m 30 -D "$hdr" -o "$body" -X POST "$CAMEO_MCP_URL" \
+    -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"validation-harness","version":"1.0.0"}}}'
+  MCP_SID=$(grep -i '^mcp-session-id:' "$hdr" | tr -d '\r' | awk '{print $2}')
+  [[ -z "$MCP_SID" ]] && { note "MCP initialize failed: $(head -c 400 "$body")"; rm -f "$hdr" "$body"; return 1; }
+  curl -sS -m 15 -o /dev/null -X POST "$CAMEO_MCP_URL" \
+    -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+    -H "Mcp-Session-Id: $MCP_SID" \
+    -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  rm -f "$hdr" "$body"
+  return 0
+}
+
+mcp_call() {
+  local tool="$1" args="${2:-\{\}}"
+  curl -sS -m 600 -X POST "$CAMEO_MCP_URL" \
+    -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+    -H "Mcp-Session-Id: $MCP_SID" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$args}}"
+}
+
+# ---------------------------------------------------------------- preflight
+note "preflight: $CAMEO_MCP_URL"
+curl -sS -m 10 -o /dev/null -f "$CAMEO_ADMIN_URL/" || die "Cameo MCP server not reachable at $CAMEO_ADMIN_URL (is Cameo running?)"
+curl -sS -m 10 -X POST "$CAMEO_ADMIN_URL/admin/api/disable" -o /dev/null || die "could not clear the tool filter"
+mcp_init || die "MCP initialize failed"
+note "preflight ok: $N_ALL tools live, variant $VARIANT -> $N_SEL enabled ($N_HIDDEN admin withheld), model $MODEL_ID"
+
+# ---------------------------------------------------------------- run dir + scratch
+CELL="$OUT_DIR/$SURFACE/$TASK/$MODEL/$REP"
+RUN_DIR="$CELL"
+SCRATCH="${TMPDIR:-/tmp}/vrun-$TASK-$REP-$$"
+mkdir -p "$RUN_DIR" "$SCRATCH"
+printf '%s\n' "$TASK_TEXT" > "$RUN_DIR/brief.md"
+TS_START=$(date -u +%s%3N)
+
+RESTORE_FILTER() {
+  curl -sS -m 10 -X POST "$CAMEO_ADMIN_URL/admin/api/disable" -o /dev/null 2>&1 || \
+    note "WARNING: could not clear the tool filter -- run: curl -X POST $CAMEO_ADMIN_URL/admin/api/disable"
+  if [[ "$KEEP" == "1" ]]; then
+    note "--keep set; scratch left at $SCRATCH"
+  else
+    rm -rf "$SCRATCH"
+  fi
+}
+trap RESTORE_FILTER EXIT
+
+# ---------------------------------------------------------------- reset the model
+# Done before the filter is applied: the harness needs admin_reset_model, and the
+# filter would otherwise refuse the call.
+note "resetting model: $MODEL_FILE"
+RESET_OUT=$(mcp_call admin_reset_model "$(jq -cn --arg p "$MODEL_FILE" '{path:$p}')")
+if [[ -z "$RESET_OUT" ]] || jq -e '.result.isError == true' <<<"$RESET_OUT" >/dev/null 2>&1; then
+  note "model reset failed: $(head -c 600 "$RESET_OUT")"
+  printf '%s\n' "$RESET_OUT" > "$RUN_DIR/reset_error.json"
+  die "could not reset the model -- a cell must start from a known state"
+fi
+jq -r '.result.content[0].text // empty' <<<"$RESET_OUT" > "$RUN_DIR/reset_result.json" 2>/dev/null || true
+sleep "$SETTLE"
+
+# ---------------------------------------------------------------- apply the filter
+curl -sS -m 10 -X POST "$CAMEO_ADMIN_URL/admin/api/enable" \
+  -H 'Content-Type: application/json' -d "$(jq -cn --argjson t "$SELECTED" '{tools:$t}')" -o /dev/null \
+  || die "could not apply the tool filter"
+APPLIED=$(curl -sS -m 10 "$CAMEO_ADMIN_URL/admin/api" | jq -c '[.tools[] | select(.enabled) | .name]')
+[[ "$(jq 'length' <<<"$APPLIED")" == "$N_SEL" ]] || note "WARNING: filter reports $(jq 'length' <<<"$APPLIED") enabled, expected $N_SEL"
+
+# ---------------------------------------------------------------- per-run opencode config
+MODELS_JSON=$(jq -cn --arg m "$BMODEL" --argjson ctx "$CTX" --argjson out "$MAXOUT" \
+  '{($m):{name:"validation model",limit:{context:$ctx,output:$out}}}')
+EXT_DIR_JSON=$(jq -nc --argjson allow "$ALLOWLIST" 'reduce $allow[] as $p ({"*":"deny"}; .[$p]="allow")')
+cat > "$SCRATCH/opencode.json" <<EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "$BPROVIDER": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "local model (validation)",
+      "options": { "baseURL": "$BSETTING" },
+      "models": $MODELS_JSON
+    }
+  },
+  "permission": {
+    "external_directory": $EXT_DIR_JSON
+  }
+}
+EOF
+
+# ---------------------------------------------------------------- prompt
+# Admin tools are described by suffix, never by literal name: opencode namespaces MCP
+# tools with the server name, and the prefix has changed between server versions.
+PREAMBLE="$(
+  printf 'OPERATING ENVIRONMENT (authoritative):\n'
+  printf 'This is a SAF modelling task. Your working directory is a scratch workspace: write any local artifact there ONLY. Do not edit the plugin repository, the deployed plugin directory, or anything at an absolute path outside this directory.\n'
+  printf 'Your work happens on the LIVE Cameo model through the MCP bridge:\n'
+  printf '  - the SAF/MCP tools listed for you  : read and change the model\n'
+  printf '  - the Javadoc tools (cameo-api_*)  : confirm com.nomagic.* / groovy / jackson signatures before writing them. Server: %s\n' "$CAMEO_API_URL"
+  printf 'The model is already loaded and reset for you. Do NOT try to load, close, create, save or reset a model: the tools whose names end in admin_load_model / admin_reset_model / admin_create_model / admin_save_model are deliberately not available, and attempting to work around that invalidates the measurement.\n'
+  printf 'Modify only the model that is already open. Do not try to reach the filesystem for model files.\n'
+  printf 'PATH MAPPING: this container sees the workspace at %s, but the machine running Cameo sees it at %s. Any path you must hand to Cameo is a HOST path under %s.\n' "$LOCAL_WORKSPACE" "$HOST_WORKSPACE" "$HOST_WORKSPACE"
+  printf 'When your work is done, write a report file REPORT.md (markdown) in the current directory: what you changed on the model, the evidence (which tool returned what), anything you could not do, and anything you were unsure about. Do not write a self-graded verdict -- success is decided outside this run by checking the model.\n\n---\n\n'
+  printf '%s\n' "$TASK_TEXT"
+)"
+printf '%s\n' "$PREAMBLE" > "$RUN_DIR/prompt.txt"
+
+# ---------------------------------------------------------------- run
+RUN_ARGS=(run --title "validation/$TASK/$VARIANT/$MODEL/$REP" --format json --model "$MODEL_ID")
+[[ "$AUTO" == "true" ]] && RUN_ARGS+=(--auto)
+cd "$SCRATCH" || die "cannot enter scratch $SCRATCH"
+note "running opencode ${RUN_ARGS[*]} (timeout ${TIMEOUT}s)"
+: > "$RUN_DIR/.inflight"
+# unset the OPENCODE_* markers so a nested CLI does not think it is inside a session
+env -u OPENCODE -u OPENCODE_PID timeout "$TIMEOUT"s opencode "${RUN_ARGS[@]}" "$PREAMBLE" \
+  > "$RUN_DIR/session.jsonl" 2> "$RUN_DIR/session.err"
+RC=$?
+rm -f "$RUN_DIR/.inflight"
+[[ "$RC" != "0" ]] && note "opencode exited rc=$RC (124 = timeout)"
+cp "$RUN_DIR/session.jsonl" "$RUN_DIR/trajectory.jsonl"
+
+# ---------------------------------------------------------------- usage accounting
+# Authoritative, not estimated: opencode streams per-step token counts, and the
+# totals below are the sum over every step_finish event.
+if [[ -s "$RUN_DIR/trajectory.jsonl" ]]; then
+  jq -s '
+    map(select(type == "object" and .type == "step_finish")) as $steps |
+    {
+      turns:      ($steps | length),
+      input:      (($steps | map(.part.tokens.input // 0) | add) // 0),
+      output:     (($steps | map(.part.tokens.output // 0) | add) // 0),
+      reasoning:  (($steps | map(.part.tokens.reasoning // 0) | add) // 0),
+      cacheRead:  (($steps | map(.part.tokens.cache.read // 0) | add) // 0),
+      cacheWrite: (($steps | map(.part.tokens.cache.write // 0) | add) // 0),
+      total:      (($steps | map(.part.tokens.total // 0) | add) // 0),
+      cost:       (($steps | map(.part.cost // 0) | add) // 0)
+    }
+  ' "$RUN_DIR/trajectory.jsonl" > "$RUN_DIR/usage.json" 2>/dev/null || echo '{}' > "$RUN_DIR/usage.json"
+else
+  echo '{"turns":0,"input":0,"output":0,"reasoning":0,"cacheRead":0,"cacheWrite":0,"total":0,"cost":0,"unparsed":true}' > "$RUN_DIR/usage.json"
+fi
+if jq -e '(.turns == 0)' "$RUN_DIR/usage.json" >/dev/null 2>&1; then
+  note "WARNING: no step_finish events -- token metrics for this cell are unusable"
+  jq -c '. + {unparsed:true}' "$RUN_DIR/usage.json" | jq . > "$RUN_DIR/usage.tmp" && mv "$RUN_DIR/usage.tmp" "$RUN_DIR/usage.json"
+fi
+
+# ---------------------------------------------------------------- report artifact
+if [[ -f "$SCRATCH/REPORT.md" ]]; then
+  cp "$SCRATCH/REPORT.md" "$RUN_DIR/report.md"
+else
+  jq -r 'select(type=="object" and .type=="text") | .part.text // empty' "$RUN_DIR/session.jsonl" 2>/dev/null | tail -1 > "$RUN_DIR/report.md"
+  [[ -s "$RUN_DIR/report.md" ]] || rm -f "$RUN_DIR/report.md"
+fi
+
+# ---------------------------------------------------------------- run health
+# Deliberately NOT a verdict. The agent is not asked to grade itself, so a run is only
+# classified as healthy or degraded; whether the task was actually accomplished is
+# decided afterwards by checking the model.
+HEALTH="ok"; REASON=""
+if [[ "$RC" == "124" ]]; then
+  HEALTH="degraded"; REASON="timeout after ${TIMEOUT}s"
+elif [[ "$RC" != "0" ]]; then
+  HEALTH="degraded"; REASON="opencode rc=$RC"
+elif [[ ! -s "$RUN_DIR/trajectory.jsonl" ]]; then
+  HEALTH="degraded"; REASON="empty trajectory"
+elif [[ "$(jq -r 'if has("unparsed") then 0 else .turns end' "$RUN_DIR/usage.json")" == "0" ]]; then
+  HEALTH="degraded"; REASON="${REASON:+$REASON; }no usage accounting"
+fi
+if [[ "$HEALTH" == "degraded" && -z "$REASON" ]]; then REASON="unknown"; fi
+
+# ---------------------------------------------------------------- meta + ledger
+TS_END=$(date -u +%s%3N)
+WALL_MS=$((TS_END - TS_START))
+PLUGIN_COMMIT=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+EVENTS=$(wc -l < "$RUN_DIR/trajectory.jsonl" 2>/dev/null || echo 0)
+
+jq -n \
+  --arg ts "$(date -u +%FT%TZ)" --arg task "$TASK" --arg variant "$VARIANT" --arg surface "$SURFACE" \
+  --arg rep "$REP" --arg model_key "$MODEL" --arg model_id "$MODEL_ID" \
+  --arg base_url "$BSETTING" --argjson ctx "$CTX" --argjson max_out "$MAXOUT" \
+  --arg model_file "$MODEL_FILE" --arg mcp_url "$CAMEO_MCP_URL" --arg api_url "$CAMEO_API_URL" \
+  --arg plugin_commit "$PLUGIN_COMMIT" --arg health "$HEALTH" --arg reason "$REASON" \
+  --argjson rc "$RC" --argjson wall_ms "$WALL_MS" --argjson events "$EVENTS" \
+  --argjson tools_live "$N_ALL" --argjson tools_enabled "$N_SEL" --argjson admin_withheld "$N_HIDDEN" \
+  --argjson enabled "$APPLIED" \
+  --slurpfile usage "$RUN_DIR/usage.json" \
+  '{ts:$ts, task:$task, variant:$variant, surface:$surface, rep:($rep|tonumber),
+    controls:{model_key:$model_key, model_id:$model_id, base_url:$base_url, context:$ctx,
+              max_output:$max_out, mcp_url:$mcp_url, api_url:$api_url,
+              plugin_commit:$plugin_commit, model_file:$model_file},
+    surface_shape:{tools_live:$tools_live, tools_enabled:$tools_enabled,
+                   admin_withheld:$admin_withheld, enabled:$enabled},
+    health:$health, reason:$reason, rc:$rc, wall_ms:$wall_ms, events:$events,
+    usage:($usage[0])}' > "$RUN_DIR/meta.json"
+
+jq -c '{ts, task, variant, surface, rep, model:.controls.model_id, health, reason,
+        wall_ms, events, enabled:.surface_shape.tools_enabled, usage}' "$RUN_DIR/meta.json" \
+  >> "$OUT_DIR/ledger.jsonl"
+
+note "cell complete: $RUN_DIR"
+note "health=$HEALTH wall=${WALL_MS}ms events=$EVENTS tools=$N_SEL ${REASON:+(reason: $REASON)}"
+note "success is NOT decided here -- run the outcome checks against the model (evaluate.py)"
+exit 0
