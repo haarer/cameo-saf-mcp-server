@@ -1,7 +1,7 @@
 {
   "id": "T03-function-saf-kind",
-  "title": "What SAF kind is the function 'measure heat level'?",
-  "task": "Look up the element named 'measure heat level' and report the SAF concept kind and domain the tooling assigns to it. Report what the tool actually returns, not what the name suggests.",
+  "title": "What SAF kind is the function 'Acquire metadata'?",
+  "task": "Look up the element named 'Acquire metadata' and report the SAF concept kind and domain the tooling assigns to it. Report what the tool actually returns, not what the name suggests.",
   "readOnly": true,
   "expected_first_tool": "saf_find_elements_by_type",
   "call_budget": 6,

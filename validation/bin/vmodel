@@ -16,6 +16,11 @@ import mcp_client, models
 ROOT = pathlib.Path.cwd()
 FACTS = ROOT / "models"
 PROFILE_REPO = os.environ.get("SAF_PROFILE_REPO", models.DEFAULT_PROFILE_REPO)
+# Where the Cameo distribution is mounted for the harness. `bin/vmodel locate` reports the
+# server's own view of this and is the authority; this is only the offline fallback.
+CAMEO_DIST = os.environ.get("CAMEO_DIST", models.DEFAULT_CAMEO_DIST)
+CAMEO_SCRATCH = os.environ.get("VALIDATION_SCRATCH_DIR", "/workspace/validation-scratch")
+DEFAULT_PROFILES = os.environ.get("CAMEO_PROFILES_DIR", "/workspace/MSOSAref1/profiles")
 
 
 def cfg(name, default=""):
@@ -39,25 +44,95 @@ cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 name = sys.argv[2] if len(sys.argv) > 2 else "ffds"
 
 if cmd == "resolve":
-    path = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None)
+    path = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None, CAMEO_DIST)
     prov = models.provenance(path)
     print(json.dumps(prov, indent=2))
     if not prov["exists"]:
         print(f"\n  {path} is missing.\n"
-              f"  The SAF sample models live in the profile repo checkout:\n"
-              f"    {PROFILE_REPO}/SAF_Plugin/samples/SAF/\n"
-              f"  Point SAF_PROFILE_REPO at your checkout, or pass a path.",
+              f"  SAF sample models ship in two places, both of which this suite can use:\n"
+              f"    profile repo : {PROFILE_REPO}/SAF_Plugin/samples/SAF/\n"
+              f"    Cameo dist   : <CAMEO_HOME>/samples/SAF/\n"
+              f"  Ask the running server where its own model is: `bin/vmodel locate`.\n"
+              f"  Override with SAF_PROFILE_REPO, or pass an explicit path.",
               file=sys.stderr)
         sys.exit(1)
 
+elif cmd == "provision":
+    # Materialise a model plus its whole transitive dependency closure into the scratch dir,
+    # mirroring the source layout. Two things this must get right, both of which are silent
+    # failures if it does not:
+    #   * the .mdzip files point at each other by BARE FILENAME, so the sibling files have to
+    #     be present next to the model or every reference resolves to nothing;
+    #   * the root copy keeps its original filename, because a model also refers to ITSELF by
+    #     name ("href='SAF_FFDS.mdzip#...'"). Isolation comes from the directory.
+    import shutil
+    dist = pathlib.Path(CAMEO_DIST)
+    # Source the pristine sample from the distribution, not the profile repo: the profile
+    # repo's copy is someone's work in progress, and the baseline facts are recorded against
+    # the distributed bytes.
+    src = dist / "samples" / "SAF" / (name if name.endswith(".mdzip") else name + ".mdzip")
+    if not src.is_file():
+        src = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None, CAMEO_DIST)
+    if not src.is_file():
+        sys.exit(f"no such model: {src}")
+
+    search = [dist, dist / "samples" / "SAF", dist / "profiles",
+              models.samples_dir(PROFILE_REPO),
+              models.samples_dir(PROFILE_REPO).parent.parent / "profiles"]
+    closure = models.dependency_closure(src, search)
+    scratch = pathlib.Path(CAMEO_SCRATCH)
+    made, missing = [], []
+
+    def rel_of(p: pathlib.Path) -> pathlib.Path:
+        """Mirror the source layout (samples/SAF/x, profiles/y) into the scratch dir."""
+        try:
+            return p.relative_to(dist)
+        except ValueError:
+            return p.parent.name / p.name
+
+    for entry in closure.values():
+        s_path = pathlib.Path(entry["source"])
+        if not s_path.is_file():
+            missing.append(entry["name"])
+            continue
+        dest = scratch / rel_of(s_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not dest.is_file() or dest.stat().st_size != s_path.stat().st_size:
+            shutil.copy2(s_path, dest)
+        entry["scratch"] = str(dest)
+        entry["relative"] = str(rel_of(s_path))
+        made.append(entry)
+    print(json.dumps({"source_model": str(src), "source_sha_scope": "distribution sample",
+                      "scratch": str(scratch), "files": made, "unresolved": missing},
+                     indent=2, ensure_ascii=False))
+    if missing:
+        print(f"\n{len(missing)} dependency/dependencies not found: {missing}", file=sys.stderr)
+        sys.exit(1)
+
+elif cmd in ("locate", "status"):
+    c = client()
+    try:
+        if cmd == "locate":
+            print(json.dumps(models.locate(c), indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(models.loaded_identity(c), indent=2, ensure_ascii=False))
+    finally:
+        c.close()
+
 elif cmd in ("facts", "save", "diff"):
-    path = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None)
+    path = models.resolve(name, PROFILE_REPO, cfg("MODELS_DIR") or None, CAMEO_DIST)
     prov = models.provenance(path)
     if not prov["exists"]:
         sys.exit(f"no such model: {path}")
     c = client()
-    live_model = c.call("admin_get_model_status")
-    loaded = live_model.get("modelName") if isinstance(live_model, dict) else None
+    ident = models.loaded_identity(c)
+    rep = ident.get("reported") or {}
+    loaded = rep.get("modelName")
+    # The facts describe whatever is OPEN, so the file identity recorded with them must be
+    # the open one. Recording the path you asked about instead is how a baseline ends up
+    # claiming a sha256 for a file that was not the source of the numbers.
+    where = models.locate(c)
+    open_file = where.get("harness_path")
     def norm(x):
         return x.lower().replace("-", "").replace("_", "").removeprefix("saf")
     if loaded and norm(loaded) != norm(name):
@@ -67,11 +142,14 @@ elif cmd in ("facts", "save", "diff"):
     c.close()
 
     if cmd == "facts":
-        print(json.dumps({"model": prov, "open_model": loaded, "facts": facts},
-                         indent=2, ensure_ascii=False))
+        print(json.dumps({"model": prov, "open_model": loaded,
+                          "open_model_reported": rep, "open_model_file": open_file,
+                          "facts": facts}, indent=2, ensure_ascii=False))
     elif cmd == "save":
         FACTS.mkdir(exist_ok=True)
-        out = {"model": prov, "open_model": loaded, "facts": facts}
+        out = {"model": prov, "open_model": loaded,
+               "open_model_reported": rep, "open_model_file": open_file,
+               "facts": facts}
         (FACTS / f"{name}.json").write_text(
             json.dumps(out, indent=2, ensure_ascii=False) + "\n")
         print(f"wrote {FACTS / (name + '.json')}  ({len(facts)} facts)")
@@ -81,7 +159,12 @@ elif cmd in ("facts", "save", "diff"):
         if base is None:
             sys.exit(f"no baseline at {p}; run `bin/vmodel save {name}` first")
         problems = models.diff_facts(base.get("facts", {}), facts)
-        if base.get("model", {}).get("sha256") != prov["sha256"]:
+        # Compare the OPEN file's identity, which is what the facts were derived from.
+        if base.get("open_model_file") and base["open_model_file"] != open_file:
+            print(f"  the open model changed file: baseline "
+                  f"{base['open_model_file']}\n    now {open_file}")
+            print("  every fact below may legitimately have moved; review before scoring")
+        elif base.get("model", {}).get("sha256") != prov["sha256"]:
             print(f"  model file changed: baseline sha256:{base['model']['sha256'][:16]} "
                   f"-> now {prov['sha256'][:16]}")
             print("  every fact below may legitimately have moved; review before scoring")

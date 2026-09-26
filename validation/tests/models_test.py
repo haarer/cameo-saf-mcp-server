@@ -9,7 +9,9 @@ with no network involved.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
+import subprocess
 import sys
 import traceback
 
@@ -286,13 +288,18 @@ def _():
         assert path.startswith(cfg["cameo"]["host_workspace"]), f"{tid} is not a host path"
 
 
-@check("baseline: the mutating task targets the scratch copy, not the pristine sample")
+@check("baseline: the mutating task runs on a disposable copy, not a shared sample")
 def _():
-    d = json.loads((ROOT / "tasks" / "T08-create-software-block.json").read_text())
-    assert d["readOnly"] is False
-    assert d["model"].endswith("scratch.mdzip"), d["model"]
     cfg = json.loads((ROOT / "config.json").read_text())
-    assert cfg["cameo"]["test_models"][d["id"]].endswith("scratch.mdzip")
+    tm = cfg["cameo"]["test_models"]
+    scratch = tm["T08-create-software-block"]
+    shared = [v for k, v in tm.items() if k != "T08-create-software-block"]
+    # Cameo may autosave whatever model is open, so the mutating cell must not be pointed at
+    # a shared checkout or at the Cameo installation.
+    for bad in ("/SAF-Cameo-Profile/", "/MSOSAref1/"):
+        assert bad not in scratch, f"mutating task points into {bad}: {scratch}"
+    assert scratch.startswith(cfg["cameo"]["host_workspace"]), scratch
+    assert all(s.startswith(cfg["cameo"]["host_workspace"]) for s in shared), shared
 
 
 # ------------------------------------------------------------------- CLI wiring
@@ -348,6 +355,178 @@ def _():
         assert "Unauthorized" not in out, "the live client did not send the bearer token"
     finally:
         (ROOT / "surfaces" / "surface-selftest-live.json").unlink(missing_ok=True)
+
+
+def _dist_sample() -> pathlib.Path | None:
+    p = pathlib.Path("/workspace/MSOSAref1/samples/SAF/SAF_FFDS.mdzip")
+    return p if p.is_file() else None
+
+
+def _search_roots() -> list[pathlib.Path]:
+    return [pathlib.Path("/workspace/MSOSAref1"),
+            pathlib.Path("/workspace/MSOSAref1/samples/SAF"),
+            pathlib.Path("/workspace/MSOSAref1/profiles")]
+
+
+@check("baseline: the scratch model keeps its original filename")
+def _():
+    # A model refers to itself by name ("href='SAF_FFDS.mdzip#...'"). Renaming the copy
+    # would dangle every self-reference, so the isolation has to come from the directory.
+    got = models.resolve("ffds-scratch", "/workspace/SAF-Cameo-Profile", None,
+                         "/workspace/MSOSAref1", "/workspace/validation-scratch")
+    assert got.name == "SAF_FFDS.mdzip", got
+    assert str(got) == "/workspace/validation-scratch/samples/SAF/SAF_FFDS.mdzip", got
+
+
+@check("deps: a model's .mdzip references are read out of the file, not assumed")
+def _():
+    src = _dist_sample()
+    if src is None:
+        return
+    deps = models.model_dependencies(src)
+    # An earlier version of this read only the archive's text parts, found nothing, and was
+    # wrong: the references live in the compiled BINARY records.
+    assert "SAF_FFDS.mdzip" not in deps, deps          # self-references excluded
+    assert "SAF_Profile.mdzip" in deps, deps
+    assert "SAF_Library.mdzip" in deps, deps
+
+
+@check("deps: the closure is transitive, not one level deep")
+def _():
+    src = _dist_sample()
+    if src is None:
+        return
+    closure = models.dependency_closure(src, _search_roots())
+    # SAF_FFDS -> SAF_FFDS_NAF -> UAF Profile is two hops; one level would miss UAF Profile.
+    assert "UAF Profile.mdzip" in closure, sorted(closure)
+    unresolved = [n for n, e in closure.items() if not e.get("found")]
+    assert not unresolved, unresolved
+
+
+@check("deps: a model with no .mdzip references has an empty closure")
+def _():
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".mdzip") as fh:
+        import zipfile
+        with zipfile.ZipFile(fh.name, "w") as z:
+            z.writestr("a", "<elementID href='nothing'/>")
+        assert models.model_dependencies(pathlib.Path(fh.name)) == []
+
+
+@check("cli: vmodel provision materialises the model and its closure into scratch")
+def _():
+    import shutil, tempfile
+    if _dist_sample() is None:
+        return
+    tmp = tempfile.mkdtemp(prefix="vscratch-")
+    try:
+        r = subprocess.run([str(ROOT / "bin" / "vmodel"), "provision", "SAF_FFDS"],
+                           capture_output=True, text=True, timeout=900,
+                           env=dict(os.environ, VALIDATION_SCRATCH_DIR=tmp))
+        assert r.returncode == 0, r.stdout + r.stderr
+        d = json.loads(r.stdout)
+        assert d["unresolved"] == [], d["unresolved"]
+        got = {f["relative"] for f in d["files"]}
+        assert "samples/SAF/SAF_FFDS.mdzip" in got, got   # source layout is mirrored
+        assert "profiles/SAF_Profile.mdzip" in got, got
+        for f in d["files"]:                                # all it claims is really there
+            assert pathlib.Path(f["scratch"]).is_file(), f
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check("cli: vmodel provision is idempotent and does not touch the source")
+def _():
+    import shutil, tempfile
+    src = _dist_sample()
+    if src is None:
+        return
+    before = (src.stat().st_size, src.stat().st_mtime_ns)
+    tmp = tempfile.mkdtemp(prefix="vscratch-")
+    try:
+        env = dict(os.environ, VALIDATION_SCRATCH_DIR=tmp)
+        for _ in range(2):
+            r = subprocess.run([str(ROOT / "bin" / "vmodel"), "provision", "SAF_FFDS"],
+                               capture_output=True, text=True, timeout=900, env=env)
+            assert r.returncode == 0, r.stdout + r.stderr
+        assert (src.stat().st_size, src.stat().st_mtime_ns) == before, "source was modified"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check("cli: every vpath subcommand runs, rather than just the one under test")
+def _():
+    for args in (["--help"], ["check", "/workspace/validation-scratch"],
+                 ["to-host", "/workspace/validation-scratch"],
+                 ["to-harness", "/home/mac/oc3/workspace/validation-scratch"],
+                 ["scratch"]):
+        r = subprocess.run([str(ROOT / "bin" / "vpath")] + args, capture_output=True,
+                           text=True, timeout=300)
+        assert r.returncode == 0, f"{args}: {r.stdout}{r.stderr}"
+        assert "Traceback" not in r.stderr, f"{args}: {r.stderr}"
+
+
+@check("cli: vpath rejects an unknown subcommand with usage, not a traceback")
+def _():
+    r = subprocess.run([str(ROOT / "bin" / "vpath"), "nope"], capture_output=True,
+                       text=True, timeout=300)
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Traceback" not in r.stderr, r.stderr
+    assert "usage" in (r.stderr + r.stdout).lower(), r.stderr
+
+
+@check("cli: vmodel status reports the open model without needing a server argument")
+def _():
+    r = subprocess.run([str(ROOT / "bin" / "vmodel"), "status"], capture_output=True,
+                       text=True, timeout=300)
+    assert r.returncode in (0, 1), r.stdout + r.stderr
+    assert "Traceback" not in r.stderr, r.stderr
+
+
+@check("cli: vmodel locate maps a host path into the container workspace")
+def _():
+    r = subprocess.run([str(ROOT / "bin" / "vmodel"), "locate"], capture_output=True,
+                       text=True, timeout=300)
+    assert r.returncode in (0, 1), r.stdout + r.stderr
+    assert "Traceback" not in r.stderr, r.stderr
+    if r.returncode == 0 and r.stdout.strip():
+        d = json.loads(r.stdout)
+        # wherever it is open, the reported path has to be the host one, not a container one
+        assert d.get("host_path", "").startswith("/home/"), d
+        # and it must be translated back to a path this container can actually use
+        if d.get("harness_path"):
+            assert d["harness_path"].startswith("/workspace/"), d
+            assert pathlib.Path(d["harness_path"]).parent.is_dir(), d
+
+
+@check("cli: vpath verifies the real scratch model against the live server")
+def _():
+    model = pathlib.Path("/workspace/validation-scratch/samples/SAF/SAF_FFDS.mdzip")
+    if not model.is_file():
+        return                                  # not provisioned on this machine
+    v = subprocess.run([str(ROOT / "bin" / "vpath"), "verify-model", str(model)],
+                       capture_output=True, text=True, timeout=900)
+    # Every exit code is a failure here. An earlier version of this test accepted "1", which
+    # is exactly what a traceback in the CLI returns -- so it went on passing while
+    # bin/vpath was completely broken.
+    assert v.returncode == 0, v.stdout + v.stderr
+    assert "Traceback" not in v.stderr, v.stderr
+    d = json.loads(v.stdout)
+    assert d["verified"] is True, d
+    assert d["host_path"].endswith("samples/SAF/SAF_FFDS.mdzip"), d
+
+
+@check("cli: vpath refuses a path outside the shared subtree instead of guessing")
+def _():
+    # The safety property: a path that is not in the shared subtree cannot be translated
+    # without guessing, so it is refused. This is also the one legitimate exit code of 1.
+    v = subprocess.run([str(ROOT / "bin" / "vpath"), "verify-model", "/tmp/not-shared.mdzip"],
+                       capture_output=True, text=True, timeout=300)
+    assert v.returncode == 1, v.stdout + v.stderr
+    assert "Traceback" not in v.stderr, v.stderr
+    d = json.loads(v.stdout)
+    assert d["verified"] is False, d
+    assert "shared" in d.get("reason", ""), d
 
 
 def main() -> int:

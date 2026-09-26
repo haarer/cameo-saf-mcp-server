@@ -2,10 +2,53 @@
   "model": {
     "path": "/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
     "exists": true,
-    "bytes": 11740062,
-    "sha256": "197f8381ad12f7d7e27001bf2a0828c8893211fbcb19b8f4bf25e6406d10d5b1"
+    "bytes": 11753634,
+    "sha256": "7406c11b0e34ab2f3018ae8b2d4fbb30f4c02def2373735c153ec5dcdd3ac326",
+    "scope": "harness-filesystem"
   },
-  "open_model": "SAF_FFDS",
+  "open_model": "SAF_FFDS.scratch",
+  "open_model_reported": {
+    "status": "ok",
+    "modelName": "SAF_FFDS.scratch",
+    "primaryModelName": "Model",
+    "topLevelPackages": [
+      "0-Model Management",
+      "4-FFDS System to EA -Tracing",
+      "FFDS-Model Overview",
+      "1-OpsCon",
+      "3-FFDS",
+      "3-VPQuery",
+      "2-StkRS",
+      "Derived Properties",
+      "UML Standard Profile",
+      "Legends",
+      "SAF_Profile",
+      "SAF_VPO",
+      "MD Customization for Requirements",
+      "SAF_UAFTracing_Profile",
+      "Library",
+      "Library_shared",
+      "Report Profile",
+      "SAF_Contrib_Std_Library",
+      "SAF_FFDS_NAF_shared",
+      "Logical",
+      "Concepts",
+      "Service",
+      "Physical Resource",
+      "Architecture Meta-Data",
+      "Utils",
+      "UAF Customization",
+      "Measurements Library",
+      "UAF Constraints",
+      "MD Customization for ViewsViewpoints",
+      "MD Customization for SysML",
+      "SysML",
+      "UAF"
+    ],
+    "elementCount": 44,
+    "fileName": "/home/mac/oc3/workspace/MSOSAref1/samples/SAF/SAF_FFDS.scratch.mdzip"
+  },
+  "open_model_file": "/workspace/MSOSAref1/samples/SAF/SAF_FFDS.scratch.mdzip",
   "facts": {
     "saf_function_substring_hits": {
       "value": 105,
@@ -59,14 +102,14 @@
       "query": "names of the SAF_OperationalExchangeType elements"
     },
     "probe_function": {
-      "name": "measure heat level",
-      "id": "_2021x_2_8710274_1698335210413_946068_81656",
+      "name": "Acquire metadata",
+      "id": "_18_1_3c00182_1450814090955_870324_52150",
       "safKind": "system_function",
       "query": "first element with type SAF_Function and a name"
     },
     "probe_function_relationship_count": {
-      "value": 0,
-      "query": "resources/read cameo://element/<measure heat level>/relationships",
+      "value": 3,
+      "query": "resources/read cameo://element/<Acquire metadata>/relationships",
       "note": "0 means the function->hardware link is not exposed on the function; a task that needs it is unanswerable through this surface"
     },
     "probe_conceptual_system": {
@@ -92,9 +135,9 @@
       "query": "get_block_structure"
     },
     "probe_requirement": {
-      "name": "Fire Monitoring",
-      "id": "CPBLTY-12",
-      "text": "Screen 100% of the terrain to have the ability to monitor fire areas.",
+      "name": "24/7 Availability ",
+      "id": "CPBLTY-21",
+      "text": "Ensure 24/7 detection and monitoring availability.",
       "count": 16,
       "query": "saf_get_element_semantics -> requirement field"
     }

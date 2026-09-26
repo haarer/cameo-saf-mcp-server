@@ -1,7 +1,7 @@
 {
   "id": "T05-requirement-id-and-text",
-  "title": "What does stakeholder requirement CPBLTY-12 actually say?",
-  "task": "Find the stakeholder requirement with id CPBLTY-12 and quote its text. The id and text are not in the element name, so find the requirement by search and read the field that carries them.",
+  "title": "What does stakeholder requirement CPBLTY-21 actually say?",
+  "task": "Find the stakeholder requirement with id CPBLTY-21 and quote its text. The id and text are not in the element name, so find the requirement by search and read the field that carries them.",
   "readOnly": true,
   "expected_first_tool": "saf_find_elements_by_type",
   "call_budget": 8,
@@ -23,7 +23,7 @@
         {
           "id": "id",
           "any_of": [
-            "CPBLTY-12"
+            "CPBLTY-21"
           ]
         },
         {
@@ -45,6 +45,6 @@
     }
   ],
   "outcomes": [
-    "Reports id CPBLTY-12 with the terrain-monitoring text"
+    "Reports id CPBLTY-21 with the 24/7 availability text"
   ]
 }

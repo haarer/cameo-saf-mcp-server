@@ -8,7 +8,7 @@
     "host_workspace": "/home/mac/oc3/workspace",
     "local_workspace": "/workspace",
     "models_dir": "models-test",
-    "_test_models": "Test models keyed by task id. Values are paths AS THE HOST SEES THEM. The read-only tasks all use the SAF profile's FFDS sample: it exercises all three SAF domains and is 140x the size of the MCP-server showcase model this suite was originally pointed at. The mutating task uses a scratch COPY that must be created deliberately -- see tasks/T08-create-software-block.json.",
+    "_test_models": "Test models keyed by task id. Values are paths AS THE HOST SEES THEM, because Cameo loads by host path while the harness runs in a container; `bin/vmodel locate` maps one to the other. The mutating task uses a disposable copy taken from the distribution's own sample, so the pristine samples in the SAF profile repo are never loaded by a writing cell at all.",
     "test_models": {
       "T01-function-count": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
       "T02-hardware-enumeration": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
@@ -17,10 +17,14 @@
       "T05-requirement-id-and-text": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
       "T06-block-structure": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
       "T07-operational-exchanges": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.mdzip",
-      "T08-create-software-block": "/home/mac/oc3/workspace/SAF-Cameo-Profile/SAF_Plugin/samples/SAF/SAF_FFDS.scratch.mdzip"
+      "T08-create-software-block": "/home/mac/oc3/workspace/validation-scratch/samples/SAF/SAF_FFDS.mdzip"
     },
     "_profile_repo": "Container-side path of the SAF-Cameo-Profile checkout, which supplies the sample models the task dataset is grounded in. The suite references a checkout rather than vendoring the models as a git submodule: they are 11.7 MB of binary that upstream revises on its own schedule, and a recorded sha256 (see models/*.json) is the reproducibility we actually need. Override with SAF_PROFILE_REPO.",
-    "profile_repo": "/workspace/SAF-Cameo-Profile"
+    "profile_repo": "/workspace/SAF-Cameo-Profile",
+    "dist": "/workspace/MSOSAref1",
+    "_dist": "Container-side path of the Cameo distribution. Its samples/SAF/ holds the same SAF_FFDS.mdzip the profile repo does (byte-identical, sha256 verified), and it is not a git tree -- so a disposable model copy belongs here and dirties nothing. `bin/vmodel locate` asks the running server where its model actually is and is the authority over this value. Override with CAMEO_DIST.",
+    "scratch_dir": "/workspace/validation-scratch",
+    "_scratch_dir": "Where disposable model copies live. Nowhere near the Cameo installation: a plugin install is deployed, versioned state and the wrong place for an experiment's throwaway files, and it is not a git tree, so nothing kept here can dirty a repository. It sits in the shared subtree, so the harness can hash what Cameo opens; `bin/vpath` translates the path in both directions and `vpath verify-model` proves the translation by having the running server open a model through it. Override with VALIDATION_SCRATCH_DIR. Populate it with `bin/vmodel provision SAF_FFDS`, which copies the model together with its entire transitive dependency closure and mirrors the distribution layout. The dependencies matter: an .mdzip points at other .mdzips by bare filename, so a lone copy carries references that resolve to nothing and fail silently."
   },
   "models": {
     "_about": "Catalogue of local models under test, keyed by a short name passed to --model. Populate with the models you actually want on the scaling curve. 'provider' + 'base_url' + 'model' + 'context' + 'max_output' are written verbatim into the per-run opencode.json.",

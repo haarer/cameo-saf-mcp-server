@@ -322,3 +322,71 @@ def render(result: TaskResult) -> str:
         mark = {PASS: "ok  ", FAIL: "FAIL", UNKNOWN: "unk "}[c.verdict]
         out.append(f"  {mark} {c.kind}: {c.reason}")
     return "\n".join(out)
+
+
+class McpProbe:
+    """The model-backed tier's view of a live Cameo, over MCP.
+
+    Kept separate from the clause evaluators on purpose: everything above this line scores
+    an answer or a trajectory, and this is the only part that talks to a server. The interface
+    is deliberately tiny -- ``find`` and ``element_count`` -- because a clause that cannot be
+    expressed in those two calls has to justify going lower.
+
+    The SAF concept kind is carried through as ``safKind`` and kept separate from the SysML
+    ``type``. They are different vocabularies, and conflating them turns a correct answer into
+    a silent FAIL (see ``_endpoints``).
+    """
+
+    def __init__(self, client, scope: str = "all"):
+        self.c = client
+        self.scope = scope
+
+    # ------------------------------------------------------------- reads
+
+    def find(self, name: str | None = None, type: str | None = None,
+             stereotype: str | None = None, parentId: str | None = None) -> list[dict]:
+        args: dict = {}
+        if name:
+            args["name"] = name
+        if type:
+            args["type"] = type
+        if stereotype:
+            args["stereotype"] = stereotype
+        if parentId:
+            args["parentId"] = parentId
+        if self.scope and self.scope != "all":
+            args["scope"] = self.scope
+        return self.c.rows("saf_find_elements_by_type", args)
+
+    def element_count(self) -> int:
+        """A count that actually moves.
+
+        get_model_info's modelRoots[].elementCount reads 0 for a model with thousands of
+        elements, so taking it at face value makes the model_unchanged clause compare 0 to 0
+        and pass no matter what the run did. Fall back to admin_get_model_status, and refuse
+        to report a count of 0 as if it were real.
+        """
+        info = self.c.call("get_model_info", {})
+        roots = info.get("modelRoots") or []
+        primary = next((r for r in roots if r.get("primary")), None)
+        if primary is not None and int(primary.get("elementCount") or 0) > 0:
+            return int(primary["elementCount"])
+        st = self.c.call("admin_get_model_status", {})
+        n = int(st.get("elementCount") or 0)
+        if n <= 0:
+            raise RuntimeError(
+                "no usable element count from get_model_info or admin_get_model_status; "
+                "reporting 0 would make every model_unchanged clause pass vacuously")
+        return n
+
+    def get(self, element_id: str) -> dict:
+        return self.c.call("get_element_info", {"qualifiedName": element_id})
+
+    def close(self) -> None:
+        self.c.close()
+
+    def __enter__(self) -> "McpProbe":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()

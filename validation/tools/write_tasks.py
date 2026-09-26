@@ -15,14 +15,14 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TASKS = ROOT / "tasks"
 FFDS = "SAF_FFDS.mdzip"
-FFDS_SCRATCH = "SAF_FFDS.scratch.mdzip"   # disposable copy; never the pristine sample
+FFDS_SCRATCH = "scratch:samples/SAF/SAF_FFDS.mdzip"   # disposable copy, closure and all
 
 TASKS_BY_ID = {}
 
 
 def task(tid, title, text, first_tool, budget, reps, read_only, oracle, rationale,
          grounded_in, outcomes=None, preconditions=None, needs_calibration=None,
-         model=None):
+         calibrated=None, model=None):
     d = {
         "id": tid, "title": title, "task": text, "readOnly": read_only,
         "expected_first_tool": first_tool, "call_budget": budget,
@@ -36,6 +36,8 @@ def task(tid, title, text, first_tool, budget, reps, read_only, oracle, rational
         d["outcomes"] = outcomes
     if needs_calibration:
         d["needsCalibration"] = needs_calibration
+    if calibrated:
+        d["calibrated"] = calibrated
     TASKS_BY_ID[tid] = d
     return d
 
@@ -106,8 +108,8 @@ task(
 # ---------------------------------------------------------------- T03
 task(
     "T03-function-saf-kind",
-    "What SAF kind is the function 'measure heat level'?",
-    "Look up the element named 'measure heat level' and report the SAF concept kind and "
+    "What SAF kind is the function 'Acquire metadata'?",
+    "Look up the element named 'Acquire metadata' and report the SAF concept kind and "
     "domain the tooling assigns to it. Report what the tool actually returns, not what the "
     "name suggests.",
     "saf_find_elements_by_type", budget=6, reps=3, read_only=True,
@@ -154,8 +156,8 @@ task(
 # ---------------------------------------------------------------- T05
 task(
     "T05-requirement-id-and-text",
-    "What does stakeholder requirement CPBLTY-12 actually say?",
-    "Find the stakeholder requirement with id CPBLTY-12 and quote its text. The id and text "
+    "What does stakeholder requirement CPBLTY-21 actually say?",
+    "Find the stakeholder requirement with id CPBLTY-21 and quote its text. The id and text "
     "are not in the element name, so find the requirement by search and read the field that "
     "carries them.",
     "saf_find_elements_by_type", budget=8, reps=3, read_only=True,
@@ -165,12 +167,12 @@ task(
               "answers from the name alone cannot produce the text at all, which makes this "
               "a clean test of whether the deep-contract path was used.",
     oracle=[
-        mentions(("id", ["CPBLTY-12"]),
+        mentions(("id", ["CPBLTY-21"]),
                  ("text", ["100% of the terrain", "monitor fire areas"])),
         {"kind": "trajectory_used", "tool": "saf_get_element_semantics", "min_calls": 1},
         UNCHANGED,
     ],
-    outcomes=["Reports id CPBLTY-12 with the terrain-monitoring text"],
+    outcomes=["Reports id CPBLTY-21 with the 24/7 availability text"],
 )
 
 # ---------------------------------------------------------------- T06
@@ -229,15 +231,29 @@ task(
     model=FFDS_SCRATCH,
     preconditions=[
         "SAF_Profile applied",
-        "SAF_FFDS.scratch.mdzip loaded -- a disposable COPY of SAF_FFDS.mdzip",
-        "NEVER run this task against the pristine SAF_FFDS.mdzip: it is a shared sample "
-        "model from the SAF profile repo, not a scratch file",
+        "the scratch copy of SAF_FFDS.mdzip, with its full dependency closure, loaded from "
+        "$VALIDATION_SCRATCH_DIR (see `bin/vmodel provision SAF_FFDS`)",
+        "NEVER run this task against a shared sample: a validation run that dirties one "
+        "destroys someone else's work to produce a number",
+        "the parent package MUST belong to the PRIMARY model. In this sample almost every "
+        "named top-level package belongs to a read-only module (SAF_Profile, UAF Constraints, "
+        "...), and a create into one of those is refused or silently dropped -- both of which "
+        "look exactly like a broken create tool. Check against get_model_info's module list "
+        "before choosing a parent.",
     ],
     grounded_in=["saf_physical_system_count"],
     rationale="One mutating task so the suite can measure write behaviour, and it is pointed "
-              "at a scratch copy on purpose. The pristine SAF_FFDS.mdzip is a human-maintained "
-              "sample from another repository; a validation run that dirties it would destroy "
-              "someone else's work to produce a number.",
+              "at a scratch copy on purpose. The copy is taken from the Cameo distribution's "
+              "own sample rather than from the SAF profile repo, for two reasons: the "
+              "distribution is not a git tree, so a disposable file there dirties nothing, and "
+              "the two samples are byte-identical (sha256 197f8381ad12f7d7...), so the task is "
+              "grounded in exactly the model the read-only tasks read -- same filename, "
+              "different directory, because a model refers to itself by name and renaming it "
+              "would dangle those references. The copy is not tidiness: Cameo may write to "
+              "whatever model is open (autosave on close was observed writing to a shared "
+              "sample mid-session), so the harness's only real control is WHICH file is open, "
+              "not whether it intends to save. Open the disposable copy, keep shared samples "
+              "closed.",
     oracle=[
         {"kind": "element_exists", "name": "ValidationProbeBlock",
          "note": "created by the run; absence means the create did not happen"},
@@ -245,11 +261,18 @@ task(
         {"kind": "count_at_most", "name": "ValidationProbeBlock", "max": 1,
          "note": "more than one means a retry created a duplicate"},
     ],
-    needs_calibration=[
-        "confirm the scratch copy exists and is loaded; `bin/vmodel resolve ffds-scratch`",
-        "the create may land in a different package than intended -- check the parentId in "
-        "the run output before trusting the count clauses",
-    ],
+    calibrated={
+        "verdict": "PASS",
+        "how": "VCAL_PARENT_ID=... bin/vcal T08-create-software-block",
+        "result": "all three model-backed clauses pass against a live server: "
+                  "element_exists, count_at_least=1, count_at_most=1",
+        "parent_package": "0-Model Management (a primary-model package, outside every "
+                          "read-only module)",
+        "stereotype_applied": "SAF_PhysicalSystem",
+        "note": "vcal deletes any leftover ValidationProbeBlock before running. Without that "
+                "reset a previous run's element trips this task's own count_at_most clause, "
+                "and the failure gets blamed on the tool instead of on the stale state.",
+    },
     outcomes=["One ValidationProbeBlock exists with the id the tool returned"],
 )
 

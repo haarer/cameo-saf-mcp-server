@@ -179,7 +179,7 @@ a task that named it would fail for a reason that has nothing to do with the age
 | T05 | Give the identifier and text of a specific system requirement | yes | Typed property reads |
 | T06 | Describe the internal structure of `Commercial LORAWAN Gateway` | yes | Parts, ports and their types on one block |
 | T07 | List the operational exchange types | yes | Interpretation, not navigation: the exchange is a stereotype, `type` reads `Class` |
-| T08 | Create a software block in the physical architecture package | **no** | Write path, on a scratch copy |
+| T08 | Create a software block in the physical architecture package | **no** | Write path, on a scratch copy; calibrated `PASS` against a live server via `bin/vcal` |
 
 Read-only tasks need no model reset between repetitions, exercise the navigation and
 interpretation path where surface quality shows up first, and are the cheapest cells.
@@ -506,6 +506,7 @@ estimate optimises noise.
 | A variant hides `admin_*` from the agent *and* from a naive harness | the runner uses unfiltered `/admin/api/*`; `vrun` also strips `admin_*` itself so the default arm is clean |
 | Host unreachable → 0 % success looks like a model failure | `INFRA_FAILURE`; `--preflight-only` gates the suite |
 | Host path mapping is not a safe default | `cameo.host_workspace` has no guessable fallback, because this repo's own sources disagree about it: `scripts/admin_bridge.groovy:14` says `/home/mac/opencode/workspace`, `scripts/tool_contract_resources.groovy:58` says `/home/mac/oc3/workspace`, and `showcase/reverse-engineering/MCP-SURFACE-FINDINGS.md:9` records `/home/mac/projects/AI/opencode/workspace`. Resolved 2026-09-26 from the running server rather than from any of them: `admin_get_model_status` reported the open model's `fileName` under `/home/mac/oc3/workspace`. `vrun` still refuses to start without it, but the config carries a value and the evidence for it |
+| Whatever model is open can be written, at any time | `SAF_FFDS.mdzip` in the SAF profile repo was modified during a session — +13,572 bytes, unasked-for, with no `admin_save_model` anywhere in sight; the write landed as the model was closed. Cameo autosaves, so "the harness never saves" is not a property the harness can guarantee. The only control it actually has is **which file is open**. Therefore: mutating cells run against a disposable copy, shared samples stay closed whenever a cell is not measuring them, and every baseline records the *open* model's path and hash as reported by the server rather than the path the harness asked about. Observed 2026-09-26; it is also why the scratch copy is taken from the Cameo distribution (not a git tree) instead of from the profile repo |
 | The SAF profile checkout is a deployment target, not sample data | The profile repo supplies both the sample `.mdzip` models *and* the plugin that generates the SAF profile. Generating and deploying those plugins rewrites the tracked resource descriptors in place, bumping their build stamp (`cameo2026x-main-2026-08-13` → `2026-09-26`); that is a deliberate deploy, done 2026-09-26, not a side effect of loading a model. Consequence for this suite: `git status` in that repo is not a signal that anyone edited source, so do not "clean up" a dirty profile checkout on the assumption it is a mistake, and do not read a model load as the cause of a change there. It also means the sample models this suite is grounded in come from a tree that is under active development — hence the recorded sha256 in `models/ffds.json` rather than a path reference |
 | The repo's `scripts/` is not what the agent gets | The running plugin loads its own deployed scripts (`$CAMEO_HOME/plugins/com.haarer.saf.mcpserver/scripts`, here `/workspace/MSOSAref1`), hot-reloaded every 2s. Editing `scripts/` in this repo changes nothing until `./deploy-scripts.sh` copies it across. This is not hypothetical: the repo and the running instance had diverged by one whole tool — 75 tools / 174 arguments in the repo against 74 / 168 live, `create_association_class` missing along with fixes to `set_tagged_values` (inherited tag properties, element-typed values) and to association/composition member-end creation. Resolved 2026-09-26 by deploying; `vsurface verify v1` now reports in sync. The two drift apart again on every script edit that is not deployed, so the check stays in the loop: `vsurface verify` compares the declared manifest with the running server, and `vtasks lint --live` fails if the dataset depends on a tool the server lacks —  so a task can never be scored against a tool the agent was never given. `vrun` stamps `plugin_scripts_sha` (a digest of the **deployed** scripts, which is what the agent got), `surface_sha`, `plugin_commit` (the repo, kept for reference only) and `model_file` into every run record, so a score carries the identity of both halves it was produced against. Recording only the repo commit would have been exactly the wrong half: the drift this row describes is the case where the two disagree |
 | MCP tool names are server-prefixed and the prefix has changed between versions | the preamble describes admin tools by suffix and tells the agent not to seek them; no literal prefixed name is hardcoded |
@@ -707,12 +708,46 @@ Six defects the self-tests found, all of which had been silently degrading scori
   subprocess, which then had no token, and the resulting failures looked like server
   problems rather than test pollution.
 
-Only `T08-create-software-block` is marked `needsCalibration`, because it is the only
-task that mutates a model and the scratch copy it targets does not exist yet. The
-earlier calibration debt came from the showcase model and disappeared with the model
-change: seven of the eight tasks are now verified against recorded facts, and
-`vtasks lint` prints the remaining uncalibrated task on every run so it cannot quietly
-enter a reported number.
+No task is now marked `needsCalibration`. Seven of the eight are verified against
+recorded facts, and `T08-create-software-block` is calibrated against a live server:
+`bin/vcal T08-create-software-block` runs its declared first tool call against the
+scratch model and scores the result with the real oracle, and all three model-backed
+clauses pass (`element_exists`, `count_at_least=1`, `count_at_most=1`, the create
+applying `SAF_PhysicalSystem`).
+
+Calibrating it required building two things that were missing. `McpProbe` was named in
+`lib/oracle.py`'s docstring and implemented nowhere, so every model-backed clause tier
+returned UNKNOWN and T08 could not be checked at all. And the count it compares had to
+come from somewhere real: `get_model_info`'s `modelRoots[].elementCount` reads 0 for a
+model with 44 elements, which would have made `model_unchanged` compare 0 to 0 and pass
+regardless of what the run did.
+
+Three things about this model are worth recording, because each one looks like a broken
+tool and is not:
+
+- **Almost every named top-level package belongs to a read-only module.** `SAF_Profile`,
+  `UAF Constraints` and the rest are attached as modules, and a create into one is
+  refused. `Architecture Meta-Data` and `SAF C1_SCXD Validation` are both in that
+  category. The parent has to be a primary-model package such as `0-Model Management`;
+  check `get_model_info`'s module list rather than picking a plausible name.
+- **`saf_create_element` reports a refusal as `{"error": null}` and creates nothing.**
+  The generic `create_element` returns the real reason ("Element belongs to used project
+  'SAF_Profile' which is read-only"). A silent `null` error turns a read-only refusal into
+  an apparent tool failure, and is why this reads as "creates are broken" until the
+  parent is corrected.
+- **The model depends on eight other `.mdzip` files, by bare filename.** They are not in
+  the archive's text parts but in its compiled `BINARY` records, so grepping the XML
+  reports no dependencies and is wrong; the hrefs also carry a `#fragment`. The closure
+  is transitive (`SAF_FFDS` → `SAF_FFDS_NAF` → `UAF Profile`). `bin/vmodel provision`
+  derives it from the files themselves and mirrors the distribution layout, because a
+  `.mdzip` also refers to *itself* by name -- which is why the scratch copy keeps the
+  filename `SAF_FFDS.mdzip` and is isolated by directory instead of by renaming.
+
+The write is observable end to end, which is the point: creating the probe moves
+`saf_physical_system_count` from 15 to 16, and deleting it returns the 14 recorded facts
+to a clean match. `bin/vcal` deletes any leftover probe before each run, because a stale
+one trips the task's own `count_at_most` clause and the resulting failure gets blamed on
+the tool rather than on the state.
 
 : both depend on facts about the model
 (the SAF function a block realizes, the function behind a script block) that cannot be
