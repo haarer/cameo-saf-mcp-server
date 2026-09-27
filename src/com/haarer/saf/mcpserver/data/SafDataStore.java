@@ -75,6 +75,29 @@ public class SafDataStore {
 
     public record SafAspect(String id, String name, String aspectId, String documentation) {}
 
+    /**
+     * One candidate of a fuzzy domain/aspect lookup: the SAF code (domain
+     * letter or aspect number), the canonical name, how well it scored, and
+     * what matched ({@code code}, {@code name}, {@code snake_case},
+     * {@code substring}, {@code tokens}, {@code spelling}).
+     */
+    public record SafVocabularyHit(String code, String name, double score, String via) {}
+
+    /**
+     * Result of resolving free-text input against the SAF domain/aspect
+     * vocabulary. {@code canonical} is the SAF code of the best candidate
+     * ({@code null} when nothing plausible was found); {@code exact} is true
+     * when the input matched a code or name outright. {@code candidates} is
+     * the ranked list, so a caller that used an unknown spelling can be told
+     * what the plausible readings are instead of only getting a failure.
+     */
+    public record SafVocabularyMatch(
+        String canonical, String canonicalName, boolean exact, List<SafVocabularyHit> candidates
+    ) {}
+
+    /** The grid cell a viewpoint belongs to, derived from its VP_ID. */
+    public record SafGridCell(String domainCode, String domainName, String aspectId, String aspectName) {}
+
     // ---- DataIndex (immutable snapshot) -----------------------------------
 
     public static class DataIndex {
@@ -233,6 +256,261 @@ public class SafDataStore {
 
         public List<SafDomain> allDomains() { return domains; }
         public List<SafAspect> allAspects() { return aspects; }
+
+        // -- SAF grid vocabulary (domains.json / aspects.json) --------------
+        //
+        // A viewpoint's VP_ID encodes its grid cell: the leading letter is the
+        // domain code and the following digit the aspect id, so "C1_SCXD" is
+        // Conceptual x "Context & Exchange". That code is the authoritative
+        // cell; the Domain/Aspect text fields are only a fallback.
+
+        private record Vocab(String code, String name) {}
+
+        /** Candidates scoring below this are not offered as readings. */
+        private static final double VOCAB_FLOOR = 0.34;
+        private static final int VOCAB_MAX_CANDIDATES = 5;
+
+        /** The grid cell encoded in a VP_ID, or null when it does not parse. */
+        public SafGridCell gridCell(String vpId) {
+            if (vpId == null || vpId.length() < 2) {
+                return null;
+            }
+            char letter = Character.toUpperCase(vpId.charAt(0));
+            char digit = vpId.charAt(1);
+            if (letter < 'A' || letter > 'Z' || digit < '1' || digit > '9') {
+                return null;
+            }
+            var domain = domainByCode(String.valueOf(letter));
+            var aspect = aspectById(String.valueOf(digit));
+            if (domain == null || aspect == null) {
+                return null;
+            }
+            return new SafGridCell(domain.domainId(), domain.name(), aspect.aspectId(), aspect.name());
+        }
+
+        public SafDomain domainByCode(String code) {
+            if (code == null) {
+                return null;
+            }
+            for (var d : domains) {
+                if (d.domainId().equalsIgnoreCase(code.trim())) {
+                    return d;
+                }
+            }
+            return null;
+        }
+
+        public SafDomain domainByName(String name) {
+            String n = norm(name);
+            for (var d : domains) {
+                if (norm(d.name()).equals(n) || d.name().replace(' ', '_').equalsIgnoreCase(n)) {
+                    return d;
+                }
+            }
+            return null;
+        }
+
+        public SafAspect aspectById(String aspectId) {
+            if (aspectId == null) {
+                return null;
+            }
+            for (var a : aspects) {
+                if (a.aspectId().equals(aspectId.trim())) {
+                    return a;
+                }
+            }
+            return null;
+        }
+
+        public SafAspect aspectByName(String name) {
+            String n = norm(name);
+            for (var a : aspects) {
+                if (norm(a.name()).equals(n)) {
+                    return a;
+                }
+            }
+            return null;
+        }
+
+        /** Domain of a viewpoint: from its VP_ID, else from its Domain field. */
+        public SafDomain domainOf(SafViewpoint vp) {
+            if (vp == null) {
+                return null;
+            }
+            var cell = gridCell(vp.vpId());
+            if (cell != null) {
+                var d = domainByCode(cell.domainCode());
+                if (d != null) {
+                    return d;
+                }
+            }
+            return domainByName(vp.domain());
+        }
+
+        /** Aspect of a viewpoint: from its VP_ID, else from its Aspect field. */
+        public SafAspect aspectOf(SafViewpoint vp) {
+            if (vp == null) {
+                return null;
+            }
+            var cell = gridCell(vp.vpId());
+            if (cell != null) {
+                var a = aspectById(cell.aspectId());
+                if (a != null) {
+                    return a;
+                }
+            }
+            return aspectByName(vp.aspect());
+        }
+
+        /** Viewpoints in a grid cell; a null code or aspect id means "any". */
+        public List<SafViewpoint> viewpointsInCell(String domainCode, String aspectId) {
+            var out = new ArrayList<SafViewpoint>();
+            for (var vp : viewpointsById.values()) {
+                // A viewpoint can ship without a VP_ID (one in the current SAF
+                // data does), so resolve through the Domain/Aspect fields for
+                // those instead of dropping them from the grid entirely.
+                var d = domainOf(vp);
+                var a = aspectOf(vp);
+                if (d == null || a == null) {
+                    continue;
+                }
+                if (domainCode != null && !d.domainId().equalsIgnoreCase(domainCode)) {
+                    continue;
+                }
+                if (aspectId != null && !a.aspectId().equals(aspectId)) {
+                    continue;
+                }
+                out.add(vp);
+            }
+            return out;
+        }
+
+        /**
+         * Resolve free text against the domain vocabulary (domains.json),
+         * ranking likely readings so a caller who used an unknown spelling
+         * still gets the closest codes back.
+         */
+        public SafVocabularyMatch matchDomain(String query) {
+            var vocab = new ArrayList<Vocab>();
+            for (var d : domains) {
+                vocab.add(new Vocab(d.domainId(), d.name()));
+            }
+            return matchVocabulary(query, vocab);
+        }
+
+        /** Resolve free text against the aspect vocabulary (aspects.json). */
+        public SafVocabularyMatch matchAspect(String query) {
+            var vocab = new ArrayList<Vocab>();
+            for (var a : aspects) {
+                vocab.add(new Vocab(a.aspectId(), a.name()));
+            }
+            return matchVocabulary(query, vocab);
+        }
+
+        private static SafVocabularyMatch matchVocabulary(String query, List<Vocab> vocab) {
+            String q = norm(query);
+            if (q.isEmpty()) {
+                return new SafVocabularyMatch(null, null, false, List.of());
+            }
+            var scored = new ArrayList<SafVocabularyHit>();
+            for (var v : vocab) {
+                var hit = scoreVocab(q, v);
+                if (hit != null) {
+                    scored.add(hit);
+                }
+            }
+            scored.sort(Comparator.comparingDouble(SafVocabularyHit::score).reversed());
+            var top = List.copyOf(scored.subList(0, Math.min(VOCAB_MAX_CANDIDATES, scored.size())));
+            SafVocabularyHit best = top.isEmpty() ? null : top.get(0);
+            return new SafVocabularyMatch(
+                best == null ? null : best.code(),
+                best == null ? null : best.name(),
+                best != null && best.score() >= 1.0,
+                top);
+        }
+
+        /** Score one vocabulary term; null when it falls below the floor. */
+        private static SafVocabularyHit scoreVocab(String q, Vocab v) {
+            String code = norm(v.code());
+            String name = norm(v.name());
+            String snake = name.replace(' ', '_');
+            String via;
+            double score;
+            if (q.equals(code)) {
+                score = 1.0;
+                via = "code";
+            } else if (q.equals(name)) {
+                score = 1.0;
+                via = "name";
+            } else if (q.equals(snake)) {
+                score = 0.98;
+                via = "snake_case";
+            } else if (!name.isEmpty() && (name.contains(q) || q.contains(name))) {
+                score = 0.9;
+                via = "substring";
+            } else {
+                double tokens = dice(q, name);
+                double spelling = 1.0 - (double) levenshtein(q, name)
+                    / Math.max(1, Math.max(q.length(), name.length()));
+                score = 0.85 * Math.max(tokens, spelling);
+                via = "similar";
+            }
+            if (score < VOCAB_FLOOR) {
+                return null;
+            }
+            return new SafVocabularyHit(v.code(), v.name(), Math.round(score * 1000.0) / 1000.0, via);
+        }
+
+        /** Sørensen–Dice coefficient over word tokens. */
+        private static double dice(String a, String b) {
+            var ta = new HashSet<>(List.of(a.split(" ")));
+            var tb = new HashSet<>(List.of(b.split(" ")));
+            ta.remove("");
+            tb.remove("");
+            if (ta.isEmpty() || tb.isEmpty()) {
+                return 0.0;
+            }
+            var inter = new HashSet<>(ta);
+            inter.retainAll(tb);
+            return 2.0 * inter.size() / (ta.size() + tb.size());
+        }
+
+        private static int levenshtein(String a, String b) {
+            int[] prev = new int[b.length() + 1];
+            int[] cur = new int[b.length() + 1];
+            for (int j = 0; j <= b.length(); j++) {
+                prev[j] = j;
+            }
+            for (int i = 1; i <= a.length(); i++) {
+                cur[0] = i;
+                for (int j = 1; j <= b.length(); j++) {
+                    int cost = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
+                    cur[j] = Math.min(Math.min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+                }
+                int[] swap = prev;
+                prev = cur;
+                cur = swap;
+            }
+            return prev[b.length()];
+        }
+
+        /**
+         * Lower-case, collapse every non-alphanumeric run to a single space and
+         * drop the connectors, so "Context & Exchange", "context_and_exchange"
+         * and "context exchange" all normalize alike.
+         */
+        private static String norm(String s) {
+            if (s == null) {
+                return "";
+            }
+            var words = new ArrayList<String>();
+            for (var w : s.toLowerCase().replaceAll("[^a-z0-9]+", " ").trim().split(" ")) {
+                if (!w.isEmpty() && !w.equals("and") && !w.equals("or")) {
+                    words.add(w);
+                }
+            }
+            return String.join(" ", words);
+        }
 
         // -- Cross-references --
 

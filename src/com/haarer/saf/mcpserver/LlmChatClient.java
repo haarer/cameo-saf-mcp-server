@@ -3,17 +3,24 @@ package com.haarer.saf.mcpserver;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -27,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -46,6 +54,13 @@ import java.util.logging.Logger;
  * and {@code llm.key} (sent as {@code Authorization: Bearer <key>}; the header
  * is omitted when the key is absent).
  *
+ * <p>{@code llm.log} (default {@code false}) appends a transcript of every
+ * turn to {@value #DEFAULT_LOG_FILE} in the config directory — request bodies
+ * with the presented tool array, raw SSE chunks, each round's response with
+ * {@code finish_reason} and usage, and every tool call with its arguments and
+ * result. {@code llm.log.path} overrides the destination. Both keys are
+ * re-read per turn.
+ *
  * <p>Behavior:
  * <ul>
  *   <li>Requests are sent with {@code stream: true}; SSE {@code data:} chunks
@@ -62,6 +77,13 @@ import java.util.logging.Logger;
  *       prompt and completion token counts are tracked and exposed via
  *       {@link #usageStats()} together with the current context size (message
  *       and character counts).</li>
+ *   <li>Tool selection: when the registered tool set is large (more than
+ *       {@value #SELECTOR_THRESHOLD} tools and above the {@code llm.tool.max}
+ *       cap), a BM25 match over tool names and descriptions picks the tools
+ *       relevant to the user's text (minimum score {@code llm.tool.threshold},
+ *       best first, capped at {@code llm.tool.max}). An empty selection or a
+ *       failed lookup falls back to the full tool set. The index is rebuilt
+ *       only when the registered tools change.</li>
  *   <li>Tools: when at least one {@link Tool} is registered, the request
  *       carries an OpenAI {@code tools} array. If the model answers with
  *       {@code tool_calls} (streamed as {@code delta.tool_calls} fragments),
@@ -69,6 +91,9 @@ import java.util.logging.Logger;
  *       conversation as a {@code tool} message, and the model is called again.
  *       The loop repeats until the model produces plain content or
  *       the configured tool-round cap ({@code llm.tool.rounds}) is reached.</li>
+ *   <li>Nothing about a turn is logged unless {@code llm.log} is enabled, and
+ *       logging never affects the conversation: every write failure is
+ *       swallowed.</li>
  * </ul>
  */
 public class LlmChatClient {
@@ -82,6 +107,14 @@ public class LlmChatClient {
     static final int DEFAULT_TOOL_ROUNDS = 8;
     /** Tool results are truncated before being sent back to the model. */
     static final int MAX_TOOL_RESULT_CHARS = 4000;
+    /** Default for {@code llm.tool.max}: max tools attached per request. */
+    static final int DEFAULT_TOOL_MAX = 32;
+    /** Above this many registered tools BM25 selection narrows the tool set. */
+    static final int SELECTOR_THRESHOLD = 25;
+    /** Default for {@code llm.tool.threshold}: minimum BM25 score to be presented. */
+    static final double DEFAULT_TOOL_THRESHOLD = 1.0;
+    /** Default file name of the conversation log, inside the config dir. */
+    static final String DEFAULT_LOG_FILE = "llm-conversation.log";
 
     /**
      * A tool the LLM may call during a conversation. Tool execution happens
@@ -116,6 +149,16 @@ public class LlmChatClient {
         /** A tool finished; {@code result} is what was sent back to the model. */
         default void onToolResult(String name, String result) {
         }
+        /**
+         * Fired once per user turn, after tool selection, when the selection
+         * reduced the tool set; the request then carries only the selected
+         * tools.
+         *
+         * @param selected number of tools attached to the request
+         */
+        default void onToolsPresented(int selected) {
+        }
+
     }
 
     /** One tool call requested by the model. */
@@ -134,6 +177,10 @@ public class LlmChatClient {
     private long promptTokens;
     private long completionTokens;
     private boolean usageReported;
+    // BM25 selector over the tool registry: rebuilt lazily on the worker
+    // thread whenever the registered tool set changes.
+    private volatile boolean selectorDirty = true;
+    private Bm25ToolSelector toolSelector;
 
     public LlmChatClient(ObjectMapper mapper) {
         this.mapper = mapper;
@@ -166,16 +213,19 @@ public class LlmChatClient {
     public void registerTool(Tool tool) {
         tools.removeIf(t -> t.name().equals(tool.name()));
         tools.add(tool);
+        selectorDirty = true;
     }
 
     /** Remove all registered tools; the next request then omits the tools field. */
     public void clearTools() {
         tools.clear();
+        selectorDirty = true;
     }
 
     /** Unregister a tool by name; subsequent requests omit it. */
     public void unregisterTool(String name) {
         tools.removeIf(t -> t.name().equals(name));
+        selectorDirty = true;
     }
 
     /** Number of tools currently registered. */
@@ -192,7 +242,11 @@ public class LlmChatClient {
     public void send(String userText, StreamCallback callback) {
         executor.execute(() -> {
             StringBuilder full = new StringBuilder();
+            ConversationLog log = ConversationLog.open();
             try {
+                if (log != null) {
+                    log.line("--- turn " + Instant.now() + " user: " + truncate(userText, 500));
+                }
                 // History is mutated here (at execution time) on the single
                 // worker thread: queued turns are appended in order, and the
                 // context snapshot for this request already contains the
@@ -202,12 +256,25 @@ public class LlmChatClient {
                 // Per-turn tool-round cap; re-read so config changes apply to the next turn.
                 int maxRounds = toolRounds();
                 List<Map<String, Object>> messages = new ArrayList<>(history);
+                List<Tool> selectedTools = selectTools(userText);
+                if (selectedTools.size() < tools.size()) {
+                    callback.onToolsPresented(selectedTools.size());
+                }
 
                 for (int round = 0; ; round++) {
-                    RoundResult r = streamCompletions(messages, delta -> {
+                    RoundResult r = streamCompletions(messages, selectedTools, delta -> {
                         full.append(delta);
                         callback.onDelta(delta);
-                    });
+                    }, log, round);
+                    if (log != null) {
+                        ObjectNode summary = mapper.createObjectNode();
+                        summary.put("finish_reason", r.finishReason);
+                        summary.put("content", full.toString());
+                        summary.set("tool_calls", mapper.valueToTree(toolCallsToMaps(r.toolCalls)));
+                        summary.put("prompt_tokens", r.usage[0]);
+                        summary.put("completion_tokens", r.usage[1]);
+                        log.json("RESPONSE round " + round, summary);
+                    }
                     recordUsage(r.usage[0], r.usage[1]);
                     if (r.toolCalls.isEmpty()) {
                         history.add(Map.of("role", "assistant", "content", full.toString()));
@@ -226,16 +293,31 @@ public class LlmChatClient {
                     messages.add(assistantMsg);
                     history.add(assistantMsg);
                     for (ToolCall tc : r.toolCalls) {
+                        if (log != null) {
+                            log.line("--- tool call " + tc.id() + " " + tc.name()
+                                + " args=" + tc.arguments());
+                        }
                         callback.onToolCall(tc.name(), tc.arguments());
                         String result = executeTool(tc.name(), tc.arguments());
                         callback.onToolResult(tc.name(), result);
+                        if (log != null) {
+                            log.line("--- tool result " + tc.id() + " " + tc.name());
+                            log.line(result);
+                        }
                         messages.add(toolResultMessage(tc.id(), result));
                         history.add(toolResultMessage(tc.id(), result));
                     }
                 }
             } catch (Exception e) {
+                if (log != null) {
+                    log.line("--- turn failed: " + e);
+                }
                 LOG.warning("LLM console request failed: " + e.getMessage());
                 callback.onError(e.getMessage() == null ? e.toString() : e.getMessage());
+            } finally {
+                if (log != null) {
+                    log.close();
+                }
             }
         });
     }
@@ -297,22 +379,61 @@ public class LlmChatClient {
         }
     }
 
+    /**
+     * Decide which tools to attach for this turn: the full set when
+     * selection is unnecessary (few tools, or below the per-request cap);
+     * otherwise the BM25-matched subset, falling back to the full set when
+     * nothing matches or the lookup fails. Never returns null.
+     */
+    private List<Tool> selectTools(String userText) {
+        List<Tool> all = new ArrayList<>(tools);
+        if (all.size() <= SELECTOR_THRESHOLD || all.size() <= toolMax()) {
+            return all;
+        }
+        try {
+            ensureToolSelector();
+            List<Tool> selected = toolSelector.select(userText, toolThreshold(), toolMax());
+            return selected.isEmpty() ? all : selected;
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "tool selection failed; sending all " + all.size() + " tools", e);
+            return all;
+        }
+    }
+
+
+    /**
+     * Lazily build (or reuse) the BM25 tool selector; rebuilt whenever the
+     * registered tool set changed since the last build.
+     */
+    private synchronized void ensureToolSelector() throws IOException {
+        if (selectorDirty || toolSelector == null) {
+            if (toolSelector == null) {
+                toolSelector = new Bm25ToolSelector();
+            }
+            toolSelector.rebuild(tools);
+            selectorDirty = false;
+        }
+    }
+
     /** Result of one model round: requested tool calls plus reported usage. */
     private static final class RoundResult {
         final List<ToolCall> toolCalls = new ArrayList<>();
         final long[] usage = {0, 0};
+        String finishReason = "";
     }
 
     /**
      * POST {@code /v1/chat/completions} with {@code stream: true} and feed
      * reply chunks to {@code onDelta} as they arrive. Asks the server to
      * include token usage ({@code stream_options.include_usage}); tolerant of
-     * servers that ignore the flag. Sends the registered tools, if any, and
-     * parses {@code delta.tool_calls} fragments (streamed) or a complete
-     * {@code message.tool_calls} (non-streaming fallback) into
+     * servers that ignore the flag. Sends the tools selected for this turn,
+     * if any, and parses {@code delta.tool_calls} fragments (streamed) or a
+     * complete {@code message.tool_calls} (non-streaming fallback) into
      * {@link ToolCall}s.
      */
-    RoundResult streamCompletions(List<Map<String, Object>> messages, Consumer<String> onDelta) throws Exception {
+    RoundResult streamCompletions(List<Map<String, Object>> messages, List<Tool> active,
+                                  Consumer<String> onDelta, ConversationLog log, int round)
+        throws Exception {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", callModel());
         body.put("stream", true);
@@ -329,7 +450,6 @@ public class LlmChatClient {
                 n.put("tool_call_id", (String) m.get("tool_call_id"));
             }
         }
-        List<Tool> active = new ArrayList<>(tools);
         if (!active.isEmpty()) {
             ArrayNode toolArray = body.putArray("tools");
             for (Tool t : active) {
@@ -340,6 +460,9 @@ public class LlmChatClient {
                 fn.put("description", t.description());
                 fn.set("parameters", mapper.valueToTree(t.parametersSchema()));
             }
+        }
+        if (log != null) {
+            log.json("REQUEST round " + round + " (" + active.size() + " tools presented)", body);
         }
 
         HttpRequest.Builder req = HttpRequest.newBuilder()
@@ -376,6 +499,9 @@ public class LlmChatClient {
                     if (payload.isEmpty() || "[DONE]".equals(payload)) {
                         return;
                     }
+                    if (log != null) {
+                        log.line("<<< stream round " + round + ": " + payload);
+                    }
                     JsonNode node;
                     try {
                         node = mapper.readTree(payload);
@@ -384,6 +510,10 @@ public class LlmChatClient {
                         return;
                     }
                     captureUsage(node.path("usage"), result.usage);
+                    JsonNode finish = node.path("choices").path(0).path("finish_reason");
+                    if (finish.isTextual() && !finish.asText().isEmpty()) {
+                        result.finishReason = finish.asText();
+                    }
                     JsonNode delta = node.path("choices").path(0).path("delta");
                     JsonNode content = delta.path("content");
                     if (content.isTextual() && !content.asText().isEmpty()) {
@@ -403,6 +533,13 @@ public class LlmChatClient {
             }
             JsonNode node = mapper.readTree(plain.toString());
             captureUsage(node.path("usage"), result.usage);
+            if (log != null) {
+                log.json("RESPONSE round " + round + " (non-streaming)", node);
+            }
+            JsonNode finish = node.path("choices").path(0).path("finish_reason");
+            if (finish.isTextual() && !finish.asText().isEmpty()) {
+                result.finishReason = finish.asText();
+            }
             JsonNode message = node.path("choices").path(0).path("message");
             JsonNode content = message.path("content");
             if (content.isTextual()) {
@@ -623,6 +760,38 @@ public class LlmChatClient {
         return positiveIntProperty("llm.tool.rounds", DEFAULT_TOOL_ROUNDS);
     }
 
+    /**
+     * Max tools attached per request; config key {@code llm.tool.max},
+     * re-read per turn, default {@value #DEFAULT_TOOL_MAX}.
+     */
+    public static int toolMax() {
+        return positiveIntProperty("llm.tool.max", DEFAULT_TOOL_MAX);
+    }
+
+    /**
+     * Minimum BM25 score for a tool to be presented; config key
+     * {@code llm.tool.threshold}, re-read per turn, default
+     * {@value #DEFAULT_TOOL_THRESHOLD}.
+     */
+    public static double toolThreshold() {
+        return positiveDoubleProperty("llm.tool.threshold", DEFAULT_TOOL_THRESHOLD);
+    }
+
+    private static double positiveDoubleProperty(String key, double def) {
+        String v = propertyFromFile(key);
+        if (v != null) {
+            try {
+                double d = Double.parseDouble(v);
+                if (d >= 0) {
+                    return d;
+                }
+            } catch (NumberFormatException ignored) {
+                // fall through to default
+            }
+        }
+        return def;
+    }
+
     private static int positiveIntProperty(String key, int def) {
         String v = propertyFromFile(key);
         if (v != null) {
@@ -636,5 +805,102 @@ public class LlmChatClient {
             }
         }
         return def;
+    }
+
+    /**
+     * Whether the full LLM conversation is appended to a log file; config key
+     * {@code llm.log} (true/yes/on/1), re-read per turn so it can be toggled
+     * without restarting MagicDraw. Default {@code false}.
+     */
+    public static boolean logEnabled() {
+        String v = propertyFromFile("llm.log");
+        if (v == null) {
+            return false;
+        }
+        String s = v.toLowerCase();
+        return s.equals("true") || s.equals("yes") || s.equals("on") || s.equals("1");
+    }
+
+    /**
+     * Destination of the conversation log; config key {@code llm.log.path}
+     * (absolute or relative path), defaulting to {@value #DEFAULT_LOG_FILE}
+     * in the config directory next to {@code config.properties}.
+     */
+    public static File logFile() {
+        String v = propertyFromFile("llm.log.path");
+        if (v != null) {
+            return new File(v);
+        }
+        return new File(TokenManager.getInstance().getConfigDir(), DEFAULT_LOG_FILE);
+    }
+
+    /**
+     * Append-only transcript of the conversation: every request body (with the
+     * tool array exactly as presented), every raw SSE chunk, the assembled
+     * response of each round, and every tool call with its arguments and
+     * result. For post-hoc analysis of what the model was actually sent and
+     * what it answered. Every failure is swallowed — logging must never break
+     * the console.
+     */
+    static final class ConversationLog implements Closeable {
+        private static final ObjectWriter PRETTY =
+            new ObjectMapper().writerWithDefaultPrettyPrinter();
+
+        private final PrintWriter out;
+
+        private ConversationLog(PrintWriter out) {
+            this.out = out;
+        }
+
+        /** Open the log for appending, or return null when logging is off. */
+        static ConversationLog open() {
+            if (!logEnabled()) {
+                return null;
+            }
+            File f = logFile();
+            try {
+                File parent = f.getParentFile();
+                if (parent != null) {
+                    parent.mkdirs();
+                }
+                PrintWriter w = new PrintWriter(
+                    new OutputStreamWriter(new FileOutputStream(f, true), StandardCharsets.UTF_8));
+                ConversationLog log = new ConversationLog(w);
+                log.line("=== session " + Instant.now()
+                    + " model=" + configProperty("llm.model")
+                    + " log=" + f.getAbsolutePath());
+                return log;
+            } catch (IOException e) {
+                LOG.log(Level.WARNING, "Cannot write LLM conversation log to " + f, e);
+                return null;
+            }
+        }
+
+        void line(String s) {
+            if (out != null) {
+                out.println(s);
+            }
+        }
+
+        /** Append one labelled JSON document, pretty-printed. */
+        void json(String label, JsonNode node) {
+            if (out == null) {
+                return;
+            }
+            line(">>> " + label);
+            try {
+                out.println(PRETTY.writeValueAsString(node));
+            } catch (Exception e) {
+                line("(unserializable " + label + ": " + e + ")");
+            }
+        }
+
+        @Override
+        public void close() {
+            if (out != null) {
+                out.flush();
+                out.close();
+            }
+        }
     }
 }

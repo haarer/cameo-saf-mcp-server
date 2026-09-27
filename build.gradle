@@ -57,7 +57,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.uml2-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'com.dassault_systemes.modeler.foundation-*.jar', 'core-*.jar', 'jackson-*.jar', 'jide-dock-*.jar'])
+    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.uml2-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'com.dassault_systemes.modeler.foundation-*.jar', 'core-*.jar', 'jackson-*.jar', 'jide-dock-*.jar', 'lucene-core-*.jar'])
     compileOnly fileTree(dir: "${cameoHome}/plugins/com.nomagic.magicdraw.automaton/lib", include: ['groovy-*.jar'])
 }
 
@@ -90,6 +90,9 @@ tasks.register('assemblePlugin', Copy) {
     from(jar.archiveFile)
     from('_data') {
         into('_data')
+    }
+    from('scripts') {
+        into('scripts')
     }
     into(layout.buildDirectory.dir('plugin-dist/com.haarer.saf.mcpserver'))
     doFirst {

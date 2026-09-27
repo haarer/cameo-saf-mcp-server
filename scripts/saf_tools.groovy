@@ -80,34 +80,6 @@ class SafTools {
             .replaceAll(/^_|_$/, "")
     }
 
-    // API domain name -> JSON data domain name
-    private static final DOMAIN_TO_JSON = [
-        "architecture_management": "Architecture Management",
-        "operational": "Operational",
-        "conceptual": "Conceptual",
-        "physical": "Physical"
-    ]
-
-    // API aspect name -> JSON data aspect name
-    private static final ASPECT_TO_JSON = [
-        "structure": "Taxonomy & Structure",
-        "behavior": "Process & Behavior",
-        "context": "Context & Exchange",
-        "traceability": "Traceability & Mapping",
-        "requirement": "Requirement",
-        "interface": "Interface"
-    ]
-
-    // Normalize a concept name to its kind-key (must match buildMapsFromIndex logic)
-    private static String conceptToKindKey(String name) {
-        if (name == null || name.isEmpty()) return null
-        def key = name.toLowerCase()
-            .replaceAll(/[^a-z0-9 ]/, "")
-            .replaceAll(/ /, "_")
-            .replaceAll(/_+/, "_")
-            .replaceAll(/^_|_$/, "")
-        return key.isEmpty() ? null : key
-    }
 
     static {
         try {
@@ -981,108 +953,163 @@ Each provided reference REPLACES that kind's realizing list (clear-then-add) and
                 lifelineName: lifeline.getName() ?: "", coveredCount: 1]
     }
 
-    @McpTool(name = "saf_query_viewpoint", description = '''Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.
+    @McpTool(name = "saf_query_viewpoint", description = '''Query model elements belonging to a SAF viewpoint grid cell.
 
-All parameters are case-insensitive — don't retry with different casing.
+Domain and aspect are resolved against the SAF vocabulary in the spec data (domains.json / aspects.json). Pass the SAF name ("Physical", "Context & Exchange") or the short code taken from a viewpoint's VP_ID — domain "P", aspect "1"; C1_SCXD is Conceptual x Context & Exchange. An unknown spelling is resolved by similarity search: the closest readings are applied and reported in the result as "interpreted" plus the ranked candidates, so the reading can be checked. Omit both to search all domains and aspects.
+
+The matching viewpoints' exposed concepts decide the result; an element matches when it carries one of those concepts as an applied stereotype. An empty "elements" list means the cell resolved but no element of the model carries those stereotypes - that is not an error. A domain or aspect matching no SAF value returns an error listing the available values and the grid cells in use.
 Use spec_list_stereotypes to see all available stereotype names in the model.''')
-    @McpToolArgument(name = "domain", type = "string", description = "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all domains. Case-insensitive.")
-    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all aspects. Case-insensitive.")
+    @McpToolArgument(name = "domain", type = "string", description = "SAF domain name or short code: Architecture Management (A), Conceptual (C), SAF Development (D), Operational (O), Physical (P). Omit to include all domains.")
+    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect name or short id: Context & Exchange (1), Taxonomy & Structure (2), Process & Behavior (3), Interaction & Collaboration (4), Interface (5), Requirement (6), Safety & Security (7), Traceability & Mapping (8). Omit to include all aspects.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search within. Omit to search the entire primary model.")
-    List safQueryViewpoint(Map<String, Object> args) {
+    Map safQueryViewpoint(Map<String, Object> args) {
         def domain = (args.get("domain") ?: "") as String
         def aspect = (args.get("aspect") ?: "") as String
         def parentId = args.get("parentId") as String
 
-        // Determine which SAF element kinds are relevant for this domain
-        def validDomains = ["architecture_management", "operational", "conceptual", "physical", "am", "ov", "cv", "p", ""]
-        def validAspects = ["requirement", "structure", "behavior", "interface", "context", "traceability", "rq", "st", "pb", "if", "cx", "tm", ""]
-        if (!domain.isEmpty() && !validDomains.contains(domain.toLowerCase())) {
-            return [[error: "Invalid domain: " + domain + ". Valid domains: architecture_management, operational, conceptual, physical.", suggestion: "Use saf_query_viewpoint(domain='conceptual') or omit to include all domains."]]
+        def resolution = resolveViewpointKinds(domain, aspect)
+        if (!resolution.ok) {
+            def failure = [error: resolution.message]
+            if (resolution.more != null) failure.putAll(resolution.more)
+            return failure
         }
-        if (!aspect.isEmpty() && !validAspects.contains(aspect.toLowerCase())) {
-            return [[error: "Invalid aspect: " + aspect + ". Valid aspects: requirement, structure, behavior, interface, context, traceability.", suggestion: "Use saf_query_viewpoint(domain='conceptual', aspect='structure') or omit to include all aspects."]]
-        }
-        def relevantKinds = getKindsForViewpoint(domain.toLowerCase(), aspect.toLowerCase())
+        def relevantKinds = resolution.kinds
 
         def project = getProject()
         def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
-        if (root == null) return [[error: "Root not found"]]
+        if (root == null) return [error: "Root not found"]
 
         def allElements = []
         collectAll(root, allElements, 0)
 
+        // Match on the element's resolved SAF kind. Matching on the generic
+        // SysML type (CONCEPT_MAP[k][0], usually "Class") would match every
+        // classifier in the model, including the UML metamodel.
         def filtered = allElements.findAll { elem ->
-            def stereos = elem.stereotypes
-            def anyMatch = relevantKinds.any { kind ->
-                def mapping = CONCEPT_MAP[kind]
-                if (mapping == null) return false
-                def stereoName = mapping[1] as String
-                if (stereoName == null) return false
-                if (stereos.contains(stereoName)) return true
-                // Also match the human type
-                if (elem.type.toLowerCase().contains(mapping[0].toLowerCase())) return true
-                return false
-            }
-            return anyMatch
+            def kind = resolveSafKind(elem.stereotypes)
+            return !kind.isEmpty() && relevantKinds.contains(kind)
         }
 
-        return filtered
+        return [viewpoint: resolution.cell, count: filtered.size(), elements: filtered]
+    }
+
+    /**
+     * Resolve the SAF concept kinds exposed by the viewpoints in a grid cell.
+     *
+     * Domain and aspect are resolved against the SAF vocabulary in
+     * domains.json / aspects.json through the spec index: the SAF short codes
+     * (domain letter A/C/D/O/P, aspect id 1-8) and the canonical names match
+     * outright, anything else goes through a similarity search that ranks
+     * likely readings and reports them. A viewpoint's cell comes from its
+     * VP_ID, which encodes it (C1_SCXD is Conceptual x Context & Exchange), so
+     * the cell never depends on free-text fields.
+     *
+     * @return [ok: boolean, kinds: List, viewpoints: List, message: String, more: Map]
+     */
+    Map resolveViewpointKinds(String domain, String aspect) {
+        def idx = null
+        try { idx = SafDataStore.getInstance().getCurrentIndex() } catch (ignored) {}
+        if (idx == null) {
+            return [ok: false, kinds: [], viewpoints: [],
+                    message: "SAF spec data is not loaded, so viewpoint concepts cannot be resolved."]
+        }
+
+        def domainQuery = (domain ?: "").trim()
+        def aspectQuery = (aspect ?: "").trim()
+        def dm = domainQuery.isEmpty() ? null : idx.matchDomain(domainQuery)
+        def am = aspectQuery.isEmpty() ? null : idx.matchAspect(aspectQuery)
+
+        if (dm != null && dm.candidates().isEmpty()) {
+            return [ok: false, kinds: [], viewpoints: [],
+                    message: "'" + domainQuery + "' does not match any SAF domain.",
+                    more: unknownVocabulary("domain", domainQuery, idx)]
+        }
+        if (am != null && am.candidates().isEmpty()) {
+            return [ok: false, kinds: [], viewpoints: [],
+                    message: "'" + aspectQuery + "' does not match any SAF aspect.",
+                    more: unknownVocabulary("aspect", aspectQuery, idx)]
+        }
+
+        def domainCode = dm == null ? null : dm.canonical()
+        def aspectId = am == null ? null : am.canonical()
+        def matched = idx.viewpointsInCell(domainCode, aspectId)
+
+        if (matched.isEmpty()) {
+            def wanted = (domainCode == null ? "any domain" : "domain " + domainCode) +
+                    (aspectId == null ? " x any aspect" : " x aspect " + aspectId)
+            return [ok: false, kinds: [], viewpoints: [],
+                    message: "No SAF viewpoint in grid cell " + wanted + ".",
+                    more: unknownVocabulary("domain", domainQuery, idx)]
+        }
+
+        // The resolved cell is built before the kinds are collected so both the
+        // success result and the "no usable concepts" error can show which grid
+        // cell was searched, and which readings were taken.
+        def viewpoints = matched.collect { [id: it.id(), name: it.name(), vpId: it.vpId()] }
+        def cell = [
+                domain: domainCode,
+                domainName: dm == null ? null : dm.canonicalName(),
+                aspect: aspectId,
+                aspectName: am == null ? null : am.canonicalName(),
+                viewpoints: viewpoints]
+        def read = []
+        if (dm != null && !dm.exact()) read << "domain '" + domainQuery + "' read as " + domainCode + " (" + dm.canonicalName() + ")"
+        if (am != null && !am.exact()) read << "aspect '" + aspectQuery + "' read as " + aspectId + " (" + am.canonicalName() + ")"
+        if (!read.isEmpty()) {
+            cell.interpreted = read
+            cell.domainCandidates = dm == null ? [] : dm.candidates().collect { [code: it.code(), name: it.name(), score: it.score()] }
+            cell.aspectCandidates = am == null ? [] : am.candidates().collect { [code: it.code(), name: it.name(), score: it.score()] }
+        }
+
+        def kinds = [] as Set
+        def exposed = []
+        for (vp in matched) {
+            for (c in idx.getConceptsForViewpoint(vp.id())) {
+                exposed << c.name()
+                def key = safKindKey(c.name())
+                if (!key.isEmpty() && CONCEPT_MAP.containsKey(key)) kinds << key
+            }
+        }
+        if (kinds.isEmpty()) {
+            // Two different situations, and the caller needs to tell them apart:
+            // a viewpoint that exposes nothing in the spec data, versus one
+            // whose concepts are all metadata with no model element kind.
+            def labels = viewpoints.collect { it.vpId ? it.vpId : it.name }.join(", ")
+            def detail = exposed.isEmpty()
+                    ? "expose no concepts in the SAF spec data, so no element kinds can be derived"
+                    : "expose " + exposed.unique().size() + " concept(s) (" +
+                            exposed.unique().take(5).join(", ") + "), none of which map to a model element kind"
+            return [ok: false, kinds: [], viewpoints: viewpoints,
+                    message: "SAF viewpoint(s) " + labels + " " + detail + ".",
+                    more: [viewpoint: cell]]
+        }
+
+        return [ok: true, kinds: kinds as List, cell: cell]
+    }
+
+    /** Error detail for free text that matches no SAF value: the vocabulary and the cells in use. */
+    private static Map unknownVocabulary(String what, String query, idx) {
+        def vocab = (what == "domain"
+                ? idx.allDomains().collect { [code: it.domainId(), name: it.name()] }
+                : idx.allAspects().collect { [code: it.aspectId(), name: it.name()] })
+        return [
+                suggestion: "Pass the SAF " + what + " name or its short code (" +
+                        (what == "domain" ? "A, C, D, O, P" : "1-8") +
+                        "). The codes are visible in a viewpoint's VP_ID: C1_SCXD is Conceptual x Context & Exchange.",
+                unmatched: query,
+                availableValues: vocab,
+                // Resolved through the same path as the cell lookup, so a
+                // viewpoint without a VP_ID shows its real code and name
+                // rather than the raw Domain slug from viewpoints.json.
+                availableViewpoints: idx.allViewpoints().collect { vp ->
+                    def d = idx.domainOf(vp)
+                    def a = idx.aspectOf(vp)
+                    (d == null ? "?" : d.domainId()) + " / " + (a == null ? "?" : a.name())
+                }.unique().sort()]
     }
 
     List getKindsForViewpoint(String domain, String aspect) {
-        def kinds = []
-        switch (domain) {
-            case "architecture_management":
-            case "am":
-                kinds = ["stakeholder", "concern", "requirement", "comment"]
-                break
-            case "operational":
-            case "o":
-                kinds = ["operational_performer", "operational_capability", "operational_process", "operational_activity", "mission", "requirement"]
-                break
-            case "conceptual":
-            case "c":
-                kinds = ["conceptual_system", "conceptual_function", "conceptual_function_action", "system_process", "conceptual_interface", "proxy_port", "connector", "requirement", "exchange_type"]
-                break
-            case "physical":
-            case "p":
-                kinds = ["physical_system", "physical_product", "proxy_port", "connector", "requirement"]
-                break
-            default:
-                kinds = CONCEPT_MAP.keySet() as List
-        }
-
-        // Narrow by aspect if specified
-        if (!aspect.isEmpty()) {
-            switch (aspect) {
-                case "requirement":
-                case "rq":
-                    kinds = kinds.findAll { it == "requirement" || it == "system_requirement" }
-                    break
-                case "structure":
-                case "st":
-                    kinds = kinds.findAll { it.contains("system") || it.contains("structure") || it.contains("performer") || it.contains("product") }
-                    break
-                case "behavior":
-                case "pb":
-                    kinds = kinds.findAll { it.contains("function") || it.contains("process") || it.contains("activity") }
-                    break
-                case "interface":
-                case "if":
-                    kinds = kinds.findAll { it.contains("interface") || it.contains("port") || it.contains("connector") }
-                    break
-                case "context":
-                case "cx":
-                    kinds = kinds.findAll { it == "stakeholder" || it == "concern" || it == "mission" || it == "operational_performer" }
-                    break
-                case "traceability":
-                case "tm":
-                    kinds = ["requirement"]
-                    break
-            }
-        }
-
-        return kinds
+        return resolveViewpointKinds(domain, aspect).kinds
     }
 
     void collectAll(parent, List results, int depth) {
@@ -1589,11 +1616,11 @@ Get element IDs from:
         ]
     }
 
-    @McpTool(name = "saf_get_viewpoint_views", description = '''Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by short code (AM=architecture_management, OV=operational, CV=conceptual, PV=physical) or by full domain name. Returns diagrams sorted by conformance score. Optionally include diagram element content.
+    @McpTool(name = "saf_get_viewpoint_views", description = '''Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by its SAF domain short code - the letter in a viewpoint's VP_ID: A (Architecture Management), C (Conceptual), D (SAF Development), O (Operational), P (Physical) - or by the domain name. An unknown spelling is resolved by similarity search and the readings are reported back. Returns diagrams sorted by conformance score. Optionally include diagram element content.
 
-Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.g., C1_SCXD, O2_OPFR), use spec_get_viewpoint instead.''')
-    @McpToolArgument(name = "viewpointCode", type = "string", description = "Viewpoint short code: AM, OV, CV, or PV. Mutually exclusive with viewpointName. For sub-viewpoint codes (e.g., C1_SCXD), use spec_get_viewpoint instead.")
-    @McpToolArgument(name = "viewpointName", type = "string", description = "Viewpoint domain name: architecture_management, operational, conceptual, physical. Mutually exclusive with viewpointCode.")
+For a specific sub-viewpoint (e.g. C1_SCXD, O2_OPFR), use spec_get_viewpoint instead.''')
+    @McpToolArgument(name = "viewpointCode", type = "string", description = "SAF domain short code: A, C, D, O or P. Mutually exclusive with viewpointName. For sub-viewpoint codes (e.g. C1_SCXD), use spec_get_viewpoint instead.")
+    @McpToolArgument(name = "viewpointName", type = "string", description = "SAF domain name: Architecture Management, Conceptual, SAF Development, Operational, Physical. Mutually exclusive with viewpointCode.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to search diagrams within. Omit to search the entire model.")
     @McpToolArgument(name = "includeContent", type = "boolean", description = "If true, include diagram element details in results (default: false)")
     Map safGetViewpointViews(Map<String, Object> args) {
@@ -1602,16 +1629,25 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
         def parentId = args.get("parentId") as String
         def includeContent = (args.get("includeContent") as Boolean) ?: false
 
-        // Resolve viewpoint domain from code or name
-        def domain = resolveViewpointDomain(viewpointCode, viewpointName)
-        if (domain == null) {
+        // The viewpoint selector is a SAF domain: resolve it against domains.json
+        // so the SAF codes and names are the only accepted spellings.
+        def domainQuery = (viewpointCode ?: viewpointName ?: "").trim()
+        def idx = null
+        try { idx = SafDataStore.getInstance().getCurrentIndex() } catch (ignored) {}
+        if (idx == null) {
+            return [error: "SAF spec data is not loaded, so viewpoint domains cannot be resolved."]
+        }
+        def match = domainQuery.isEmpty() ? null : idx.matchDomain(domainQuery)
+        if (match == null || match.candidates().isEmpty()) {
+            def readings = match == null ? [] : match.candidates().collect { [code: it.code(), name: it.name(), score: it.score()] }
             return [
-                error: "Unknown viewpoint. Use viewpointCode (AM, OV, CV, PV) or viewpointName (architecture_management, operational, conceptual, physical).",
-                suggestion: "For specific sub-viewpoints (e.g., C1_SCXD, O2_OPFR), use spec_get_viewpoint(name='C1_SCXD') instead.",
-                viewpointCode: viewpointCode,
-                viewpointName: viewpointName
+                error: "Unknown SAF domain: " + domainQuery + ".",
+                suggestion: "Pass the SAF domain code (A, C, D, O, P) or its name; the code is the leading letter of a viewpoint's VP_ID. For a sub-viewpoint such as C1_SCXD use spec_get_viewpoint(name='C1_SCXD').",
+                availableDomains: idx.allDomains().collect { [code: it.domainId(), name: it.name()] },
+                domainCandidates: readings
             ]
         }
+        def domain = match.canonical()
 
         def project = getProject()
         def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
@@ -1668,49 +1704,13 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
         conformingViews.sort { a, b -> b.conformance <=> a.conformance }
 
         return [
-            viewpoint: [
-                domain: domain,
-                code: VIEWPOINT_CODE[domain] ?: "",
-                name: VIEWPOINT_NAME[domain] ?: ""
-            ],
+            viewpoint: [code: domain, name: match.canonicalName()],
             views: conformingViews,
             viewCount: conformingViews.size(),
             relevantKinds: relevantKinds
         ]
     }
 
-    /* ---- Viewpoint resolution helpers ---- */
-
-    // Short code -> domain
-    static final VIEWPOINT_CODE = [
-        "am": "architecture_management",
-        "ov": "operational",
-        "cv": "conceptual",
-        "pv": "physical"
-    ]
-
-    // Domain -> display name
-    static final VIEWPOINT_NAME = [
-        "architecture_management": "Architecture Management",
-        "operational": "Operational View",
-        "conceptual": "Conceptual View",
-        "physical": "Physical View"
-    ]
-
-    String resolveViewpointDomain(String code, String name) {
-        if (code != null && !code.isEmpty()) {
-            return VIEWPOINT_CODE[code.toLowerCase()]
-        }
-        if (name != null && !name.isEmpty()) {
-            def lower = name.toLowerCase()
-            for (entry in VIEWPOINT_NAME) {
-                if (entry.key.toLowerCase().contains(lower) || entry.value.toLowerCase().contains(lower)) {
-                    return entry.key
-                }
-            }
-        }
-        return null
-    }
 
     void collectDiagrams(def parent, List results) {
         if (parent == null) return
@@ -1752,9 +1752,10 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
         } catch (ignored) {}
     }
 
-    @McpTool(name = "saf_export_viewpoint", description = "Export a SAF viewpoint as structured data. Returns all matching elements with safKind, safDomain, tagged values, and intra-viewpoint relationship edges. Filter by domain (architecture_management, operational, conceptual, physical) and/or aspect (requirement, structure, behavior, interface, context, traceability). Useful for reporting and downloading.")
-    @McpToolArgument(name = "domain", type = "string", description = "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all.")
-    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all.")
+    @McpTool(name = "saf_export_viewpoint", description = '''Export a SAF viewpoint as structured data. Returns all matching elements with safKind, safDomain, tagged values, and intra-viewpoint relationship edges.
+Domain and aspect take the SAF name or the short code from a viewpoint's VP_ID (domains A, C, D, O, P; aspects 1-8); unknown spellings are resolved by similarity search and reported under "viewpoint". Omit to include all.''')
+    @McpToolArgument(name = "domain", type = "string", description = "SAF domain name or short code: Architecture Management (A), Conceptual (C), SAF Development (D), Operational (O), Physical (P). Omit to include all.")
+    @McpToolArgument(name = "aspect", type = "string", description = "SAF aspect name or short id: Context & Exchange (1), Taxonomy & Structure (2), Process & Behavior (3), Interaction & Collaboration (4), Interface (5), Requirement (6), Safety & Security (7), Traceability & Mapping (8). Omit to include all.")
     @McpToolArgument(name = "parentId", type = "string", description = "Element ID to export from. Omit to export from the entire primary model.")
     Map safExportViewpoint(Map<String, Object> args) {
         def domain = (args.get("domain") ?: "") as String
@@ -1765,20 +1766,19 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
         def root = parentId ? resolveElement(parentId) : project.getPrimaryModel()
         if (root == null) return [error: "Root not found"]
 
-        def relevantKinds = getKindsForViewpoint(domain.toLowerCase(), aspect.toLowerCase())
+        def resolution = resolveViewpointKinds(domain, aspect)
+        if (!resolution.ok) {
+            def failure = [error: resolution.message]
+            if (resolution.more != null) failure.putAll(resolution.more)
+            return failure
+        }
+        def relevantKinds = resolution.kinds
         def allElems = []
         collectAll(root, allElems, 0)
 
         def filtered = allElems.findAll { elem ->
-            if (relevantKinds.isEmpty()) return true
-            relevantKinds.any { kind ->
-                def mapping = CONCEPT_MAP[kind]
-                if (mapping == null) return false
-                def stereoName = mapping[1] as String
-                if (stereoName == null) return false
-                if (elem.stereotypes.contains(stereoName)) return true
-                return false
-            }
+            def kind = resolveSafKind(elem.stereotypes)
+            return !kind.isEmpty() && relevantKinds.contains(kind)
         }
 
         def nodes = filtered.collect { elem ->
@@ -1829,7 +1829,7 @@ Only domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.
         }
 
         return [
-            viewpoint: [domain: domain, aspect: aspect],
+            viewpoint: resolution.cell,
             nodes: nodes,
             edges: edges,
             nodeCount: nodes.size(),

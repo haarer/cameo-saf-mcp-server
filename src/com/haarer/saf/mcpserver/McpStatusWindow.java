@@ -320,6 +320,15 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     SwingUtilities.invokeLater(() -> appendLine(
                         "  [result] " + truncate(result, 300), TOOL_COLOR));
                 }
+
+                @Override
+                public void onToolsPresented(int selected) {
+                    if (hideToolCalls.get()) {
+                        return;
+                    }
+                    SwingUtilities.invokeLater(() -> appendLine(
+                        "  [tools] presenting " + selected + " of " + llm.toolCount(), TOOL_COLOR));
+                }
             });
         }
 
