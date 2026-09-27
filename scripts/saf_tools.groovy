@@ -1393,34 +1393,13 @@ Use spec_list_stereotypes to see all available stereotype names in the model.'''
             .toList()
     }
 
-    @McpTool(name = "saf_get_element_semantics", description = '''Get the SAF interpretation of one or more elements by ID: which SAF concept kind each element realizes (safKind), which SAF domain (architecture_management/operational/conceptual/physical), and which SAF viewpoints use that kind. This is the ONLY SAF-interpretation read — for raw model facts (name, stereotypes, tagged values, owned elements, relationships) use the cameo://element/{id} resource and its /children and /relationships slices instead. Batch input: pass all element IDs whose semantics you want, in one call (e.g. to annotate every result of saf_find_elements_by_type).
+    @McpTool(name = "saf_get_element_semantics", description = '''Get the SAF interpretation of one or more elements by ID: which SAF concept kind each element realizes (safKind), which SAF domain (architecture_management/operational/conceptual/physical), and which viewpoints use that kind. Pass all element IDs in one call to annotate a whole finder result.
 
-AMBIGUITY-AWARE: a single SAF stereotype can realize SEVERAL concept kinds (e.g. ItemFlow realizes Conceptual/Operational/Physical Item Exchange simultaneously). This tool never hides that. Every row carries:
-- candidateKinds: the FULL list of distinct concept kinds the element's stereootypes realize, each with {kind, concept, stereotype, domain}
-- ambiguous: true iff more than one distinct candidate kind applies
-- safKind/safDomain: the resolved kind/domain when it can be uniquely determined — the single candidate, OR the candidate selected by context (the element's conveyed/source/target ends' domain when it narrows to exactly one); otherwise safKind/safDomain are empty strings
-- disambiguation (only when context resolved an ambiguity): a human-readable note of which context signal >selected the kind
-So a row for an ItemFlow that conveys a conceptual item shows candidateKinds with all three item-exchange kinds and a safKind narrowed to the conceptual one when the conveyed classifier's own domain says so.
+This is the ONLY SAF-interpretation read. For raw model facts (name, stereotypes, tagged values, owned elements, relationships) use the cameo://element/{id} resource and its /children and /relationships slices.
 
-Use this tool when:
-- You have element IDs from a search and need their SAF meaning (kind, domain, viewpoints)
-- You want to annotate finder results without a per-element roundtrip
-- You need requirement id/text (included as 'requirement' when the element is a requirement kind)
+A single SAF stereotype can realize several concept kinds, so a row also carries candidateKinds (every applicable kind, each with kind/concept/stereotype/domain) and ambiguous. safKind/safDomain are empty when no single candidate applies.
 
-Do NOT use this tool for: raw tagged values, owned elements, or relationship lists — those are resource reads.
-
-Returns a list, one object per element:
-- id, name, type, stereotypes[]
-- safKind (e.g. 'conceptual_system'), safDomain (e.g. 'conceptual')
-- ambiguous, candidateKinds, disambiguation (see AMBIGUITY-AWARE above)
-- viewpoints: [{id, vpId, name}] — SAF viewpoints that expose the element's concept kind(s)
-- requirement: {id, text} when the element carries SAF_SystemRequirement (incl. EAP-migrated StringTaggedValue text)
-- error: "Element not found: <id>" for unresolvable IDs
-
-Example workflow:
-1. Search: saf_find_elements_by_type(stereotype='SAF_SystemRequirement', name='FFDS')
-2. Annotate: saf_get_element_semantics(elementIds=['<id1>', '<id2>', ...])
-3. Read requirements' id/text from the 'requirement' field''')
+Returns one object per element: id, name, type, stereotypes[], safKind, safDomain, ambiguous, candidateKinds, disambiguation, viewpoints: [{id, vpId, name}], requirement: {id, text} for requirement kinds, error for unresolvable IDs.''')
     @McpToolArgument(name = "elementIds", type = "array", description = '''Element IDs to interpret. Required. Batch input — annotate many elements in one call.
 
 Get element IDs from:
