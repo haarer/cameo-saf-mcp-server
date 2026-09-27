@@ -2,6 +2,7 @@ package com.haarer.saf.mcpserver.retrieval;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
@@ -43,6 +44,11 @@ import java.util.Objects;
  * tokenization + lowercasing) on both the index and query side, so
  * {@code MyModel::Pkg::Blk} is indexed as the tokens {@code mymodel},
  * {@code pkg}, and {@code blk} and matches queries written with those tokens.
+ * English stopwords are removed, and must be: {@link StandardAnalyzer}'s
+ * no-arg constructor uses an empty stop set, so without them every query
+ * term like "the" or "of" matches nearly every document and puts a constant
+ * noise floor under all scores, which is exactly what a score threshold
+ * cannot filter out.
  *
  * <p>Query semantics are chosen per search ({@link MatchPolicy}): with
  * {@code AND}, a document must contain every query term; with {@code OR},
@@ -76,7 +82,10 @@ public class Bm25Retriever implements Retriever, AutoCloseable {
      * @throws IOException if the in-memory index cannot be initialized
      */
     public Bm25Retriever(Map<String, Float> fieldBoosts) throws IOException {
-        this(new StandardAnalyzer(), fieldBoosts);
+        // StandardAnalyzer's no-arg constructor has an empty stop set in
+        // Lucene 9 (its old STOP_WORDS_SET constant is gone), so stopwords
+        // would otherwise be indexed and matched like any other term.
+        this(new StandardAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET), fieldBoosts);
     }
 
     public Bm25Retriever(Analyzer analyzer, Map<String, Float> fieldBoosts) throws IOException {

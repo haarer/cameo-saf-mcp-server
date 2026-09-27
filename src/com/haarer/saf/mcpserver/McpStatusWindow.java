@@ -327,7 +327,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                         return;
                     }
                     SwingUtilities.invokeLater(() -> {
-                        appendLine("  [tools] " + selection.summary(), TOOL_COLOR);
+                        appendLine("  [tools r" + selection.round() + "] " + selection.summary(), TOOL_COLOR);
                         // Confidence of the kept tools, best first, so a thin
                         // selection is visible in the console and not only in
                         // the transcript.

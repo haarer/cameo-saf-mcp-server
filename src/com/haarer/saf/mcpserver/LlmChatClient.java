@@ -94,9 +94,17 @@ import java.util.logging.Logger;
  *       best first, capped at {@code llm.tool.max}). An empty selection or a
  *       failed lookup falls back to the full tool set. The index is rebuilt
  *       only when the registered tools change.</li>
- *   <li>Tool selection is reported, not applied silently: every turn yields a
+ *   <li>Selection is re-decided after every tool round, because the useful
+ *       query is not only the user's words: by round two the tool result and
+ *       the model's own restatement are often the only text that shares
+ *       vocabulary with a tool description. Two rules keep the re-evaluation
+ *       from being a downgrade: a turn that fell back to the full tool set
+ *       stays open for the rest of the turn, and a narrowed round reserves
+ *       half of {@code llm.tool.max} for the tools the previous round already
+ *       presented.</li>
+ *   <li>Tool selection is reported, not applied silently: every round yields a
  *       {@link ToolSelection} carrying each presented tool's raw BM25 score, a
- *       confidence relative to the best match of that turn, and the tools that
+ *       confidence relative to the best match of that round, the tools that
  *       were dropped. When the set was not narrowed, the report says why
  *       instead of presenting an unexplained full set. It is fired via
  *       {@link StreamCallback#onToolSelection} and written to the
@@ -128,6 +136,14 @@ public class LlmChatClient {
     static final int DEFAULT_TOOL_MAX = 32;
     /** Above this many registered tools BM25 selection narrows the tool set. */
     static final int SELECTOR_THRESHOLD = 25;
+    /**
+     * Share of the per-round tool budget reserved for tools the previous round
+     * already presented. A re-evaluated round may bring in new tools, but not
+     * at the cost of everything the model was mid-way through using.
+     */
+    private static final double CARRY_SHARE = 0.5;
+    /** Cap on each part of a later round's query; a tool result can be huge. */
+    private static final int MAX_QUERY_PART = 500;
     /** Default for {@code llm.tool.threshold}: minimum BM25 score to be presented. */
     static final double DEFAULT_TOOL_THRESHOLD = 1.0;
     /** Default file name of the conversation log, inside the config dir. */
@@ -190,15 +206,19 @@ public class LlmChatClient {
     }
 
     /**
-     * Outcome of one turn's tool selection. {@code mode} is {@code bm25} when
+     * Outcome of one round's tool selection. {@code mode} is {@code bm25} when
      * the query narrowed the tool set, otherwise {@code all} with a
      * {@code reason} saying why every registered tool was presented instead.
+     * {@code carried} counts how many of the presented tools were kept from
+     * the previous round rather than re-matched, which is how a re-evaluated
+     * round stays a superset of what the model was already working with.
+     * @param round which round of the user turn this selection is for
      */
-    public record ToolSelection(String mode, String reason, int totalTools,
-                                 List<ToolScore> selected, List<ToolScore> rejected) {
+    public record ToolSelection(int round, String mode, String reason, int totalTools, int carried,
+                                List<ToolScore> selected, List<ToolScore> rejected) {
 
         public boolean narrowed() {
-            return "bm25".equals(mode);
+            return !"all".equals(mode);
         }
 
         /** One-line summary for the console. */
@@ -207,8 +227,10 @@ public class LlmChatClient {
                 return "all " + totalTools + " tools presented (" + reason + ")";
             }
             var top = selected.isEmpty() ? "" : selected.get(0).name() + " " + selected.get(0).confidence();
-            return selected.size() + " of " + totalTools + " tools presented (top: " + top + ")";
+            return selected.size() + " of " + totalTools + " tools presented ("
+                + (carried > 0 ? carried + " carried, " : "") + "top: " + top + ")";
         }
+
 
         /** Names of the presented tools, for resolving back to the registry. */
         public Set<String> selectedNames() {
@@ -314,17 +336,15 @@ public class LlmChatClient {
                 // Per-turn tool-round cap; re-read so config changes apply to the next turn.
                 int maxRounds = toolRounds();
                 List<Map<String, Object>> messages = new ArrayList<>(history);
-                ToolSelection selection = selectTools(userText);
-                callback.onToolSelection(selection);
-                if (log != null) {
-                    logSelection(log, selection);
-                }
-                List<Tool> selectedTools = selection.selected().isEmpty()
-                        ? new ArrayList<>(tools)
-                        : tools.stream().filter(t -> selection.selectedNames().contains(t.name())).toList();
+                ToolSelection selection = report(selectTools(0, userText), callback, log);
+                List<Tool> selectedTools = toolsFor(selection);
 
                 for (int round = 0; ; round++) {
+                    // Per-round text, so a later round can query with what this
+                    // one actually said rather than only what the user asked.
+                    StringBuilder roundText = new StringBuilder();
                     RoundResult r = streamCompletions(messages, selectedTools, delta -> {
+                        roundText.append(delta);
                         full.append(delta);
                         callback.onDelta(delta);
                     }, log, round);
@@ -357,6 +377,7 @@ public class LlmChatClient {
                     assistantMsg.put("tool_calls", toolCallsToMaps(r.toolCalls));
                     messages.add(assistantMsg);
                     history.add(assistantMsg);
+                    StringBuilder results = new StringBuilder();
                     for (ToolCall tc : r.toolCalls) {
                         if (log != null) {
                             log.line("--- tool call " + tc.id() + " " + tc.name()
@@ -371,7 +392,14 @@ public class LlmChatClient {
                         }
                         messages.add(toolResultMessage(tc.id(), result));
                         history.add(toolResultMessage(tc.id(), result));
+                        results.append(' ').append(result);
                     }
+                    // The set is re-decided now that the round has produced its
+                    // tool results: those, plus the model's own wording, can
+                    // reach tools the user's message alone did not.
+                    selection = report(reselect(userText, r, roundText.toString(),
+                        results.toString(), selection), callback, log);
+                    selectedTools = toolsFor(selection);
                 }
             } catch (Exception e) {
                 if (log != null) {
@@ -450,32 +478,123 @@ public class LlmChatClient {
      * otherwise the BM25-matched subset, falling back to the full set when
      * nothing matches or the lookup fails. Never returns null.
      */
-    private ToolSelection selectTools(String userText) {
+    private ToolSelection selectTools(int round, String query) {
         List<Tool> all = new ArrayList<>(tools);
         if (all.size() <= SELECTOR_THRESHOLD) {
-            return allTools(all, "only " + all.size() + " tools registered, selection starts at "
+            return allTools(round, all, "only " + all.size() + " tools registered, selection starts at "
                 + (SELECTOR_THRESHOLD + 1));
         }
         if (all.size() <= toolMax()) {
-            return allTools(all, all.size() + " tools already within llm.tool.max");
+            return allTools(round, all, all.size() + " tools already within llm.tool.max");
         }
         try {
             ensureToolSelector();
-            var selection = toolSelector.select(userText, toolThreshold(), toolMax());
+            var selection = toolSelector.select(query, toolThreshold(), toolMax());
             if (selection.selected().isEmpty()) {
-                return allTools(all, selection.reason());
+                return allTools(round, all, selection.reason());
             }
-            return new ToolSelection(selection.mode(), selection.reason(), selection.totalTools(),
+            return new ToolSelection(round, selection.mode(), selection.reason(), selection.totalTools(), 0,
                 rescored(selection.selected()), rescored(selection.rejected()));
         } catch (Exception e) {
             LOG.log(Level.FINE, "tool selection failed; sending all " + all.size() + " tools", e);
-            return allTools(all, "selection failed: " + e);
+            return allTools(round, all, "selection failed: " + e);
         }
     }
 
+    /** Tell the console and the transcript which tools this round presents. */
+    private ToolSelection report(ToolSelection selection, StreamCallback callback, ConversationLog log) {
+        callback.onToolSelection(selection);
+        if (log != null) {
+            logSelection(log, selection);
+        }
+        return selection;
+    }
+
+    /** The tools a selection resolves to; an empty selection means all of them. */
+    private List<Tool> toolsFor(ToolSelection selection) {
+        if (selection.selected().isEmpty()) {
+            return new ArrayList<>(tools);
+        }
+        Set<String> names = selection.selectedNames();
+        return tools.stream().filter(t -> names.contains(t.name())).toList();
+    }
+
     /** Fallback: every registered tool is presented, and the report says why. */
-    private ToolSelection allTools(List<Tool> all, String reason) {
-        return new ToolSelection("all", reason, all.size(), List.of(), List.of());
+    private ToolSelection allTools(int round, List<Tool> all, String reason) {
+        return new ToolSelection(round, "all", reason, all.size(), 0, List.of(), List.of());
+    }
+
+    /**
+     * Re-decide the tool set for the round after a tool call.
+     *
+     * <p>The query grows with what the round actually produced: the original
+     * user message, the model's own words for the round, and the tool result.
+     * Of those, the model's words are the only ones that speak the tool
+     * vocabulary — a user's "why isn't it displayed" and a tool's
+     * "PhysicalSystem" share no tokens with "saf_get_viewpoint_views", but the
+     * model's restatement usually does.
+     *
+     * <p>Two guards keep the re-evaluation from being a downgrade. A round
+     * that fell back to presenting everything keeps presenting everything:
+     * a tool result's boilerplate words ("stereotype", "element") match
+     * authoring tools and would otherwise crowd out the set the model was
+     * already working with. And when the round was narrowed, the tools from
+     * the previous round keep half the budget, so nothing the model is
+     * mid-way through using disappears between rounds.
+     */
+    private ToolSelection reselect(String userText, RoundResult r, String roundText, String toolResult,
+                                   ToolSelection previous) {
+        if (!previous.narrowed()) {
+            return previous;
+        }
+        ToolSelection fresh = selectTools(previous.round() + 1, roundQuery(userText, r, roundText, toolResult));
+        if (!fresh.narrowed()) {
+            return fresh;
+        }
+        int max = toolMax();
+        int carryBudget = (int) Math.ceil(max * CARRY_SHARE);
+        List<ToolScore> merged = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        int carried = 0;
+        for (ToolScore s : previous.selected()) {
+            if (carried >= carryBudget) {
+                break;
+            }
+            if (seen.add(s.name())) {
+                merged.add(s);
+                carried++;
+            }
+        }
+        for (ToolScore s : fresh.selected()) {
+            if (merged.size() >= max) {
+                break;
+            }
+            if (seen.add(s.name())) {
+                merged.add(s);
+            }
+        }
+        return new ToolSelection(previous.round() + 1, "bm25", "", fresh.totalTools(), carried,
+            List.copyOf(merged), fresh.rejected());
+    }
+
+    /**
+     * The query for a later round. Parts are truncated: a tool result can be
+     * a whole exported viewpoint, and past the first screenful it adds length
+     * to the analysis without adding terms that match a tool.
+     */
+    private static String roundQuery(String userText, RoundResult r, String roundText, String toolResult) {
+        StringBuilder q = new StringBuilder(userText == null ? "" : userText);
+        addQueryPart(q, r.reasoning.toString());
+        addQueryPart(q, roundText);
+        addQueryPart(q, toolResult);
+        return q.toString();
+    }
+
+    private static void addQueryPart(StringBuilder q, String part) {
+        if (part == null || part.isBlank()) {
+            return;
+        }
+        q.append(' ').append(part.length() > MAX_QUERY_PART ? part.substring(0, MAX_QUERY_PART) : part);
     }
 
     private static List<ToolScore> rescored(List<Bm25ToolSelector.Scored> scores) {
@@ -486,6 +605,7 @@ public class LlmChatClient {
 
     private void logSelection(ConversationLog log, ToolSelection selection) {
         ObjectNode node = mapper.createObjectNode();
+        node.put("round", selection.round());
         node.put("mode", selection.mode());
         if (!selection.reason().isEmpty()) {
             node.put("reason", selection.reason());
@@ -493,6 +613,7 @@ public class LlmChatClient {
         node.put("totalTools", selection.totalTools());
         // An empty selection means the fallback presented every tool.
         node.put("presented", selection.selected().isEmpty() ? selection.totalTools() : selection.selected().size());
+        node.put("carried", selection.carried());
         node.set("selected", scoreArray(selection.selected()));
         node.set("rejected", scoreArray(selection.rejected()));
         log.json("TOOL SELECTION", node);
