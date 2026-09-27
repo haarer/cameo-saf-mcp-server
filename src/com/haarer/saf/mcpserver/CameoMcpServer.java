@@ -68,6 +68,19 @@ public class CameoMcpServer {
         return transportProvider.getHost();
     }
 
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    public int getToolCount() {
+        var scan = sessionManager.getLatestScan();
+        return scan != null ? scan.tools().size() : 0;
+    }
+
+    public int getActiveSessions() {
+        return sessionManager.getSessions().size();
+    }
+
     private String determineDefaultScriptsDir() {
         var propertyDir = System.getProperty("cameo.mcp.server.scripts.dir");
         if (propertyDir != null) return propertyDir;

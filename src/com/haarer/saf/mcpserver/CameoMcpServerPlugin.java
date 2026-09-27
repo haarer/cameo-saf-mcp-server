@@ -1,5 +1,6 @@
 package com.haarer.saf.mcpserver;
 
+import com.nomagic.magicdraw.ui.ProjectWindowsManager;
 import com.nomagic.magicdraw.plugins.Plugin;
 import com.nomagic.magicdraw.core.Application;
 
@@ -38,6 +39,12 @@ public class CameoMcpServerPlugin extends Plugin {
             logError("Failed to start: " + e.getMessage());
             e.printStackTrace(System.err);
         }
+
+        // Spike: docked "MCP Status" window in the main frame. Registered
+        // once; MagicDraw calls configure() per opened project.
+        ProjectWindowsManager.ConfiguratorRegistry.addConfigurator(
+            new McpStatusWindow(() -> server));
+        log("Registered MCP status window configurator");
     }
 
     @Override

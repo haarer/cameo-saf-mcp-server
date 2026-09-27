@@ -52,6 +52,14 @@ public class McpSession {
         return map;
     }
 
+    public static long totalToolCalls() {
+        long total = 0;
+        for (var counter : toolCallCounts.values()) {
+            total += counter.get();
+        }
+        return total;
+    }
+
     public static void resetToolCallCounts() {
         toolCallCounts.clear();
     }
