@@ -324,29 +324,16 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                         "  [result] " + truncate(result, 300), TOOL_COLOR));
                 }
 
-                @Override
-                public void onToolSelection(LlmChatClient.ToolSelection selection) {
-                    if (!showToolCalls()) {
-                        return;
-                    }
-                    SwingUtilities.invokeLater(() -> {
-                        appendLine("  [tools r" + selection.round() + "] " + selection.summary(), TOOL_COLOR);
-                        // Confidence of the kept tools, best first, so a thin
-                        // selection is visible in the console and not only in
-                        // the transcript.
-                        for (var s : selection.selected()) {
-                            appendLine(String.format("      %-34s score %-7.3f conf %.2f %s",
-                                s.name(), s.score(), s.confidence(), s.band()), TOOL_COLOR);
-                        }
-                    });
-                }
             });
         }
 
         /**
-         * Whether tool calls, results, and the per-round tool selection are
-         * printed. Read per callback rather than cached, so turning it on in
-         * the configuration dialog takes effect on the next message.
+         * Whether tool calls and their results are printed. Read per callback
+         * rather than cached, so turning it on in the configuration dialog
+         * takes effect on the next message. The per-round tool selection is
+         * deliberately not shown here: it goes only to the conversation log
+         * ({@code llm.log}), since it is diagnostic detail rather than part
+         * of the conversation.
          */
         private boolean showToolCalls() {
             return PluginConfig.flag(PluginConfig.SHOW_TOOL_CALLS, false);

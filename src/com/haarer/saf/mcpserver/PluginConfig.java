@@ -87,7 +87,7 @@ public final class PluginConfig {
                 "Where the conversation log is written. Relative paths resolve against the config directory.",
                 LlmChatClient.DEFAULT_LOG_FILE),
             new Option(SHOW_TOOL_CALLS, "Show tool calls", Type.BOOL,
-                "Print tool calls, their results, and the per-round tool selection in the console.",
+                "Print tool calls and their results in the console. The per-round tool selection goes to the conversation log only.",
                 false)
         );
     }
