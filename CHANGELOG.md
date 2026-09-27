@@ -10,6 +10,7 @@ Versions refer to git tags that define release packages.
 - Tool-surface administration: filtering which MCP tools are visible/callable (admin_set_enabled_tools, admin_get_enabled_tools, /admin web page, per-tool call telemetry) — iteration 7
 - MCP resource cameo://saf-views listing SAF-viewpoint diagrams of the open model
 - Resource endpoints for element and diagram (cameo://element/{id}, cameo://diagram/{id}), selection context resource
+- LLM chat console in the dockable MCP status window: OpenAI-compatible chat client (LlmChatClient) with live SSE streaming, non-SSE fallback, single-worker FIFO queueing, and execution-time conversation context; endpoint configurable via cameo.mcp.console.llm.url or config.properties (llm.url, llm.model, llm.key)
 
 ### Changed
 

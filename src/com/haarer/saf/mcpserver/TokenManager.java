@@ -101,6 +101,15 @@ public class TokenManager {
         Files.writeString(tokenFile.toPath(), token + System.lineSeparator());
     }
 
+    /**
+     * The plugin config directory ({@code ~/.config/com.saf.mcpserver}) that
+     * holds the token file; other components (e.g. the console LLM client)
+     * persist their settings here as well.
+     */
+    public File getConfigDir() {
+        return getOrCreateConfigDir();
+    }
+
     private File getOrCreateConfigDir() {
         String userHome = System.getProperty("user.home");
         File configDir = new File(userHome, ".config" + File.separator + "com.saf.mcpserver");
