@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Calibrate a task against the live model: run its first tool call, then score the result
+with the real oracle.
+
+This is how a task stops being a guess. The oracle tiers that read the model (element_exists,
+count_at_least, count_at_most, model_unchanged) are only meaningful against a real server, and
+this is the command that proves they work.
+
+It also refuses to run against anything shared. A calibration step that writes into a sample
+model is indistinguishable, from the outside, from a bug -- and the damage is not undone by
+the next run.
+
+  vcal <task-id>              provision scratch, load it, run the first call, score, reset
+  vcal --dry-run <task-id>    report what it would do and touch nothing
+"""
+from __future__ import annotations
+
+import json
+import os
+import pathlib
+import subprocess
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "lib"))
+
+import mcp_client  # noqa: E402
+import oracle      # noqa: E402
+import tasks       # noqa: E402
+
+MCP = os.environ.get("CAMEO_MCP_URL", "http://host.containers.internal:18750/mcp")
+PROBE_NAME = "ValidationProbeBlock"
+SHARED_MARKERS = ("/SAF-Cameo-Profile/", "/MSOSAref1/")
+
+
+def die(msg: str) -> None:
+    print(f"vcal: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def cfg() -> dict:
+    return json.loads((ROOT / "config.json").read_text())
+
+
+def load_task(task_id: str):
+    """The real loaded Task, not the raw json: the oracle scores Clause objects, and a dict
+    would let the task file and the oracle drift apart without anything noticing."""
+    for t in tasks.load_all(ROOT / "tasks"):
+        if t.id == task_id:
+            return t
+    die(f"no such task: {task_id}")
+
+
+def main(argv: list[str]) -> int:
+    dry = "--dry-run" in argv
+    args = [a for a in argv if not a.startswith("--")]
+    if len(args) != 1:
+        print(__doc__)
+        return 2
+    task = load_task(args[0])
+    conf = cfg()
+    model = conf["cameo"]["test_models"].get(task.id)
+
+    for bad in SHARED_MARKERS:
+        if model and bad in model:
+            die(f"refusing to calibrate against a shared model: {model}")
+
+    scratch = pathlib.Path(conf["cameo"].get("scratch_dir",
+                                             "/workspace/validation-scratch"))
+    r = subprocess.run([str(ROOT / "bin" / "vmodel"), "provision", "SAF_FFDS"],
+                       capture_output=True, text=True, timeout=900,
+                       env=dict(os.environ, VALIDATION_SCRATCH_DIR=str(scratch)))
+    if r.returncode != 0:
+        die("provision failed:\n" + r.stdout + r.stderr)
+    prov = json.loads(r.stdout)
+    scratch_model = next(f["scratch"] for f in prov["files"]
+                         if f["relative"].endswith("SAF_FFDS.mdzip"))
+
+    if dry:
+        print(json.dumps({"task": task.id, "model": model, "scratch": scratch_model,
+                          "first_tool": task.expected_first_tool,
+                          "would_write": task.is_write}, indent=2))
+        return 0
+
+    v = subprocess.run([str(ROOT / "bin" / "vpath"), "verify-model", scratch_model],
+                       capture_output=True, text=True, timeout=900)
+    if v.returncode != 0:
+        die("scratch model did not load:\n" + v.stdout + v.stderr)
+
+    c = mcp_client.Client(MCP, timeout=300).connect()
+    try:
+        probe = oracle.McpProbe(c)
+        before = probe.element_count()
+
+        # Reset first. A calibration that starts from whatever a previous run left behind is
+        # not a calibration: this task's own count_at_most clause would fail on the leftover
+        # and the failure would be blamed on the tool instead of on the stale state.
+        stale = probe.find(name=PROBE_NAME)
+        for row in stale:
+            c.call("delete_element", {"elementId": row["id"]})
+
+        # The first tool call the task declares. Its arguments are the ones recorded in the
+        # task's own contract, so calibration cannot quietly drift from the shipped task.
+        first = task.expected_first_tool
+        if not first:
+            die("task declares no expected_first_tool to calibrate against")
+
+        parent = os.environ.get("VCAL_PARENT_ID")
+        if not parent:
+            die("set VCAL_PARENT_ID to a package in the PRIMARY model.\n"
+                "  Nearly every named package in the FFDS sample belongs to a read-only\n"
+                "  module, so this cannot be guessed: a create there is refused or silently\n"
+                "  dropped, and both look like 'the tool is broken'.")
+        args = {"kind": "physical_system", "name": PROBE_NAME,
+                "parentId": parent, "documentation": "v"}
+        made = c.call(first, args)
+
+        res = oracle.evaluate(task, calls=[{"name": first, "arguments": args}],
+                              probe=probe, baseline=before)
+    finally:
+        c.close()
+
+    print(json.dumps({"task": task.id, "model": model, "parent": parent,
+                      "tool": first, "request": args, "response": made,
+                      "elements_before": before, "stale_removed": len(stale),
+                      "verdict": res.verdict,
+                      "clauses": [{"label": x.label, "kind": x.kind, "verdict": x.verdict,
+                                   "detail": x.detail} for x in res.clauses]},
+                     indent=2, ensure_ascii=False))
+    return 0 if res.verdict == "PASS" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

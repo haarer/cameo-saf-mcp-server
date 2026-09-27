@@ -1,0 +1,1399 @@
+{
+  "note": "surface as declared by scripts/*.groovy at plugin 59ab707; ground truth 75 tools / 174 args / 12 resources / 1 prompt. Analyzer pinned by tests/harness_test.py (21 checks).",
+  "budgets": {},
+  "report": {
+    "surface": "v1",
+    "generated": "2026-09-26T06:11:15Z",
+    "source": "groovy-scripts",
+    "headline": {
+      "tools": 75,
+      "arguments": 174,
+      "resources": 12,
+      "prompts": 1,
+      "approx_description_tokens": 16142,
+      "warn": 6,
+      "info": 25
+    },
+    "metrics": {
+      "context_cost": {
+        "tool_description_chars": 37768,
+        "argument_description_chars": 20345,
+        "argument_name_overhead_chars": 3661,
+        "total_description_chars": 58113,
+        "approx_tokens": 16142,
+        "tools": 75,
+        "arguments": 174,
+        "approx_tokens_per_tool": 775,
+        "chars_per_tool": {
+          "admin_apply_profile": 338,
+          "admin_close_model": 107,
+          "admin_create_model": 224,
+          "admin_get_enabled_tools": 130,
+          "admin_get_model_status": 131,
+          "admin_load_model": 142,
+          "admin_reset_model": 164,
+          "admin_save_model": 109,
+          "admin_set_enabled_tools": 216,
+          "apply_stereotype": 325,
+          "create_association_class": 629,
+          "create_connector": 589,
+          "create_element": 256,
+          "create_information_flow": 1343,
+          "create_part": 1052,
+          "create_relationship": 650,
+          "delete_element": 150,
+          "diff": 946,
+          "echo": 85,
+          "export_diagram_as_png": 177,
+          "find_elements": 401,
+          "find_elements_by_type": 485,
+          "get_block_structure": 351,
+          "get_element_info": 467,
+          "get_metaclass_by_name": 348,
+          "get_model_info": 444,
+          "get_port_type_info": 253,
+          "get_state_machine_structure": 349,
+          "get_stereotype_tags": 428,
+          "list_model_stereotypes": 229,
+          "list_owned_elements": 735,
+          "logging_demo": 127,
+          "modelcode_spec_update": 992,
+          "modelcode_validation_eval": 828,
+          "modelcode_validation_run": 592,
+          "modify_element": 160,
+          "plugincode_introspect": 1286,
+          "remove_stereotype": 151,
+          "saf_add_association_paths": 710,
+          "saf_build_traceability_chain": 256,
+          "saf_check_consistency": 339,
+          "saf_create_diagram": 1876,
+          "saf_create_element": 1490,
+          "saf_create_relationship": 2685,
+          "saf_export_viewpoint": 352,
+          "saf_find_elements_by_type": 715,
+          "saf_get_element_semantics": 2715,
+          "saf_get_viewpoint_views": 406,
+          "saf_query_viewpoint": 491,
+          "saf_set_requirement_tags": 1506,
+          "saf_set_use_case_subject": 572,
+          "set_constrained_element": 515,
+          "set_information_flow_realizing": 808,
+          "set_information_flow_realizing_connector": 426,
+          "set_multiplicity": 195,
+          "set_occurrence_spec_covered": 635,
+          "set_sequence_message_ends": 753,
+          "set_tagged_values": 256,
+          "set_type": 398,
+          "spec_get_concept": 225,
+          "spec_get_concept_stereotypes": 303,
+          "spec_get_concern": 188,
+          "spec_get_special_implementations": 242,
+          "spec_get_stakeholder": 181,
+          "spec_get_stereotype": 253,
+          "spec_get_viewpoint": 268,
+          "spec_get_viewpoint_concepts": 222,
+          "spec_get_viewpoint_concerns": 206,
+          "spec_list_concepts": 152,
+          "spec_list_concerns": 126,
+          "spec_list_stakeholders": 111,
+          "spec_list_stereotypes": 142,
+          "spec_list_viewpoints": 306,
+          "spec_search": 230,
+          "validation_introspect": 125
+        }
+      },
+      "description_length": {
+        "warn_above_chars": 800,
+        "error_above_chars": 2000,
+        "over_warn": [
+          {
+            "name": "saf_get_element_semantics",
+            "chars": 2715,
+            "file": "scripts/saf_tools.groovy",
+            "line": 1369
+          },
+          {
+            "name": "saf_create_relationship",
+            "chars": 2685,
+            "file": "scripts/saf_tools.groovy",
+            "line": 487
+          },
+          {
+            "name": "saf_create_diagram",
+            "chars": 1876,
+            "file": "scripts/saf_tools.groovy",
+            "line": 2313
+          },
+          {
+            "name": "saf_set_requirement_tags",
+            "chars": 1506,
+            "file": "scripts/saf_tools.groovy",
+            "line": 367
+          },
+          {
+            "name": "saf_create_element",
+            "chars": 1490,
+            "file": "scripts/saf_tools.groovy",
+            "line": 200
+          },
+          {
+            "name": "create_information_flow",
+            "chars": 1343,
+            "file": "scripts/saf_tools.groovy",
+            "line": 663
+          },
+          {
+            "name": "plugincode_introspect",
+            "chars": 1286,
+            "file": "scripts/plugincode.groovy",
+            "line": 14
+          },
+          {
+            "name": "create_part",
+            "chars": 1052,
+            "file": "scripts/structural_tools.groovy",
+            "line": 135
+          },
+          {
+            "name": "modelcode_spec_update",
+            "chars": 992,
+            "file": "scripts/modelcode.groovy",
+            "line": 72
+          },
+          {
+            "name": "diff",
+            "chars": 946,
+            "file": "scripts/diff_tool.groovy",
+            "line": 87
+          },
+          {
+            "name": "modelcode_validation_eval",
+            "chars": 828,
+            "file": "scripts/modelcode.groovy",
+            "line": 218
+          },
+          {
+            "name": "set_information_flow_realizing",
+            "chars": 808,
+            "file": "scripts/saf_tools.groovy",
+            "line": 780
+          }
+        ],
+        "over_error": [
+          {
+            "name": "saf_get_element_semantics",
+            "chars": 2715,
+            "file": "scripts/saf_tools.groovy",
+            "line": 1369
+          },
+          {
+            "name": "saf_create_relationship",
+            "chars": 2685,
+            "file": "scripts/saf_tools.groovy",
+            "line": 487
+          }
+        ],
+        "median_chars": 338,
+        "max_chars": 2715
+      },
+      "names": {
+        "duplicate_names": [],
+        "vague_names": [],
+        "vague_prefixed": [],
+        "same_stem_different_namespace": [
+          {
+            "stem": "create_element",
+            "tools": [
+              "create_element",
+              "saf_create_element"
+            ]
+          },
+          {
+            "stem": "create_relationship",
+            "tools": [
+              "create_relationship",
+              "saf_create_relationship"
+            ]
+          },
+          {
+            "stem": "find_elements_by_type",
+            "tools": [
+              "find_elements_by_type",
+              "saf_find_elements_by_type"
+            ]
+          }
+        ]
+      },
+      "parameters": {
+        "warn_above_optional": 5,
+        "error_above_optional": 8,
+        "over_optional_budget": [
+          {
+            "name": "create_information_flow",
+            "total": 9,
+            "required": 0,
+            "optional": 9
+          },
+          {
+            "name": "find_elements_by_type",
+            "total": 7,
+            "required": 0,
+            "optional": 7
+          },
+          {
+            "name": "saf_create_diagram",
+            "total": 9,
+            "required": 2,
+            "optional": 7
+          }
+        ],
+        "over_error_budget": [
+          {
+            "name": "create_information_flow",
+            "total": 9,
+            "required": 0,
+            "optional": 9
+          }
+        ],
+        "tools_without_required_args": [
+          "admin_apply_profile",
+          "admin_close_model",
+          "admin_get_enabled_tools",
+          "admin_get_model_status",
+          "admin_load_model",
+          "admin_reset_model",
+          "admin_save_model",
+          "admin_set_enabled_tools",
+          "create_information_flow",
+          "diff",
+          "echo",
+          "find_elements",
+          "find_elements_by_type",
+          "get_model_info",
+          "list_model_stereotypes",
+          "logging_demo",
+          "saf_check_consistency",
+          "saf_create_element",
+          "saf_create_relationship",
+          "saf_export_viewpoint",
+          "saf_find_elements_by_type",
+          "saf_get_element_semantics",
+          "saf_get_viewpoint_views",
+          "saf_query_viewpoint",
+          "saf_set_requirement_tags",
+          "saf_set_use_case_subject",
+          "set_information_flow_realizing",
+          "set_information_flow_realizing_connector",
+          "set_occurrence_spec_covered",
+          "set_sequence_message_ends",
+          "spec_get_special_implementations",
+          "spec_list_concepts",
+          "spec_list_concerns",
+          "spec_list_stakeholders",
+          "spec_list_stereotypes",
+          "spec_list_viewpoints",
+          "validation_introspect"
+        ],
+        "generic_parameter_names": {
+          "name": [
+            "admin_apply_profile",
+            "admin_create_model",
+            "create_association_class",
+            "create_connector",
+            "create_element",
+            "create_information_flow",
+            "create_part",
+            "find_elements",
+            "find_elements_by_type",
+            "get_metaclass_by_name",
+            "modify_element",
+            "saf_create_diagram",
+            "saf_create_element",
+            "saf_find_elements_by_type",
+            "spec_get_concept",
+            "spec_get_concept_stereotypes",
+            "spec_get_concern",
+            "spec_get_stakeholder",
+            "spec_get_stereotype",
+            "spec_get_viewpoint"
+          ],
+          "type": [
+            "create_element",
+            "create_relationship",
+            "find_elements",
+            "find_elements_by_type",
+            "saf_create_relationship",
+            "saf_find_elements_by_type",
+            "spec_search"
+          ],
+          "path": [
+            "admin_load_model",
+            "admin_reset_model"
+          ],
+          "text": [
+            "saf_set_requirement_tags"
+          ],
+          "values": [
+            "set_tagged_values"
+          ]
+        },
+        "optional_args_with_identical_help": [],
+        "per_tool": [
+          {
+            "name": "create_information_flow",
+            "total": 9,
+            "required": 0,
+            "optional": 9
+          },
+          {
+            "name": "saf_create_diagram",
+            "total": 9,
+            "required": 2,
+            "optional": 7
+          },
+          {
+            "name": "create_connector",
+            "total": 8,
+            "required": 5,
+            "optional": 3
+          },
+          {
+            "name": "find_elements_by_type",
+            "total": 7,
+            "required": 0,
+            "optional": 7
+          },
+          {
+            "name": "create_association_class",
+            "total": 6,
+            "required": 3,
+            "optional": 3
+          },
+          {
+            "name": "create_part",
+            "total": 6,
+            "required": 3,
+            "optional": 3
+          },
+          {
+            "name": "create_element",
+            "total": 5,
+            "required": 2,
+            "optional": 3
+          },
+          {
+            "name": "create_relationship",
+            "total": 5,
+            "required": 2,
+            "optional": 3
+          },
+          {
+            "name": "export_diagram_as_png",
+            "total": 5,
+            "required": 1,
+            "optional": 4
+          },
+          {
+            "name": "plugincode_introspect",
+            "total": 4,
+            "required": 1,
+            "optional": 3
+          },
+          {
+            "name": "saf_create_element",
+            "total": 4,
+            "required": 0,
+            "optional": 4
+          },
+          {
+            "name": "saf_find_elements_by_type",
+            "total": 4,
+            "required": 0,
+            "optional": 4
+          },
+          {
+            "name": "saf_get_viewpoint_views",
+            "total": 4,
+            "required": 0,
+            "optional": 4
+          },
+          {
+            "name": "set_information_flow_realizing",
+            "total": 4,
+            "required": 0,
+            "optional": 4
+          },
+          {
+            "name": "admin_apply_profile",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "admin_create_model",
+            "total": 3,
+            "required": 1,
+            "optional": 2
+          },
+          {
+            "name": "diff",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "find_elements",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "list_owned_elements",
+            "total": 3,
+            "required": 1,
+            "optional": 2
+          },
+          {
+            "name": "modelcode_spec_update",
+            "total": 3,
+            "required": 2,
+            "optional": 1
+          },
+          {
+            "name": "modelcode_validation_eval",
+            "total": 3,
+            "required": 1,
+            "optional": 2
+          },
+          {
+            "name": "modify_element",
+            "total": 3,
+            "required": 1,
+            "optional": 2
+          },
+          {
+            "name": "saf_add_association_paths",
+            "total": 3,
+            "required": 1,
+            "optional": 2
+          },
+          {
+            "name": "saf_create_relationship",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "saf_export_viewpoint",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "saf_query_viewpoint",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "saf_set_requirement_tags",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "set_sequence_message_ends",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "set_tagged_values",
+            "total": 3,
+            "required": 3,
+            "optional": 0
+          },
+          {
+            "name": "spec_list_viewpoints",
+            "total": 3,
+            "required": 0,
+            "optional": 3
+          },
+          {
+            "name": "apply_stereotype",
+            "total": 2,
+            "required": 2,
+            "optional": 0
+          },
+          {
+            "name": "get_block_structure",
+            "total": 2,
+            "required": 1,
+            "optional": 1
+          },
+          {
+            "name": "modelcode_validation_run",
+            "total": 2,
+            "required": 1,
+            "optional": 1
+          },
+          {
+            "name": "remove_stereotype",
+            "total": 2,
+            "required": 2,
+            "optional": 0
+          },
+          {
+            "name": "saf_build_traceability_chain",
+            "total": 2,
+            "required": 1,
+            "optional": 1
+          },
+          {
+            "name": "saf_check_consistency",
+            "total": 2,
+            "required": 0,
+            "optional": 2
+          },
+          {
+            "name": "saf_set_use_case_subject",
+            "total": 2,
+            "required": 0,
+            "optional": 2
+          },
+          {
+            "name": "set_constrained_element",
+            "total": 2,
+            "required": 2,
+            "optional": 0
+          },
+          {
+            "name": "set_information_flow_realizing_connector",
+            "total": 2,
+            "required": 0,
+            "optional": 2
+          },
+          {
+            "name": "set_multiplicity",
+            "total": 2,
+            "required": 2,
+            "optional": 0
+          },
+          {
+            "name": "set_occurrence_spec_covered",
+            "total": 2,
+            "required": 0,
+            "optional": 2
+          },
+          {
+            "name": "set_type",
+            "total": 2,
+            "required": 2,
+            "optional": 0
+          },
+          {
+            "name": "spec_search",
+            "total": 2,
+            "required": 1,
+            "optional": 1
+          },
+          {
+            "name": "admin_load_model",
+            "total": 1,
+            "required": 0,
+            "optional": 1
+          },
+          {
+            "name": "admin_reset_model",
+            "total": 1,
+            "required": 0,
+            "optional": 1
+          },
+          {
+            "name": "admin_set_enabled_tools",
+            "total": 1,
+            "required": 0,
+            "optional": 1
+          },
+          {
+            "name": "delete_element",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "echo",
+            "total": 1,
+            "required": 0,
+            "optional": 1
+          },
+          {
+            "name": "get_element_info",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "get_metaclass_by_name",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "get_port_type_info",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "get_state_machine_structure",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "get_stereotype_tags",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "saf_get_element_semantics",
+            "total": 1,
+            "required": 0,
+            "optional": 1
+          },
+          {
+            "name": "spec_get_concept",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_concept_stereotypes",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_concern",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_special_implementations",
+            "total": 1,
+            "required": 0,
+            "optional": 1
+          },
+          {
+            "name": "spec_get_stakeholder",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_stereotype",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_viewpoint",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_viewpoint_concepts",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "spec_get_viewpoint_concerns",
+            "total": 1,
+            "required": 1,
+            "optional": 0
+          },
+          {
+            "name": "admin_close_model",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "admin_get_enabled_tools",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "admin_get_model_status",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "admin_save_model",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "get_model_info",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "list_model_stereotypes",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "logging_demo",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "spec_list_concepts",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "spec_list_concerns",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "spec_list_stakeholders",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "spec_list_stereotypes",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          },
+          {
+            "name": "validation_introspect",
+            "total": 0,
+            "required": 0,
+            "optional": 0
+          }
+        ]
+      },
+      "overlap": {
+        "threshold": 0.55,
+        "similar_pairs": [
+          {
+            "a": "find_elements",
+            "b": "find_elements_by_type",
+            "score": 0.698,
+            "shared_terms": [
+              "cameo",
+              "case",
+              "conventions",
+              "elements",
+              "enriched",
+              "examples",
+              "filters",
+              "find"
+            ]
+          }
+        ],
+        "namespace_twins": [
+          {
+            "stem": "create_element",
+            "tools": [
+              "create_element",
+              "saf_create_element"
+            ],
+            "most_documented": "saf_create_element",
+            "self_similarity": 0.163,
+            "boundary_documented": true,
+            "cross_references": {
+              "saf_create_element": "dispatches",
+              "create_element": "dispatches"
+            }
+          },
+          {
+            "stem": "create_relationship",
+            "tools": [
+              "create_relationship",
+              "saf_create_relationship"
+            ],
+            "most_documented": "saf_create_relationship",
+            "self_similarity": 0.222,
+            "boundary_documented": false,
+            "cross_references": {
+              "saf_create_relationship": null,
+              "create_relationship": "dispatches"
+            }
+          },
+          {
+            "stem": "find_elements_by_type",
+            "tools": [
+              "find_elements_by_type",
+              "saf_find_elements_by_type"
+            ],
+            "most_documented": "saf_find_elements_by_type",
+            "self_similarity": 0.358,
+            "boundary_documented": true,
+            "cross_references": {
+              "saf_find_elements_by_type": "dispatches",
+              "find_elements_by_type": "dispatches"
+            }
+          }
+        ]
+      },
+      "guidance": {
+        "tools_without_description": [],
+        "tools_without_usage_guidance": [
+          "admin_create_model",
+          "admin_reset_model",
+          "admin_set_enabled_tools",
+          "apply_stereotype",
+          "create_association_class",
+          "delete_element",
+          "get_model_info",
+          "logging_demo",
+          "remove_stereotype",
+          "saf_add_association_paths",
+          "saf_create_diagram",
+          "set_multiplicity",
+          "set_tagged_values",
+          "spec_get_concept",
+          "spec_list_concerns",
+          "spec_list_stakeholders",
+          "spec_list_stereotypes",
+          "validation_introspect"
+        ],
+        "tools_without_boundary_guidance": [
+          "admin_apply_profile",
+          "admin_close_model",
+          "admin_create_model",
+          "admin_get_enabled_tools",
+          "admin_get_model_status",
+          "admin_load_model",
+          "admin_reset_model",
+          "admin_save_model",
+          "admin_set_enabled_tools",
+          "apply_stereotype",
+          "create_association_class",
+          "create_connector",
+          "create_element",
+          "create_information_flow",
+          "delete_element",
+          "diff",
+          "echo",
+          "export_diagram_as_png",
+          "find_elements",
+          "find_elements_by_type",
+          "get_block_structure",
+          "get_element_info",
+          "get_metaclass_by_name",
+          "get_model_info",
+          "get_port_type_info",
+          "get_state_machine_structure",
+          "get_stereotype_tags",
+          "list_model_stereotypes",
+          "list_owned_elements",
+          "logging_demo",
+          "modelcode_spec_update",
+          "modelcode_validation_eval",
+          "modelcode_validation_run",
+          "modify_element",
+          "remove_stereotype",
+          "saf_add_association_paths",
+          "saf_build_traceability_chain",
+          "saf_check_consistency",
+          "saf_create_element",
+          "saf_create_relationship",
+          "saf_export_viewpoint",
+          "saf_find_elements_by_type",
+          "saf_get_viewpoint_views",
+          "saf_set_requirement_tags",
+          "set_constrained_element",
+          "set_information_flow_realizing",
+          "set_information_flow_realizing_connector",
+          "set_multiplicity",
+          "set_occurrence_spec_covered",
+          "set_sequence_message_ends",
+          "set_tagged_values",
+          "set_type",
+          "spec_get_concept",
+          "spec_get_concept_stereotypes",
+          "spec_get_concern",
+          "spec_get_special_implementations",
+          "spec_get_stakeholder",
+          "spec_get_stereotype",
+          "spec_get_viewpoint",
+          "spec_get_viewpoint_concepts",
+          "spec_get_viewpoint_concerns",
+          "spec_list_concepts",
+          "spec_list_concerns",
+          "spec_list_stakeholders",
+          "spec_list_stereotypes",
+          "spec_list_viewpoints",
+          "validation_introspect"
+        ],
+        "arguments_without_description": [],
+        "counts": {
+          "tools": 75,
+          "without_usage_guidance": 18,
+          "without_boundary_guidance": 67,
+          "arguments_without_description": 0
+        }
+      }
+    },
+    "findings": [
+      {
+        "rule": "3",
+        "severity": "warn",
+        "message": "18/75 tools never say when to use them",
+        "subject": null,
+        "suggestion": "Add one 'Use this when ...' line; tool selection is where a small model actually fails.",
+        "evidence": {
+          "tools": [
+            "admin_create_model",
+            "admin_reset_model",
+            "admin_set_enabled_tools",
+            "apply_stereotype",
+            "create_association_class",
+            "delete_element",
+            "get_model_info",
+            "logging_demo",
+            "remove_stereotype",
+            "saf_add_association_paths",
+            "saf_create_diagram",
+            "set_multiplicity",
+            "set_tagged_values",
+            "spec_get_concept",
+            "spec_list_concerns",
+            "spec_list_stakeholders",
+            "spec_list_stereotypes",
+            "validation_introspect"
+          ]
+        }
+      },
+      {
+        "rule": "3",
+        "severity": "warn",
+        "message": "description is 2685 chars (budget 2000)",
+        "subject": "saf_create_relationship",
+        "suggestion": "Split the reference material into a deep-contract resource (`cameo://tool/*`) and keep the card to intent + when-to-use.",
+        "evidence": {
+          "decl": "scripts/saf_tools.groovy:487"
+        }
+      },
+      {
+        "rule": "3",
+        "severity": "warn",
+        "message": "description is 2715 chars (budget 2000)",
+        "subject": "saf_get_element_semantics",
+        "suggestion": "Split the reference material into a deep-contract resource (`cameo://tool/*`) and keep the card to intent + when-to-use.",
+        "evidence": {
+          "decl": "scripts/saf_tools.groovy:1369"
+        }
+      },
+      {
+        "rule": "4",
+        "severity": "warn",
+        "message": "9 optional arguments (0 required)",
+        "subject": "create_information_flow",
+        "suggestion": "Above the 8-optional budget: split the tool or drop the rarely used switches.",
+        "evidence": {}
+      },
+      {
+        "rule": "8",
+        "severity": "warn",
+        "message": "`create_relationship` / `saf_create_relationship` share the stem `create_relationship` with no stated boundary (self-similarity 0.222, refs {'saf_create_relationship': None, 'create_relationship': 'dispatches'})",
+        "subject": "create_relationship",
+        "suggestion": "Same stem in two prefixes forces the model to compare them blind. State which one to use, or merge them.",
+        "evidence": {}
+      },
+      {
+        "rule": "8",
+        "severity": "warn",
+        "message": "`find_elements` and `find_elements_by_type` overlap at 0.698 (cameo, case, conventions, elements)",
+        "subject": "find_elements",
+        "suggestion": "Merge them, or name the boundary explicitly in both cards.",
+        "evidence": {
+          "a": "find_elements",
+          "b": "find_elements_by_type",
+          "score": 0.698,
+          "shared_terms": [
+            "cameo",
+            "case",
+            "conventions",
+            "elements",
+            "enriched",
+            "examples",
+            "filters",
+            "find"
+          ]
+        }
+      },
+      {
+        "rule": "1",
+        "severity": "info",
+        "message": "75 tools, 174 arguments, ~16142 description tokens (775/tool)",
+        "subject": null,
+        "suggestion": "Tool count alone is not a target. Use it to compare surfaces, then let task success decide.",
+        "evidence": {}
+      },
+      {
+        "rule": "2",
+        "severity": "info",
+        "message": "2 tools share the stem `create_element`: create_element, saf_create_element",
+        "subject": "create_element",
+        "suggestion": "Same stem in two namespaces is an intentional split; it is still two tools the model must choose between.",
+        "evidence": {}
+      },
+      {
+        "rule": "2",
+        "severity": "info",
+        "message": "2 tools share the stem `create_relationship`: create_relationship, saf_create_relationship",
+        "subject": "create_relationship",
+        "suggestion": "Same stem in two namespaces is an intentional split; it is still two tools the model must choose between.",
+        "evidence": {}
+      },
+      {
+        "rule": "2",
+        "severity": "info",
+        "message": "2 tools share the stem `find_elements_by_type`: find_elements_by_type, saf_find_elements_by_type",
+        "subject": "find_elements_by_type",
+        "suggestion": "Same stem in two namespaces is an intentional split; it is still two tools the model must choose between.",
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "67 tools give no 'do not use this when' guidance",
+        "subject": "admin_apply_profile",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "admin_apply_profile",
+            "admin_close_model",
+            "admin_create_model",
+            "admin_get_enabled_tools",
+            "admin_get_model_status",
+            "admin_load_model",
+            "admin_reset_model",
+            "admin_save_model",
+            "admin_set_enabled_tools",
+            "apply_stereotype",
+            "create_association_class",
+            "create_connector",
+            "create_element",
+            "create_information_flow",
+            "delete_element",
+            "diff",
+            "echo",
+            "export_diagram_as_png",
+            "find_elements",
+            "find_elements_by_type",
+            "get_block_structure",
+            "get_element_info",
+            "get_metaclass_by_name",
+            "get_model_info",
+            "get_port_type_info",
+            "get_state_machine_structure",
+            "get_stereotype_tags",
+            "list_model_stereotypes",
+            "list_owned_elements",
+            "logging_demo",
+            "modelcode_spec_update",
+            "modelcode_validation_eval",
+            "modelcode_validation_run",
+            "modify_element",
+            "remove_stereotype",
+            "saf_add_association_paths",
+            "saf_build_traceability_chain",
+            "saf_check_consistency",
+            "saf_create_element",
+            "saf_create_relationship",
+            "saf_export_viewpoint",
+            "saf_find_elements_by_type",
+            "saf_get_viewpoint_views",
+            "saf_set_requirement_tags",
+            "set_constrained_element",
+            "set_information_flow_realizing",
+            "set_information_flow_realizing_connector",
+            "set_multiplicity",
+            "set_occurrence_spec_covered",
+            "set_sequence_message_ends",
+            "set_tagged_values",
+            "set_type",
+            "spec_get_concept",
+            "spec_get_concept_stereotypes",
+            "spec_get_concern",
+            "spec_get_special_implementations",
+            "spec_get_stakeholder",
+            "spec_get_stereotype",
+            "spec_get_viewpoint",
+            "spec_get_viewpoint_concepts",
+            "spec_get_viewpoint_concerns",
+            "spec_list_concepts",
+            "spec_list_concerns",
+            "spec_list_stakeholders",
+            "spec_list_stereotypes",
+            "spec_list_viewpoints",
+            "validation_introspect"
+          ]
+        }
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1052 chars",
+        "subject": "create_part",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1286 chars",
+        "subject": "plugincode_introspect",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1343 chars",
+        "subject": "create_information_flow",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1490 chars",
+        "subject": "saf_create_element",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1506 chars",
+        "subject": "saf_set_requirement_tags",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1876 chars",
+        "subject": "saf_create_diagram",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 808 chars",
+        "subject": "set_information_flow_realizing",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 828 chars",
+        "subject": "modelcode_validation_eval",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 946 chars",
+        "subject": "diff",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 992 chars",
+        "subject": "modelcode_spec_update",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "37 tools have no required argument",
+        "subject": "admin_apply_profile",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "admin_apply_profile",
+            "admin_close_model",
+            "admin_get_enabled_tools",
+            "admin_get_model_status",
+            "admin_load_model",
+            "admin_reset_model",
+            "admin_save_model",
+            "admin_set_enabled_tools",
+            "create_information_flow",
+            "diff",
+            "echo",
+            "find_elements",
+            "find_elements_by_type",
+            "get_model_info",
+            "list_model_stereotypes",
+            "logging_demo",
+            "saf_check_consistency",
+            "saf_create_element",
+            "saf_create_relationship",
+            "saf_export_viewpoint",
+            "saf_find_elements_by_type",
+            "saf_get_element_semantics",
+            "saf_get_viewpoint_views",
+            "saf_query_viewpoint",
+            "saf_set_requirement_tags",
+            "saf_set_use_case_subject",
+            "set_information_flow_realizing",
+            "set_information_flow_realizing_connector",
+            "set_occurrence_spec_covered",
+            "set_sequence_message_ends",
+            "spec_get_special_implementations",
+            "spec_list_concepts",
+            "spec_list_concerns",
+            "spec_list_stakeholders",
+            "spec_list_stereotypes",
+            "spec_list_viewpoints",
+            "validation_introspect"
+          ]
+        }
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "7 optional arguments",
+        "subject": "find_elements_by_type",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "7 optional arguments",
+        "subject": "saf_create_diagram",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "generic parameter name `name` on 20 tools",
+        "subject": "name",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "admin_apply_profile",
+            "admin_create_model",
+            "create_association_class",
+            "create_connector",
+            "create_element",
+            "create_information_flow",
+            "create_part",
+            "find_elements",
+            "find_elements_by_type",
+            "get_metaclass_by_name"
+          ]
+        }
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "generic parameter name `path` on 2 tools",
+        "subject": "path",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "admin_load_model",
+            "admin_reset_model"
+          ]
+        }
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "generic parameter name `text` on 1 tools",
+        "subject": "text",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "saf_set_requirement_tags"
+          ]
+        }
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "generic parameter name `type` on 7 tools",
+        "subject": "type",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "create_element",
+            "create_relationship",
+            "find_elements",
+            "find_elements_by_type",
+            "saf_create_relationship",
+            "saf_find_elements_by_type",
+            "spec_search"
+          ]
+        }
+      },
+      {
+        "rule": "4",
+        "severity": "info",
+        "message": "generic parameter name `values` on 1 tools",
+        "subject": "values",
+        "suggestion": null,
+        "evidence": {
+          "tools": [
+            "set_tagged_values"
+          ]
+        }
+      },
+      {
+        "rule": "8",
+        "severity": "info",
+        "message": "`create_element` / `saf_create_element` share the stem `create_element` but document the boundary (self-similarity 0.163)",
+        "subject": "create_element",
+        "suggestion": "Documented dispatch pair, not a duplicate. The cost is that the model must read both cards before it can pick one -- keep that in mind before merging.",
+        "evidence": {}
+      },
+      {
+        "rule": "8",
+        "severity": "info",
+        "message": "`find_elements_by_type` / `saf_find_elements_by_type` share the stem `find_elements_by_type` but document the boundary (self-similarity 0.358)",
+        "subject": "find_elements_by_type",
+        "suggestion": "Documented dispatch pair, not a duplicate. The cost is that the model must read both cards before it can pick one -- keep that in mind before merging.",
+        "evidence": {}
+      }
+    ],
+    "not_covered": {
+      "5": "Return payload size and task-specificity need live calls; annotations declare inputs only.",
+      "6": "Error-message shaping is server runtime behaviour; measure it with a task that provokes failures.",
+      "7": "Workflow collapsing needs task traces to show which chains are actually walked. Candidate chains can be guessed from tool names, not measured."
+    }
+  }
+}

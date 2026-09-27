@@ -1,0 +1,51 @@
+{
+  "id": "T07-operational-exchanges",
+  "title": "Which operational exchange types does the model define?",
+  "task": "List the SAF_OperationalExchangeType elements in this model. Beware that the `type` field of these rows is the bare UML metaclass, not the stereotype, so a filter on the type field will appear to find nothing.",
+  "readOnly": true,
+  "expected_first_tool": "saf_find_elements_by_type",
+  "call_budget": 8,
+  "repetitions": 3,
+  "rationale": "Second filter trap, and a nastier one than the substring case: the search reports type='Class' for these elements, so filtering rows on the type field returns zero and an agent may conclude the model has no operational exchanges. Filtering on the stereotypes list finds all nine.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "saf_operational_exchange_type_count",
+    "saf_operational_exchange_type_names"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 2,
+      "facts": [
+        {
+          "id": "exchange-1",
+          "any_of": [
+            "Operational State",
+            "Reported Condition",
+            "Updated Location"
+          ]
+        },
+        {
+          "id": "exchange-2",
+          "any_of": [
+            "Heat & Smoke",
+            "Fire Spark",
+            "Distress Call",
+            "Fire Alert Report",
+            "Updated Condition"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Names at least two real operational exchange types"
+  ]
+}

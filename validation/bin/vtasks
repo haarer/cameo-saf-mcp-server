@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# Inspect, lint and calibrate the task dataset.
+#
+#   bin/vtasks list                # the dataset at a glance
+#   bin/vtasks show T01...         # one task
+#   bin/vtasks lint                # every offline check, non-zero on any problem
+#   bin/vtasks coverage            # which tools the oracles depend on
+#   bin/vtasks calibrate <id>      # fill in needsCalibration facts from the live model
+set -euo pipefail
+
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$here/.." && pwd)
+cd "$root"
+PYTHONPATH="$root/lib:${PYTHONPATH:-}" exec python3 - "$@" <<'PY'
+import collections, json, os, pathlib, sys
+import tasks as T
+
+root = pathlib.Path.cwd()
+argv = sys.argv[1:]
+cmd = argv[0] if argv else "list"
+dataset = T.load_all()
+
+manifest = root / "surfaces" / "surface-v1.json"
+surface_tools = None
+if manifest.exists():
+    surface_tools = {t["name"] for t in json.load(open(manifest))["tools"]}
+
+if cmd == "list":
+    s = T.summary(dataset)
+    print(f"dataset: {s['tasks']} tasks in {T.TASKS_DIR.name}/  "
+          f"({s['read_only']} read-only, {s['mutating']} mutating)")
+    print(f"  {s['clauses']} oracle clauses, kinds: {', '.join(s['clause_kinds'])}")
+    print(f"  total call budget: {s['total_call_budget']}")
+    if s["uncalibrated"]:
+        print(f"  needs calibration: {', '.join(s['uncalibrated'])}")
+    print()
+    print(f"  {'id':<38} {'ro':<4} {'budget':<7} {'clauses':<9} title")
+    for t in dataset:
+        ro = "yes" if not t.is_write else "no"
+        print(f"  {t.id:<38} {ro:<4} {t.raw['call_budget']:<7} "
+              f"{len(t.clauses):<9} {t.raw['title']}")
+
+elif cmd == "show":
+    if len(argv) < 2:
+        sys.exit("usage: vtasks show <task-id>")
+    tid = argv[1]
+    match = [t for t in dataset if t.id == tid or t.id.startswith(tid)]
+    if not match:
+        sys.exit(f"no task matching {tid!r}; try `vtasks list`")
+    print(json.dumps(match[0].raw, indent=2, ensure_ascii=False))
+
+elif cmd == "lint":
+    problems = T.lint_all(dataset, surface_tools)
+    for tid, probs in sorted(problems.items()):
+        print(f"[{tid}]")
+        for p in probs:
+            print(f"    {p}")
+    unimpl = set()
+    for t in dataset:
+        for c in t.clauses:
+            if c.kind not in T.CLAUSE_KINDS:
+                unimpl.add(c.kind)
+    # "Evaluable" has to mean "an evaluator exists in lib/oracle.py", not "the kind
+    # is spelled in the linter's own table". Those two drift apart silently.
+    import oracle
+    evaluable = set(oracle.TRAJECTORY_EVALUATORS) | set(oracle.MODEL_EVALUATORS)
+    for t in dataset:
+        for c in t.clauses:
+            if c.kind in T.CLAUSE_KINDS and c.kind not in evaluable:
+                unimpl.add(c.kind)
+    print()
+    if problems or unimpl:
+        if unimpl:
+            print(f"CLAUSE KINDS WITH NO EVALUATOR: {', '.join(sorted(unimpl))}")
+        print(f"LINT FAIL -- {sum(len(p) for p in problems.values())} problem(s) "
+              f"across {len(problems)} task(s)")
+        sys.exit(1)
+    print(f"LINT PASS -- {len(dataset)} tasks, "
+          f"{sum(len(t.clauses) for t in dataset)} clauses, all evaluable")
+    print("Every clause kind has an evaluator in lib/oracle.py; every referenced tool "
+          "is in surface-v1.json.")
+    print("This says the dataset is mechanically sound. It does not say the tasks are "
+          "well chosen.")
+    uncal = [t.id for t in dataset if t.raw.get("needsCalibration")]
+    if uncal:
+        print(f"\nStill needs calibration against a live model: {', '.join(uncal)}")
+
+    # A task may only name tools the AGENT can actually call. The offline manifest is
+    # what the repo declares; the live surface is what a run really gets, and today they
+    # differ (create_association_class is in scripts/ but not in the running plugin).
+    # Checking only the offline manifest would let a task reference a tool that does not
+    # exist, and the run would fail for a reason that has nothing to do with the agent.
+    if "--live" in sys.argv[2:]:
+        import mcp_client, models as _M
+        url = os.environ.get("CAMEO_MCP_URL", "http://host.containers.internal:18750/mcp")
+        c = mcp_client.Client(url).connect()
+        live = {t["name"] for t in c.tools()}
+        c.close()
+        off = {t["name"] for t in json.loads(
+            (pathlib.Path.cwd() / "surfaces" / "surface-v1.json").read_text())["tools"]}
+        missing = sorted(off - live)
+        wanted = {t.raw.get("expected_first_tool", "") for t in dataset}
+        wanted |= {c.get("tool") for t in dataset for c in t.clauses if c.get("tool")}
+        gaps = sorted((wanted & off) - live)
+        if missing:
+            print(f"live surface drift: {len(missing)} tool(s) in surface-v1.json are not "
+                  f"in the running server:")
+            for n in missing:
+                mark = "  <- NAMED BY A TASK" if n in gaps else ""
+                print(f"  {n}{mark}")
+            if gaps:
+                print("\nA task names a tool the running server does not have. Fix the "
+                      "task, or deploy the missing script, before scoring anything.")
+                sys.exit(1)
+        else:
+            print(f"live surface: all {len(off)} manifest tools are present")
+
+    # Every task claims which verified facts its clauses rest on. If a fact id is
+    # renamed or the baseline is regenerated without it, the task is now resting on
+    # nothing, and nothing else in the pipeline would notice.
+    import pathlib
+    root = pathlib.Path.cwd()
+    known = set()
+    for f in sorted((root / "models").glob("*.json")):
+        try:
+            known |= set(json.loads(f.read_text()).get("facts", {}))
+        except Exception as e:
+            print(f"  unreadable fact baseline {f.name}: {e}", file=sys.stderr)
+    unknown = []
+    for t in dataset:
+        for fid in t.raw.get("grounded_in", []):
+            if fid not in known:
+                unknown.append(f"{t.id}: grounded_in {fid!r} is not in any models/*.json baseline")
+    if unknown:
+        for u in unknown:
+            print(f"  {u}")
+        sys.exit(1)
+    if known:
+        print(f"grounding: every clause traces to one of {len(known)} verified facts")
+
+elif cmd == "coverage":
+    tools = collections.Counter()
+    for t in dataset:
+        for tool in t.expected_tools:
+            tools[tool] += 1
+        if t.raw.get("expected_first_tool"):
+            tools[t.raw["expected_first_tool"]] += 1
+    print("tools the dataset depends on (oracle clauses + expected_first_tool):")
+    for tool, n in tools.most_common():
+        mark = "MISSING" if surface_tools and tool not in surface_tools else ""
+        print(f"  {tool:<36} {n}{'  ' + mark if mark else ''}")
+    unused = sorted((surface_tools or set()) - set(tools))
+    print(f"\n{len(unused)} surface tools are named by no task. That is expected: the "
+          f"dataset is\nmeant to sample the surface, not to touch every tool.")
+
+elif cmd == "calibrate":
+    if len(argv) < 2:
+        sys.exit("usage: vtasks calibrate <task-id>  (needs a reachable Cameo)")
+    tid = argv[1]
+    match = [t for t in dataset if t.id == tid or t.id.startswith(tid)]
+    if not match:
+        sys.exit(f"no task matching {tid!r}")
+    t = match[0]
+    pending = t.raw.get("needsCalibration", [])
+    if not pending:
+        print(f"{t.id}: nothing to calibrate")
+        sys.exit(0)
+    print(f"{t.id}: {len(pending)} item(s) need the live model")
+    for item in pending:
+        print(f"  - {item.get('what')}")
+        print(f"    why: {item.get('why')}")
+        print(f"    resolve with: {item.get('resolveWith')}")
+    url = json.load(open(root / "config.json"))["cameo"]["mcp_url"]
+    print(f"\nNo calibration was performed: {url} is not reachable from here.")
+    print("This is the one part of the dataset that cannot be finished offline. The "
+          "clauses that\ndepend on it are deliberately loose (min: 1 of N facts) so a "
+          "calibrated fact can\nonly tighten them, never invalidate them.")
+
+else:
+    print(__doc__.strip(), file=sys.stderr)
+    sys.exit(2)
+PY

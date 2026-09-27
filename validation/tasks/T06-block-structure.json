@@ -1,0 +1,53 @@
+{
+  "id": "T06-block-structure",
+  "title": "What is inside the Commercial LORAWAN Gateway?",
+  "task": "Describe the internal structure of the block 'Commercial LORAWAN Gateway': its parts, its ports and what types those ports. If a category is empty, say it is empty rather than omitting it.",
+  "readOnly": true,
+  "expected_first_tool": "get_block_structure",
+  "call_budget": 5,
+  "repetitions": 3,
+  "rationale": "A structure read is answerable only through the dedicated tool, and this block is a good shape for it: zero parts, one proxy port, zero connectors. A model that reports a confident internal architecture here is inventing one.",
+  "model": "SAF_FFDS.mdzip",
+  "preconditions": [
+    "SAF_Profile applied",
+    "SAF_FFDS loaded"
+  ],
+  "grounded_in": [
+    "probe_block_structure"
+  ],
+  "oracle": [
+    {
+      "kind": "answer_mentions_all",
+      "min": 1,
+      "facts": [
+        {
+          "id": "port",
+          "any_of": [
+            "LORa Waveforms",
+            "LoRa Waveforms",
+            "LORa"
+          ]
+        },
+        {
+          "id": "typed-by",
+          "any_of": [
+            "LoRA EU Waveforms",
+            "LoRa EU Waveforms"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "trajectory_used",
+      "tool": "get_block_structure",
+      "min_calls": 1
+    },
+    {
+      "kind": "model_unchanged"
+    }
+  ],
+  "outcomes": [
+    "Reports one port typed by the LoRA EU Waveforms interface",
+    "Reports no parts and no connectors"
+  ]
+}
