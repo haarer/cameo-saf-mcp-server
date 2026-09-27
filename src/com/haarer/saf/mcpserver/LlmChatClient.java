@@ -59,10 +59,10 @@ import java.util.logging.Logger;
  * <p>{@code llm.log} (default {@code false}) appends a transcript of every
  * turn to {@value #DEFAULT_LOG_FILE} in the config directory — request bodies
  * with the presented tool array, the tool selection with its confidence, each
- * round's raw SSE chunks bundled into one entry, the response with
- * {@code finish_reason} and usage, and every tool call with its arguments and
- * result. {@code llm.log.path} overrides the destination. Both keys are
- * re-read per turn.
+ * round's streamed text, and the response with {@code finish_reason},
+ * reasoning, usage, and every tool call with its arguments and result.
+ * {@code llm.log.path} overrides the destination. Both keys are re-read per
+ * turn.
  *
  * <p>Behavior:
  * <ul>
@@ -80,6 +80,13 @@ import java.util.logging.Logger;
  *       prompt and completion token counts are tracked and exposed via
  *       {@link #usageStats()} together with the current context size (message
  *       and character counts).</li>
+ *   <li>Streaming: the transcript records one entry per round with the number
+ *       of chunks the endpoint happened to send and the text they carried,
+ *       concatenated — not the raw deltas, whose split is a property of the
+ *       transport and says nothing about the answer. Reasoning streamed
+ *       separately as {@code delta.reasoning_content} is accumulated and
+ *       recorded too, both in the round entry and in the response summary; it
+ *       is never dropped.</li>
  *   <li>Tool selection: when the registered tool set is large (more than
  *       {@value #SELECTOR_THRESHOLD} tools and above the {@code llm.tool.max}
  *       cap), a BM25 match over tool names and descriptions picks the tools
@@ -326,6 +333,9 @@ public class LlmChatClient {
                         summary.put("finish_reason", r.finishReason);
                         summary.put("content", full.toString());
                         summary.set("tool_calls", mapper.valueToTree(toolCallsToMaps(r.toolCalls)));
+                        if (r.reasoning.length() > 0) {
+                            summary.put("reasoning", r.reasoning.toString());
+                        }
                         summary.put("prompt_tokens", r.usage[0]);
                         summary.put("completion_tokens", r.usage[1]);
                         log.json("RESPONSE round " + round, summary);
@@ -520,6 +530,8 @@ public class LlmChatClient {
         final List<ToolCall> toolCalls = new ArrayList<>();
         final long[] usage = {0, 0};
         String finishReason = "";
+        /** The model's reasoning, when the provider streams it separately. */
+        final StringBuilder reasoning = new StringBuilder();
     }
 
     /**
@@ -590,10 +602,12 @@ public class LlmChatClient {
         final boolean[] sawData = {false};
         final StringBuilder plain = new StringBuilder();
         final RoundResult result = new RoundResult();
-        // The raw chunks of this round, logged together once the stream ends
-        // rather than one line per chunk: the payload is what matters for
-        // diagnosis, and one entry per round keeps the transcript readable.
-        final List<JsonNode> chunks = new ArrayList<>();
+        // The round's text, assembled as it streams. The raw chunk split is not
+        // worth recording: it says nothing about the answer, only about how the
+        // endpoint happened to frame it.
+        final StringBuilder roundText = new StringBuilder();
+        final int[] chunkCount = {0};
+        final int[] unparsed = {0};
         try (Stream<String> lines = resp.body()) {
             lines.forEach(line -> {
                 String l = line.trim();
@@ -603,6 +617,7 @@ public class LlmChatClient {
                     if (payload.isEmpty() || "[DONE]".equals(payload)) {
                         return;
                     }
+                    chunkCount[0]++;
                     JsonNode node;
                     try {
                         node = mapper.readTree(payload);
@@ -610,10 +625,9 @@ public class LlmChatClient {
                         LOG.fine("Unparseable SSE payload: " + payload);
                         // Keep the unparseable payload in the transcript; it is
                         // exactly the kind of thing the log is needed for.
-                        chunks.add(mapper.getNodeFactory().textNode(payload));
+                        unparsed[0]++;
                         return;
                     }
-                    chunks.add(node);
                     captureUsage(node.path("usage"), result.usage);
                     JsonNode finish = node.path("choices").path(0).path("finish_reason");
                     if (finish.isTextual() && !finish.asText().isEmpty()) {
@@ -622,7 +636,14 @@ public class LlmChatClient {
                     JsonNode delta = node.path("choices").path(0).path("delta");
                     JsonNode content = delta.path("content");
                     if (content.isTextual() && !content.asText().isEmpty()) {
+                        roundText.append(content.asText());
                         onDelta.accept(content.asText());
+                    }
+                    // Some providers stream the thinking separately; it is part of
+                    // what the model said, so it is kept, not dropped.
+                    JsonNode reasoning = delta.path("reasoning_content");
+                    if (reasoning.isTextual() && !reasoning.asText().isEmpty()) {
+                        result.reasoning.append(reasoning.asText());
                     }
                     collectToolCalls(delta.path("tool_calls"), result);
                 } else if (!l.isEmpty()) {
@@ -631,13 +652,21 @@ public class LlmChatClient {
             });
         }
 
-        // One bundled entry per round rather than a line per chunk.
-        if (log != null && !chunks.isEmpty()) {
-            ArrayNode arr = mapper.createArrayNode();
-            for (JsonNode chunk : chunks) {
-                arr.add(chunk);
+        // One entry per round: how it was split over the wire, and the text.
+        if (log != null && chunkCount[0] > 0) {
+            String label = "stream round " + round + " (" + chunkCount[0] + " chunks";
+            if (unparsed[0] > 0) {
+                label += ", " + unparsed[0] + " unparseable";
             }
-            log.json("stream round " + round + " (" + chunks.size() + " chunks)", arr);
+            log.line(">>> " + label + ")");
+            if (result.reasoning.length() > 0) {
+                log.line("--- reasoning");
+                log.line(result.reasoning.toString());
+            }
+            if (roundText.length() > 0) {
+                log.line("--- text");
+                log.line(roundText.toString());
+            }
         }
 
         // Fallback: the server ignored "stream" and returned a plain completion.
@@ -658,6 +687,9 @@ public class LlmChatClient {
             JsonNode content = message.path("content");
             if (content.isTextual()) {
                 onDelta.accept(content.asText());
+            }
+            if (message.path("reasoning_content").isTextual()) {
+                result.reasoning.append(message.path("reasoning_content").asText());
             }
             collectToolCalls(message.path("tool_calls"), result);
             if (content.isMissingNode() && result.toolCalls.isEmpty()) {
