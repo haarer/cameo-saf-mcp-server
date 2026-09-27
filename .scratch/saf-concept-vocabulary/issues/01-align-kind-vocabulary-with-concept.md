@@ -108,3 +108,77 @@ breaking change, not folded into a documentation pass.
 like a parsing artifact in the source ontology data. It would slug to
 `including`. Worth checking while this is open, since it affects the
 Concept vocabulary itself rather than the alias.
+
+---
+
+# Second finding: `sysmlType` contains a UML metaclass name
+
+Same class of problem — a field whose name promises one thing and whose
+value is another. Found while rewriting `saf_create_relationship`.
+
+The relationship table maps an alias to `[metaclass, stereotype]`:
+
+```groovy
+"satisfy":     ["abstraction", "Satisfy"],
+"allocate":    ["dependency",  "allocate"],
+"composition": ["composition", null],
+```
+
+and the return passes column 0 straight through
+(`scripts/saf_tools.groovy:539` and `:632`):
+
+```groovy
+def sysmlType = relInfo[0] as String
+return [id: rel.getID(), type: type, sysmlType: sysmlType, ...]
+```
+
+The `switch` then instantiates by that value:
+`createAbstractionInstance()`, `createDependencyInstance()`,
+`createAssociationInstance()`, `createGeneralizationInstance()`,
+`createControlFlowInstance()`, `createObjectFlowInstance()`,
+`createConnectorInstance()`.
+
+**Every one of those is a UML 2 metaclass.** No SysML element type is
+created anywhere in this path. SysML is carried entirely by the profile
+stereotypes applied afterwards. The field is named for a type system the
+code never instantiates.
+
+All seven confirmed present in `_data/umlmetaclasses.json` (250 entries):
+`Abstraction`, `Dependency`, `Association`, `Generalization`,
+`ControlFlow`, `ObjectFlow`, `Connector`.
+
+## The false category split
+
+`saf_create_relationship`'s description presented "SAF relationship
+types" and "Raw SysML types" as two different kinds of thing. They are
+not. It is **one list of UML metaclasses**, and the only difference is
+whether a SAF stereotype rides on top — 6 of 14 entries carry a preset
+alias plus stereotype, 8 are the bare metaclass with `null`.
+
+The description now says so. Recorded here because the `type` alias
+vocabulary is the same rename-class of issue.
+
+## Suggested direction
+
+`sysmlType` → `umlMetaclass`, matching what it holds. Same
+breaking-change profile as the `safKind` rename: a return field on 4
+tools (`saf_create_relationship`, `saf_export_viewpoint`,
+`saf_find_elements_by_type`, `saf_get_element_semantics`), and the
+validation baseline will need regenerating again.
+
+## Not a defect: the `allocate` stereotype
+
+Recorded to prevent re-investigation. `SAF_RELATIONSHIP_TYPES` holds
+`"allocate"` in lowercase while the other five aliases are CamelCase
+(`Satisfy`, `DeriveReqt`, `Trace`, `Refine`, `Verify`), which looks like a
+typo. It is not: the real stereotype is `Allocate` in
+`_data/sysmlstereotypes.json` (93 entries, alongside `Satisfy`, `Trace`,
+`Refine`, `Verify`, `DeriveReqt`), and `findStereotype` falls back to a
+case-insensitive match, so it resolves correctly.
+
+An earlier note claimed `allocate` silently produced an unstyled
+dependency. That was wrong — it was checked against
+`_data/stereotypes.json`, the SAF ontology catalog, which does not hold
+SysML stereotypes. The two catalogs are distinct and both correct;
+`sysmlstereotypes.json` and `umlmetaclasses.json` are the ones this path
+draws from.

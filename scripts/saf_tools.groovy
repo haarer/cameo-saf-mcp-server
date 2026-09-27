@@ -456,50 +456,27 @@ Example: 'The FFDS system shall detect smoke in any protected area within 10 sec
         return resolveSafKind(stereos)
     }
 
-    @McpTool(name = "saf_create_relationship", description = '''Create a relationship between two elements using SAF semantics. SAF relationship types (satisfy, derive, trace, refine, verify, allocate) automatically apply the correct SysML base type and SAF stereotype. Also supports raw SysML types (composition, dependency, generalization, association, controlflow, objectflow, connector). Returns the relationship ID.
+    @McpTool(name = "saf_create_relationship", description = '''Create a relationship between two elements. 'type' selects a UML metaclass and, for the six SAF aliases, also applies a SAF stereotype. Returns the relationship ID.
 
-Use this tool when:
-- Linking requirements to systems/functions (satisfy, verify)
-- Tracing requirement dependencies (derive, trace)
-- Refining concepts across viewpoints (refine: operational→conceptual→physical)
-- Allocating functions to systems (allocate)
-- Building system composition hierarchies (composition)
+SAF aliases (metaclass + stereotype):
+- 'satisfy': abstraction + <<Satisfy>>   Requirement → System/Function
+- 'derive':  abstraction + <<DeriveReqt>>  Requirement → Requirement
+- 'trace':   abstraction + <<Trace>>      Requirement → Requirement
+- 'refine':  abstraction + <<Refine>>     Abstract → Concrete
+  For known source/target SAF kinds a more specific stereotype is applied instead, e.g. functional requirement → system function becomes <<SAF_SystemFunctionalRequirementRefinement>>
+- 'verify':  abstraction + <<Verify>>     Requirement → Test
+- 'allocate': dependency + <<Allocate>>   Function/Capability → System
 
-SAF relationship types (apply stereotypes automatically):
-- 'satisfy': Requirement → System/Function (abstraction + <<Satisfy>>)
-- 'derive': Requirement → Requirement (abstraction + <<DeriveReqt>>)  
-- 'trace': Requirement → Requirement (abstraction + <<Trace>>)
-- 'refine': Abstract → Concrete across viewpoints (abstraction + <<Refine>>); for known source/target SAF kinds the matching specific SAF stereotype is applied automatically instead (e.g. functional requirement → system function becomes <<SAF_SystemFunctionalRequirementRefinement>>)
-- 'verify': Requirement → Test/Verification (abstraction + <<Verify>>)
-- 'allocate': Function/Capability → System (dependency + <<allocate>>)
+Plain UML metaclasses (no stereotype):
+- 'composition': Association with composite aggregation   Whole → Part
+- 'aggregation': Association with shared aggregation     Whole → Part
+- 'dependency':  Dependency                              Client → Supplier
+- 'generalization': Generalization                       Specific → General
+- 'controlflow' / 'objectflow': ControlFlow / ObjectFlow ActivityNode → ActivityNode
+- 'connector':  Connector
+- 'association': Association
 
-Raw SysML types (no stereotype):
-- 'composition': Whole → Part (strong ownership)
-- 'aggregation': Whole → Part (weak ownership, uses association)
-- 'dependency': Client → Supplier
-- 'generalization': Specific → General (inheritance)
-- 'controlflow': ActivityNode → ActivityNode
-- 'objectflow': ActivityNode → ActivityNode  
-- 'connector': Connector between elements
-- 'association': Generic association
-
-Returns: {id, type, sysmlType, stereotype, sourceId, targetId}
-
-Example workflows:
-1. Requirement satisfaction:
-   - Create requirement: saf_create_element(kind='system_requirement', ...)
-   - Create system: saf_create_element(kind='conceptual_system', ...)
-   - Link: saf_create_relationship(type='satisfy', sourceId='<req-id>', targetId='<sys-id>')
-
-2. Cross-viewpoint refinement:
-   - Operational: saf_create_element(kind='operational_capability', ...)
-   - Conceptual: saf_create_element(kind='conceptual_function', ...)
-   - Refine: saf_create_relationship(type='refine', sourceId='<conceptual-id>', targetId='<operational-id>')
-
-3. System composition:
-   - Parent system: saf_create_element(kind='physical_system', name='Vehicle')
-   - Subsystem: saf_create_element(kind='physical_system', name='Engine')
-   - Compose: saf_create_relationship(type='composition', sourceId='<vehicle-id>', targetId='<engine-id>')''')
+Returns {id, type, sysmlType, stereotype, sourceId, targetId}, where sysmlType is the UML metaclass instantiated.''')
     @McpToolArgument(name = "type", type = "string", description = '''Relationship type. Required.
 
 SAF types (with stereotypes): 'satisfy', 'derive', 'trace', 'refine', 'verify', 'allocate'
