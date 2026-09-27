@@ -1,5 +1,6 @@
 package com.haarer.saf.mcpserver;
 
+import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -45,16 +46,28 @@ public final class ConfigDialog extends JDialog {
     private final Map<String, JComponent> fields = new LinkedHashMap<>();
     private final Map<String, JLabel> errors = new LinkedHashMap<>();
     private final File file;
+    private static final java.awt.Color GRAY_TEXT = new java.awt.Color(120, 120, 120);
+    private static final java.awt.Color ERROR_TEXT = new java.awt.Color(190, 30, 30);
+
+    /** Help text is HTML so it wraps with its field instead of overflowing. */
+    private static String escape(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
 
     private ConfigDialog(Window owner) {
         super(owner, "MCP Server Configuration", ModalityType.APPLICATION_MODAL);
         this.file = PluginConfig.file();
         Properties stored = PluginConfig.load();
 
+        // One row per option. The help line and the error line live in the
+        // same cell as their field, stacked under it, so they cannot drift
+        // away from it: a separate block of help text is laid out on its own
+        // row heights and lines up with nothing as soon as one field is
+        // taller than the others.
         var form = new JPanel(new GridBagLayout());
         var c = new GridBagConstraints();
-        c.insets = new Insets(3, 6, 3, 6);
-        c.anchor = GridBagConstraints.WEST;
+        c.insets = new Insets(6, 6, 6, 6);
+        c.anchor = GridBagConstraints.NORTHWEST;
         c.fill = GridBagConstraints.HORIZONTAL;
 
         for (PluginConfig.Option option : PluginConfig.options()) {
@@ -64,38 +77,37 @@ public final class ConfigDialog extends JDialog {
             c.weighty = 0;
             form.add(new JLabel(option.label()), c);
 
+            var cell = new JPanel();
+            cell.setOpaque(false);
+            cell.setLayout(new BoxLayout(cell, BoxLayout.Y_AXIS));
+
+            JComponent input = field(option, stored);
+            input.setAlignmentX(LEFT_ALIGNMENT);
+            cell.add(input);
+
+            JLabel help = new JLabel("<html>" + escape(option.help()) + "</html>");
+            help.setFont(help.getFont().deriveFont(Font.PLAIN, 10f));
+            help.setForeground(GRAY_TEXT);
+            help.setAlignmentX(LEFT_ALIGNMENT);
+            help.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+            cell.add(help);
+
+            JLabel err = new JLabel(" ");
+            err.setForeground(ERROR_TEXT);
+            err.setFont(err.getFont().deriveFont(Font.PLAIN, 10f));
+            err.setAlignmentX(LEFT_ALIGNMENT);
+            errors.put(option.key(), err);
+            cell.add(err);
+
             c.gridx = 1;
             c.weightx = 1;
             c.fill = GridBagConstraints.HORIZONTAL;
-            fields.put(option.key(), field(option, stored));
-            form.add(fields.get(option.key()), c);
-
-            c.gridx = 2;
-            c.weightx = 0;
-            c.fill = GridBagConstraints.NONE;
-            JLabel err = new JLabel(" ");
-            err.setForeground(new java.awt.Color(190, 30, 30));
-            err.setFont(err.getFont().deriveFont(Font.PLAIN, 10f));
-            errors.put(option.key(), err);
-            form.add(err, c);
-        }
-
-        var help = new JPanel(new GridBagLayout());
-        c = new GridBagConstraints();
-        c.insets = new Insets(3, 6, 3, 6);
-        c.anchor = GridBagConstraints.WEST;
-        c.gridx = 1;
-        for (PluginConfig.Option option : PluginConfig.options()) {
-            c.gridy++;
-            JLabel h = new JLabel(option.help());
-            h.setFont(h.getFont().deriveFont(Font.PLAIN, 10f));
-            h.setForeground(java.awt.Color.GRAY);
-            help.add(h, c);
+            fields.put(option.key(), input);
+            form.add(cell, c);
         }
 
         var body = new JPanel(new BorderLayout(0, 8));
-        body.add(form, BorderLayout.NORTH);
-        body.add(help, BorderLayout.CENTER);
+        body.add(form, BorderLayout.CENTER);
 
         var save = new JButton("Save");
         save.addActionListener(e -> save());

@@ -21,6 +21,7 @@ Versions refer to git tags that define release packages.
 
 ### Changed
 
+- The configuration dialog's grey help text sat in its own panel below the form, so its lines were laid out on independent row heights and lined up with no field in particular. Because the MCP tool allow-list is a three-row text area, that one row was three times taller than the rest and every help line below it was offset by a growing amount. Each option is now one cell holding its field, its help line and its error line stacked together, which makes the alignment structural; the help is HTML so it wraps to its field's width
 - The console no longer prints the per-round tool selection or its per-tool confidence: that is diagnostic detail and it now goes only to the conversation log (`llm.log`). The `[tool]` and `[result]` lines are unchanged and still follow the "Show tool calls" option
 - Tests run as separate agent jobs
 - `LlmChatClient.ToolSelection` carries the round it belongs to and how many of its tools were carried from the previous round
