@@ -1,7 +1,9 @@
 package com.haarer.saf.mcpserver.retrieval;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -82,10 +84,24 @@ public class Bm25Retriever implements Retriever, AutoCloseable {
      * @throws IOException if the in-memory index cannot be initialized
      */
     public Bm25Retriever(Map<String, Float> fieldBoosts) throws IOException {
-        // StandardAnalyzer's no-arg constructor has an empty stop set in
-        // Lucene 9 (its old STOP_WORDS_SET constant is gone), so stopwords
-        // would otherwise be indexed and matched like any other term.
-        this(new StandardAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET), fieldBoosts);
+        this(new StandardAnalyzer(stopWords()), fieldBoosts);
+    }
+
+    /**
+     * English and German function words, on both the index and query side.
+     *
+     * <p>German is here because the corpus is not only English: the element
+     * index covers model documentation, and a query of {@code "es"} or
+     * {@code "der die das und ist nicht"} would otherwise match German
+     * elements on grammar alone — the same noise floor the English words
+     * caused. StandardAnalyzer's tokenization is kept deliberately rather
+     * than {@link GermanAnalyzer}'s, because stemming would mangle the
+     * camelCase tool names and element identifiers this index is keyed on.
+     */
+    private static CharArraySet stopWords() {
+        CharArraySet set = new CharArraySet(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET, false);
+        set.addAll(GermanAnalyzer.getDefaultStopSet());
+        return set;
     }
 
     public Bm25Retriever(Analyzer analyzer, Map<String, Float> fieldBoosts) throws IOException {
