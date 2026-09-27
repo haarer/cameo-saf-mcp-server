@@ -5,6 +5,7 @@ import com.haarer.saf.mcpserver.data.SafDataStore;
 import com.haarer.saf.mcpserver.handlers.GroovyScriptScanner;
 import com.haarer.saf.mcpserver.protocol.McpProtocolHandler;
 import com.haarer.saf.mcpserver.protocol.McpSession;
+import com.haarer.saf.mcpserver.protocol.McpToolDefinition;
 
 import java.awt.EventQueue;
 import java.io.File;
@@ -75,6 +76,12 @@ public class CameoMcpServer {
     public int getToolCount() {
         var scan = sessionManager.getLatestScan();
         return scan != null ? scan.tools().size() : 0;
+    }
+
+    /** The latest scanned tool definitions shared by all sessions. */
+    public List<McpToolDefinition> getToolDefinitions() {
+        var scan = sessionManager.getLatestScan();
+        return scan == null ? List.of() : scan.tools();
     }
 
     public int getActiveSessions() {

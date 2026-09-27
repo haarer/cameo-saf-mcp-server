@@ -5,6 +5,7 @@ import com.jidesoft.docking.DockContext;
 import com.nomagic.magicdraw.core.Project;
 import com.nomagic.magicdraw.ui.ProjectWindow;
 import com.haarer.saf.mcpserver.protocol.McpSession;
+import com.haarer.saf.mcpserver.protocol.McpToolDefinition;
 import com.nomagic.magicdraw.ui.ProjectWindowsConfigurator;
 import com.nomagic.magicdraw.ui.ProjectWindowsManager;
 import com.nomagic.magicdraw.ui.WindowComponentInfo;
@@ -29,6 +30,11 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -84,8 +90,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private static final Color USER_COLOR = new Color(70, 70, 70);
         private static final Color REPLY_COLOR = new Color(25, 110, 200);
         private static final Color ERROR_COLOR = new Color(190, 30, 30);
+        private static final Color TOOL_COLOR = new Color(180, 100, 0);
         private static final Color INFO_COLOR = Color.GRAY;
-
         private final Supplier<CameoMcpServer> serverSupplier;
         private final LlmChatClient llm;
         private final JPanel panel;
@@ -94,10 +100,13 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final JTextPane logPane;
         private final JTextField input;
         private final Timer timer;
+        private List<String> lastMcpToolNames = new ArrayList<>();
 
         StatusContent(Supplier<CameoMcpServer> serverSupplier) {
             this.serverSupplier = serverSupplier;
             this.llm = new LlmChatClient(new ObjectMapper());
+
+            llm.registerTool(LlmChatClient.currentTimeTool());
 
             // -- status row: one line ------------------------------------
             statusLine = new JLabel("MCP Server: ...");
@@ -145,6 +154,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         }
 
         private void refresh() {
+            syncMcpTools();
             String mcp;
             var server = serverSupplier.get();
             if (server == null) {
@@ -165,9 +175,86 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             detailLine.setText(mcp + llmStats());
         }
 
+        /**
+         * Keep the LLM console's MCP tools in sync with the server's latest
+         * script scan (hot reload). The optional config key
+         * {@code llm.mcp.tools} restricts the console to a comma-separated
+         * list of tool names; absent or empty means all tools.
+         */
+        private void syncMcpTools() {
+            var server = serverSupplier.get();
+            if (server == null || !server.isRunning()) {
+                return;
+            }
+            var filter = LlmChatClient.configProperty("llm.mcp.tools");
+            Set<String> allowed = null;
+            if (filter != null) {
+                allowed = new TreeSet<>();
+                for (String part : filter.split(",")) {
+                    if (!part.trim().isEmpty()) {
+                        allowed.add(part.trim());
+                    }
+                }
+            }
+            List<String> names = new ArrayList<>();
+            for (McpToolDefinition def : server.getToolDefinitions()) {
+                if (allowed == null || allowed.contains(def.name())) {
+                    names.add(def.name());
+                }
+            }
+            if (names.equals(lastMcpToolNames)) {
+                return;
+            }
+            for (String old : lastMcpToolNames) {
+                llm.unregisterTool(old);
+            }
+            for (McpToolDefinition def : server.getToolDefinitions()) {
+                if (!names.contains(def.name())) {
+                    continue;
+                }
+                final var toolDef = def;
+                llm.registerTool(new LlmChatClient.Tool() {
+                    @Override
+                    public String name() {
+                        return toolDef.name();
+                    }
+
+                    @Override
+                    public String description() {
+                        return toolDef.description() == null ? "" : toolDef.description();
+                    }
+
+                    @Override
+                    public Map<String, Object> parametersSchema() {
+                        return toolDef.inputSchema() == null
+                            ? Map.of("type", "object") : toolDef.inputSchema();
+                    }
+
+                    @Override
+                    public String execute(Map<String, Object> arguments) {
+                        var result = toolDef.handler().call(arguments);
+                        var sb = new StringBuilder();
+                        for (var tc : result.content()) {
+                            if (sb.length() > 0) {
+                                sb.append('\n');
+                            }
+                            sb.append(tc.text());
+                        }
+                        return (result.isError() ? "Error: " : "") + sb;
+                    }
+                });
+            }
+            lastMcpToolNames = List.copyOf(names);
+            appendLine(names.isEmpty()
+                ? "no MCP tools registered for the LLM console"
+                : names.size() + " MCP tools registered for the LLM console",
+                INFO_COLOR);
+        }
+
         private String llmStats() {
             LlmChatClient.UsageStats u = llm.usageStats();
-            String s = "   LLM ctx " + u.contextMessages + " msgs / " + human(u.contextChars) + " chars";
+            String s = "   LLM " + llm.toolCount() + " tools / ctx "
+                + u.contextMessages + " msgs / " + human(u.contextChars) + " chars";
             return s + (u.usageReported
                 ? "   " + u.promptTokens + " tok in / " + u.completionTokens + " tok out"
                 : "   tokens -");
@@ -205,6 +292,18 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 public void onError(String message) {
                     SwingUtilities.invokeLater(() -> appendLine("error: " + message, ERROR_COLOR));
                 }
+
+                @Override
+                public void onToolCall(String name, String argumentsJson) {
+                    SwingUtilities.invokeLater(() -> appendLine(
+                        "  [tool] " + name + " " + truncate(argumentsJson, 300), TOOL_COLOR));
+                }
+
+                @Override
+                public void onToolResult(String name, String result) {
+                    SwingUtilities.invokeLater(() -> appendLine(
+                        "  [result] " + truncate(result, 300), TOOL_COLOR));
+                }
             });
         }
 
@@ -231,6 +330,13 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
         private void appendLine(String line, Color color) {
             appendText(line + "\n", color);
+        }
+
+        private static String truncate(String s, int max) {
+            if (s == null) {
+                return "";
+            }
+            return s.length() <= max ? s : s.substring(0, max) + "...";
         }
 
         @Override
