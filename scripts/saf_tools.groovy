@@ -2310,17 +2310,14 @@ Domain and aspect take the SAF name or the short code from a viewpoint's VP_ID (
             (DIAGRAM_TYPE_ALIASES.keySet().toSorted() as List).join(", "))
     }
 
-    @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram.
+    @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram. Returns the diagram ID.
 
-THINK FIRST - decide WHICH elements to show. A diagram does NOT show everything owned by an element or package. It deliberately shows a SUBSET: the specific classifiers (and, for an IBD, the specific parts/connectors) that the viewpoint's recipe calls for. Focused views are standard practice - especially IBDs, which highlight only certain aspects. Do not add multiplicity literals, parts-as-floating-blocks on a BDD, or relationship views as shapes.
+Pass elementIds to draw exactly the shapes you chose, or a viewpoint
+(name, VP_ID like C1_SCXD, or ID) to auto-collect the elements that
+viewpoint exposes. Omitting both draws all children of parentId.
 
-SELECTIVE (recommended): pass elementIds - add shapes for exactly the elements you chose and nothing else. This is how you build the correct, focused diagram for the viewpoint. Example - System Context BDD: pass the context block and each context element as elementIds, then call saf_add_association_paths to draw the composition links between them. Example - IBD: pass the part properties you want visible; connectors are drawn with the connector/port tools, not as elementIds shapes.
-
-VIEWPOINT-DRIVEN AUTO: omit elementIds and pass a viewpoint (name, VP_ID like C1_SCXD, or ID). The tool walks the viewpoint--exposes->concept--realizes->stereotype/metaclass chain and auto-collects only owned elements whose applied stereotype is one of the viewpoint's realizing stereotypes. This is the correct way to get 'the subset this viewpoint cares about' without guessing per-element domains.
-
-LEGACY AUTO (avoid): omit elementIds and viewpoint to auto-collect the scope element (or all children of parentId). The auto path skips comments, literal integers, and relationship views, but it still cannot represent the deliberate subset each viewpoint needs - so prefer elementIds or the viewpoint arg.
-
-Note: Package-level Association/Composition relationships are NOT rendered as connector lines by this tool - call saf_add_association_paths afterwards to draw them between the shapes you added.''')
+Package-level associations are not drawn as connector lines; call
+saf_add_association_paths for those.''')
     @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
     @McpToolArgument(name = "diagramType", type = "string", description = "Diagram kind. Default: 'Composite Structure Diagram' (IBD). BDD uses 'Class Diagram'. Accepted: friendly names ('Class Diagram', 'Composite Structure Diagram', 'Package Diagram', ...) and UMLConstants-style aliases ('UML_CLASS_DIAGRAM', 'UML_COMPOSITE_STRUCTURE_DIAGRAM', ...).")
