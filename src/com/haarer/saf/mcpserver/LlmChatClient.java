@@ -26,9 +26,11 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,7 +58,8 @@ import java.util.logging.Logger;
  *
  * <p>{@code llm.log} (default {@code false}) appends a transcript of every
  * turn to {@value #DEFAULT_LOG_FILE} in the config directory — request bodies
- * with the presented tool array, raw SSE chunks, each round's response with
+ * with the presented tool array, the tool selection with its confidence, each
+ * round's raw SSE chunks bundled into one entry, the response with
  * {@code finish_reason} and usage, and every tool call with its arguments and
  * result. {@code llm.log.path} overrides the destination. Both keys are
  * re-read per turn.
@@ -84,6 +87,13 @@ import java.util.logging.Logger;
  *       best first, capped at {@code llm.tool.max}). An empty selection or a
  *       failed lookup falls back to the full tool set. The index is rebuilt
  *       only when the registered tools change.</li>
+ *   <li>Tool selection is reported, not applied silently: every turn yields a
+ *       {@link ToolSelection} carrying each presented tool's raw BM25 score, a
+ *       confidence relative to the best match of that turn, and the tools that
+ *       were dropped. When the set was not narrowed, the report says why
+ *       instead of presenting an unexplained full set. It is fired via
+ *       {@link StreamCallback#onToolSelection} and written to the
+ *       transcript as {@code TOOL SELECTION}.</li>
  *   <li>Tools: when at least one {@link Tool} is registered, the request
  *       carries an OpenAI {@code tools} array. If the model answers with
  *       {@code tool_calls} (streamed as {@code delta.tool_calls} fragments),
@@ -150,15 +160,57 @@ public class LlmChatClient {
         default void onToolResult(String name, String result) {
         }
         /**
-         * Fired once per user turn, after tool selection, when the selection
-         * reduced the tool set; the request then carries only the selected
-         * tools.
-         *
-         * @param selected number of tools attached to the request
+         * Fired once per user turn with the tool selection and the confidence
+         * behind it: which tools were presented, which were dropped, and the
+         * reason the set was not narrowed when it was not.
          */
-        default void onToolsPresented(int selected) {
+        default void onToolSelection(ToolSelection selection) {
         }
 
+    }
+
+    /**
+     * One tool of a turn's selection, with the evidence for the decision.
+     *
+     * @param name       tool name
+     * @param score      raw BM25 score; unbounded and not a probability
+     * @param confidence that score relative to the best-scoring tool of the
+     *                   same turn, so {@code 1.0} is the top match
+     * @param band       coarse read of the confidence: {@code high} (>= 0.66),
+     *                   {@code medium} (>= 0.33), {@code low} below
+     */
+    public record ToolScore(String name, double score, double confidence, String band) {
+    }
+
+    /**
+     * Outcome of one turn's tool selection. {@code mode} is {@code bm25} when
+     * the query narrowed the tool set, otherwise {@code all} with a
+     * {@code reason} saying why every registered tool was presented instead.
+     */
+    public record ToolSelection(String mode, String reason, int totalTools,
+                                 List<ToolScore> selected, List<ToolScore> rejected) {
+
+        public boolean narrowed() {
+            return "bm25".equals(mode);
+        }
+
+        /** One-line summary for the console. */
+        public String summary() {
+            if (!narrowed()) {
+                return "all " + totalTools + " tools presented (" + reason + ")";
+            }
+            var top = selected.isEmpty() ? "" : selected.get(0).name() + " " + selected.get(0).confidence();
+            return selected.size() + " of " + totalTools + " tools presented (top: " + top + ")";
+        }
+
+        /** Names of the presented tools, for resolving back to the registry. */
+        public Set<String> selectedNames() {
+            Set<String> names = new LinkedHashSet<>();
+            for (var s : selected) {
+                names.add(s.name());
+            }
+            return names;
+        }
     }
 
     /** One tool call requested by the model. */
@@ -248,7 +300,6 @@ public class LlmChatClient {
                     log.line("--- turn " + Instant.now() + " user: " + truncate(userText, 500));
                 }
                 // History is mutated here (at execution time) on the single
-                // worker thread: queued turns are appended in order, and the
                 // context snapshot for this request already contains the
                 // assistant reply of every previously executed turn.
                 history.add(Map.of("role", "user", "content", userText));
@@ -256,10 +307,14 @@ public class LlmChatClient {
                 // Per-turn tool-round cap; re-read so config changes apply to the next turn.
                 int maxRounds = toolRounds();
                 List<Map<String, Object>> messages = new ArrayList<>(history);
-                List<Tool> selectedTools = selectTools(userText);
-                if (selectedTools.size() < tools.size()) {
-                    callback.onToolsPresented(selectedTools.size());
+                ToolSelection selection = selectTools(userText);
+                callback.onToolSelection(selection);
+                if (log != null) {
+                    logSelection(log, selection);
                 }
+                List<Tool> selectedTools = selection.selected().isEmpty()
+                        ? new ArrayList<>(tools)
+                        : tools.stream().filter(t -> selection.selectedNames().contains(t.name())).toList();
 
                 for (int round = 0; ; round++) {
                     RoundResult r = streamCompletions(messages, selectedTools, delta -> {
@@ -385,19 +440,64 @@ public class LlmChatClient {
      * otherwise the BM25-matched subset, falling back to the full set when
      * nothing matches or the lookup fails. Never returns null.
      */
-    private List<Tool> selectTools(String userText) {
+    private ToolSelection selectTools(String userText) {
         List<Tool> all = new ArrayList<>(tools);
-        if (all.size() <= SELECTOR_THRESHOLD || all.size() <= toolMax()) {
-            return all;
+        if (all.size() <= SELECTOR_THRESHOLD) {
+            return allTools(all, "only " + all.size() + " tools registered, selection starts at "
+                + (SELECTOR_THRESHOLD + 1));
+        }
+        if (all.size() <= toolMax()) {
+            return allTools(all, all.size() + " tools already within llm.tool.max");
         }
         try {
             ensureToolSelector();
-            List<Tool> selected = toolSelector.select(userText, toolThreshold(), toolMax());
-            return selected.isEmpty() ? all : selected;
+            var selection = toolSelector.select(userText, toolThreshold(), toolMax());
+            if (selection.selected().isEmpty()) {
+                return allTools(all, selection.reason());
+            }
+            return new ToolSelection(selection.mode(), selection.reason(), selection.totalTools(),
+                rescored(selection.selected()), rescored(selection.rejected()));
         } catch (Exception e) {
             LOG.log(Level.FINE, "tool selection failed; sending all " + all.size() + " tools", e);
-            return all;
+            return allTools(all, "selection failed: " + e);
         }
+    }
+
+    /** Fallback: every registered tool is presented, and the report says why. */
+    private ToolSelection allTools(List<Tool> all, String reason) {
+        return new ToolSelection("all", reason, all.size(), List.of(), List.of());
+    }
+
+    private static List<ToolScore> rescored(List<Bm25ToolSelector.Scored> scores) {
+        return scores.stream()
+            .map(s -> new ToolScore(s.name(), s.score(), s.confidence(), s.band()))
+            .toList();
+    }
+
+    private void logSelection(ConversationLog log, ToolSelection selection) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("mode", selection.mode());
+        if (!selection.reason().isEmpty()) {
+            node.put("reason", selection.reason());
+        }
+        node.put("totalTools", selection.totalTools());
+        // An empty selection means the fallback presented every tool.
+        node.put("presented", selection.selected().isEmpty() ? selection.totalTools() : selection.selected().size());
+        node.set("selected", scoreArray(selection.selected()));
+        node.set("rejected", scoreArray(selection.rejected()));
+        log.json("TOOL SELECTION", node);
+    }
+
+    private ArrayNode scoreArray(List<ToolScore> scores) {
+        ArrayNode arr = mapper.createArrayNode();
+        for (var s : scores) {
+            ObjectNode n = arr.addObject();
+            n.put("tool", s.name());
+            n.put("score", s.score());
+            n.put("confidence", s.confidence());
+            n.put("band", s.band());
+        }
+        return arr;
     }
 
 
@@ -490,6 +590,10 @@ public class LlmChatClient {
         final boolean[] sawData = {false};
         final StringBuilder plain = new StringBuilder();
         final RoundResult result = new RoundResult();
+        // The raw chunks of this round, logged together once the stream ends
+        // rather than one line per chunk: the payload is what matters for
+        // diagnosis, and one entry per round keeps the transcript readable.
+        final List<JsonNode> chunks = new ArrayList<>();
         try (Stream<String> lines = resp.body()) {
             lines.forEach(line -> {
                 String l = line.trim();
@@ -499,16 +603,17 @@ public class LlmChatClient {
                     if (payload.isEmpty() || "[DONE]".equals(payload)) {
                         return;
                     }
-                    if (log != null) {
-                        log.line("<<< stream round " + round + ": " + payload);
-                    }
                     JsonNode node;
                     try {
                         node = mapper.readTree(payload);
                     } catch (IOException e) {
                         LOG.fine("Unparseable SSE payload: " + payload);
+                        // Keep the unparseable payload in the transcript; it is
+                        // exactly the kind of thing the log is needed for.
+                        chunks.add(mapper.getNodeFactory().textNode(payload));
                         return;
                     }
+                    chunks.add(node);
                     captureUsage(node.path("usage"), result.usage);
                     JsonNode finish = node.path("choices").path(0).path("finish_reason");
                     if (finish.isTextual() && !finish.asText().isEmpty()) {
@@ -524,6 +629,15 @@ public class LlmChatClient {
                     plain.append(l);
                 }
             });
+        }
+
+        // One bundled entry per round rather than a line per chunk.
+        if (log != null && !chunks.isEmpty()) {
+            ArrayNode arr = mapper.createArrayNode();
+            for (JsonNode chunk : chunks) {
+                arr.add(chunk);
+            }
+            log.json("stream round " + round + " (" + chunks.size() + " chunks)", arr);
         }
 
         // Fallback: the server ignored "stream" and returned a plain completion.

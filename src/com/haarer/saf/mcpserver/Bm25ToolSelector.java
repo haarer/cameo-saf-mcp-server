@@ -31,6 +31,11 @@ import java.util.Map;
  * tokens with any tool yields an empty result; the caller falls back to
  * presenting all tools.
  *
+ * <p>{@link #select} reports the evidence, not just the winners: every
+ * candidate carries its raw BM25 score and a confidence relative to the best
+ * match of the same call, and the dropped tools are reported alongside the
+ * kept ones so a thin or wrong selection is visible rather than silent.
+ *
  * <p>Not thread-safe: rebuild and select from the single console worker
  * thread.
  */
@@ -68,29 +73,85 @@ public final class Bm25ToolSelector {
     }
 
     /**
-     * Choose the tools to present for the given user message.
+     * One tool with the evidence behind its selection. {@code score} is the raw
+     * BM25 score (unbounded, not a probability); {@code confidence} is that
+     * score relative to the best-scoring tool of the same turn, so
+     * {@code 1.0} is the top match and {@code band} gives a coarse read
+     * (high &ge; 0.66, medium &ge; 0.33, low below).
+     */
+    public record Scored(String name, double score, double confidence, String band) {}
+
+    /**
+     * Outcome of one turn's tool selection. {@code mode} is {@code bm25} when
+     * the query actually narrowed the set, otherwise {@code all} with a
+     * {@code reason} saying why every tool was presented instead;
+     * {@code selected} and {@code rejected} always carry the confidence, so a
+     * report can show what was dropped as well as what was kept.
+     */
+    public record Selection(String mode, String reason, int totalTools,
+                            List<Scored> selected, List<Scored> rejected) {
+
+        public boolean narrowed() {
+            return "bm25".equals(mode);
+        }
+    }
+
+    /** How many rejected tools a report lists before truncating. */
+    private static final int MAX_REPORTED_REJECTED = 10;
+
+    /**
+     * Choose the tools to present for the given user message, keeping the
+     * scores so the caller can report confidence.
      *
      * @param message   the user's message, analyzed into query terms
      * @param threshold minimum BM25 score a tool needs to be presented
      * @param max       maximum number of tools returned, best first
-     * @return matching tools in descending score order; empty when nothing
-     *         matches or the message carries no query terms
+     * @return the selection with the evidence; {@code mode} is {@code all}
+     *         with a reason when nothing matched or the message is empty
      */
-    public List<LlmChatClient.Tool> select(String message, double threshold, int max) {
+    public Selection select(String message, double threshold, int max) {
         if (message == null || message.isBlank() || max <= 0 || current.isEmpty()) {
-            return List.of();
+            return new Selection("all", "no query terms to match tools on", current.size(), List.of(), List.of());
         }
-        List<Hit> hits = index.search(message, max, Retriever.MatchPolicy.OR);
-        List<LlmChatClient.Tool> selected = new ArrayList<>(hits.size());
+        // Ask for more than we may keep, so the rejects can be reported too.
+        int wanted = Math.min(current.size(), max + MAX_REPORTED_REJECTED);
+        List<Hit> hits = index.search(message, wanted, Retriever.MatchPolicy.OR);
+        if (hits.isEmpty()) {
+            return new Selection("all", "no tool matched the message", current.size(), List.of(), List.of());
+        }
+        double best = hits.get(0).score();
+        var selected = new ArrayList<Scored>();
+        var rejected = new ArrayList<Scored>();
         for (Hit hit : hits) {
-            if (hit.score() < threshold) {
-                break; // hits arrive in descending score order
-            }
             LlmChatClient.Tool tool = current.get(hit.id());
-            if (tool != null) {
-                selected.add(tool);
+            if (tool == null) {
+                continue;
+            }
+            double confidence = best > 0 ? hit.score() / best : 0.0;
+            var scored = new Scored(tool.name(), round(hit.score()), round(confidence), band(confidence));
+            boolean keep = selected.size() < max && hit.score() >= threshold;
+            if (keep) {
+                selected.add(scored);
+            } else if (rejected.size() < MAX_REPORTED_REJECTED) {
+                rejected.add(scored);
             }
         }
-        return List.copyOf(selected);
+        if (selected.isEmpty()) {
+            return new Selection("all",
+                "nothing scored at or above llm.tool.threshold " + threshold, current.size(), List.of(), rejected);
+        }
+        return new Selection("bm25", "", current.size(), List.copyOf(selected), List.copyOf(rejected));
     }
+
+    private static double round(double v) {
+        return Math.round(v * 1000.0) / 1000.0;
+    }
+
+    private static String band(double confidence) {
+        if (confidence >= 0.66) {
+            return "high";
+        }
+        return confidence >= 0.33 ? "medium" : "low";
+    }
+
 }

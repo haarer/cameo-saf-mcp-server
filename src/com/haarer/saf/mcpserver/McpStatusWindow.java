@@ -322,12 +322,20 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 }
 
                 @Override
-                public void onToolsPresented(int selected) {
+                public void onToolSelection(LlmChatClient.ToolSelection selection) {
                     if (hideToolCalls.get()) {
                         return;
                     }
-                    SwingUtilities.invokeLater(() -> appendLine(
-                        "  [tools] presenting " + selected + " of " + llm.toolCount(), TOOL_COLOR));
+                    SwingUtilities.invokeLater(() -> {
+                        appendLine("  [tools] " + selection.summary(), TOOL_COLOR);
+                        // Confidence of the kept tools, best first, so a thin
+                        // selection is visible in the console and not only in
+                        // the transcript.
+                        for (var s : selection.selected()) {
+                            appendLine(String.format("      %-34s score %-7.3f conf %.2f %s",
+                                s.name(), s.score(), s.confidence(), s.band()), TOOL_COLOR);
+                        }
+                    });
                 }
             });
         }
