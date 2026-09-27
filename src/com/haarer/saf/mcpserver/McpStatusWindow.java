@@ -30,6 +30,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Insets;
 import java.awt.Font;
 import java.util.Locale;
 import java.util.ArrayList;
@@ -104,7 +105,6 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final JTextField input;
         private final Timer timer;
         private List<String> lastMcpToolNames = new ArrayList<>();
-        private final AtomicBoolean hideToolCalls = new AtomicBoolean(true);
 
         StatusContent(Supplier<CameoMcpServer> serverSupplier) {
             this.serverSupplier = serverSupplier;
@@ -131,16 +131,19 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
-            // -- text entry + hide tool calls + clear --------------------
+            // -- text entry + menu + clear -------------------------------
             input = new JTextField();
             input.addActionListener(e -> submit());
-            var hideBox = new JCheckBox("Hide Tool Calls", true);
-            hideBox.addActionListener(e -> hideToolCalls.set(hideBox.isSelected()));
+            var menu = new JButton("≡");
+            menu.setToolTipText("Configuration");
+            menu.setMargin(new Insets(0, 8, 0, 8));
+            menu.setFocusPainted(false);
+            menu.addActionListener(e -> ConfigDialog.show(menu));
             var clear = new JButton("Clear");
             clear.addActionListener(e -> clearAll());
             var inputEast = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
             inputEast.setOpaque(false);
-            inputEast.add(hideBox);
+            inputEast.add(menu);
             inputEast.add(clear);
             var inputRow = new JPanel(new BorderLayout(6, 0));
             inputRow.setOpaque(false);
@@ -305,7 +308,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
                 @Override
                 public void onToolCall(String name, String argumentsJson) {
-                    if (hideToolCalls.get()) {
+                    if (!showToolCalls()) {
                         return;
                     }
                     SwingUtilities.invokeLater(() -> appendLine(
@@ -314,7 +317,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
                 @Override
                 public void onToolResult(String name, String result) {
-                    if (hideToolCalls.get()) {
+                    if (!showToolCalls()) {
                         return;
                     }
                     SwingUtilities.invokeLater(() -> appendLine(
@@ -323,7 +326,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
                 @Override
                 public void onToolSelection(LlmChatClient.ToolSelection selection) {
-                    if (hideToolCalls.get()) {
+                    if (!showToolCalls()) {
                         return;
                     }
                     SwingUtilities.invokeLater(() -> {
@@ -338,6 +341,15 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     });
                 }
             });
+        }
+
+        /**
+         * Whether tool calls, results, and the per-round tool selection are
+         * printed. Read per callback rather than cached, so turning it on in
+         * the configuration dialog takes effect on the next message.
+         */
+        private boolean showToolCalls() {
+            return PluginConfig.flag(PluginConfig.SHOW_TOOL_CALLS, false);
         }
 
         private void clearAll() {

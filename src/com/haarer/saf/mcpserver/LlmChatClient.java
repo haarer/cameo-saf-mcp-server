@@ -124,7 +124,8 @@ import java.util.logging.Logger;
 public class LlmChatClient {
 
     public static final String DEFAULT_URL = "http://host.containers.internal:1234";
-    private static final String DEFAULT_MODEL = "default";
+    /** Default {@code llm.model} when the config file does not set one. */
+    public static final String DEFAULT_MODEL = "default";
     private static final String PROP_URL = "cameo.mcp.console.llm.url";
     /** Default for {@code llm.context.turns}: conversation entries kept as context. */
     static final int DEFAULT_CONTEXT_TURNS = 30;
@@ -246,7 +247,8 @@ public class LlmChatClient {
     public record ToolCall(String id, String name, String arguments) {
     }
 
-    private static final Logger LOG = Logger.getLogger(LlmChatClient.class.getName());
+    /** Logger for the console; also used by the configuration UI. */
+    static final Logger LOG = Logger.getLogger(LlmChatClient.class.getName());
 
     private final ObjectMapper mapper;
     private final HttpClient http;
