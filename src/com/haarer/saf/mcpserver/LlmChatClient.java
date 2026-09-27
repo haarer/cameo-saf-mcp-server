@@ -13,6 +13,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import com.haarer.saf.mcpserver.protocol.McpSession;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -878,6 +879,11 @@ public class LlmChatClient {
         for (Tool t : tools) {
             if (t.name().equals(name)) {
                 Map<String, Object> args = parseArguments(argsJson);
+                // The console runs the same tools as an MCP client but bypasses
+                // the protocol handler, so without this the status line's
+                // tool-call count stands still for the whole turn and only
+                // moves when something external calls a tool.
+                McpSession.incrementToolCallCount(name);
                 try {
                     String r = t.execute(args);
                     return truncate(r == null ? "" : r, MAX_TOOL_RESULT_CHARS);
