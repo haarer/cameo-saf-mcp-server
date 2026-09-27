@@ -482,6 +482,10 @@ public class LlmChatClient {
      */
     private ToolSelection selectTools(int round, String query) {
         List<Tool> all = new ArrayList<>(tools);
+        if (!toolBm25Enabled()) {
+            return allTools(round, all, "BM25 selection disabled by config ("
+                + PluginConfig.TOOL_BM25 + "=false); all " + all.size() + " tools sent");
+        }
         if (all.size() <= SELECTOR_THRESHOLD) {
             return allTools(round, all, "only " + all.size() + " tools registered, selection starts at "
                 + (SELECTOR_THRESHOLD + 1));
@@ -1045,6 +1049,39 @@ public class LlmChatClient {
     public static double toolThreshold() {
         return positiveDoubleProperty("llm.tool.threshold", DEFAULT_TOOL_THRESHOLD);
     }
+
+    /**
+     * Whether BM25 narrows the tool array; config key
+     * {@code llm.tool.bm25}, re-read per turn, default {@code true}.
+     *
+     * <p>When off, every registered tool is sent on every round. That
+     * deliberately ignores both {@link #toolMax()} and
+     * {@link #toolThreshold()}: the point of the switch is to hand the model
+     * the complete set, so honouring the cap would defeat it.
+     */
+    public static boolean toolBm25Enabled() {
+        return booleanProperty(PluginConfig.TOOL_BM25, true);
+    }
+
+    /**
+     * Read a boolean option, accepting the spellings people actually write in
+     * a properties file. Anything unrecognised falls back to the default
+     * rather than silently meaning {@code false}.
+     */
+    static boolean booleanProperty(String key, boolean def) {
+        String v = propertyFromFile(key);
+        if (v == null) {
+            return def;
+        }
+        if (v.equalsIgnoreCase("true") || v.equalsIgnoreCase("yes") || v.equalsIgnoreCase("on")) {
+            return true;
+        }
+        if (v.equalsIgnoreCase("false") || v.equalsIgnoreCase("no") || v.equalsIgnoreCase("off")) {
+            return false;
+        }
+        return def;
+    }
+
 
     private static double positiveDoubleProperty(String key, double def) {
         String v = propertyFromFile(key);

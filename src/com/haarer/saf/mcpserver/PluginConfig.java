@@ -47,6 +47,9 @@ public final class PluginConfig {
     /** Console key controlling whether tool calls are printed. */
     public static final String SHOW_TOOL_CALLS = "console.showToolCalls";
 
+    /** Key switching BM25 tool selection off. */
+    public static final String TOOL_BM25 = "llm.tool.bm25";
+
     private PluginConfig() {
     }
 
@@ -74,6 +77,10 @@ public final class PluginConfig {
             new Option("llm.tool.max", "Max tools sent", Type.INT,
                 "Most tools attached to one request. Above 25 registered tools, BM25 narrows the set to this many.",
                 LlmChatClient.DEFAULT_TOOL_MAX),
+            new Option(TOOL_BM25, "BM25 tool selection", Type.BOOL,
+                "Narrow the tool array by relevance. Off means every registered tool is sent on every "
+                    + "round, ignoring the max-tools limit and the score threshold.",
+                true),
             new Option("llm.tool.threshold", "Tool score threshold", Type.DOUBLE,
                 "Minimum BM25 score for a tool to be presented. Lower keeps more, higher keeps only strong matches.",
                 LlmChatClient.DEFAULT_TOOL_THRESHOLD),
@@ -145,21 +152,21 @@ public final class PluginConfig {
     }
 
     /**
-     * The current value of a boolean option, with a default of {@code false}
-     * when the key is absent or not a recognisable boolean.
+     * The current value of a boolean option, with the given default when the
+     * key is absent or not a recognisable boolean.
      */
     public static boolean flag(String key, boolean def) {
-        String v = LlmChatClient.configProperty(key);
-        if (v == null) {
-            return def;
-        }
-        if ("true".equalsIgnoreCase(v) || "yes".equalsIgnoreCase(v) || "on".equalsIgnoreCase(v)) {
-            return true;
-        }
-        if ("false".equalsIgnoreCase(v) || "no".equalsIgnoreCase(v) || "off".equalsIgnoreCase(v)) {
-            return false;
-        }
-        return def;
+        return LlmChatClient.booleanProperty(key, def);
+    }
+
+    /**
+     * Options that only take effect while {@link #TOOL_BM25} is on. The
+     * dialog disables them when selection is off, because BM25 is the only
+     * thing that reads them: with selection off neither the cap nor the
+     * score can apply, and leaving them editable would promise otherwise.
+     */
+    public static boolean dependsOnToolSelection(String key) {
+        return "llm.tool.max".equals(key) || "llm.tool.threshold".equals(key);
     }
 
     /**

@@ -45,9 +45,12 @@ public final class ConfigDialog extends JDialog {
 
     private final Map<String, JComponent> fields = new LinkedHashMap<>();
     private final Map<String, JLabel> errors = new LinkedHashMap<>();
+    private final Map<String, JLabel> names = new LinkedHashMap<>();
+    private final Map<String, JLabel> helps = new LinkedHashMap<>();
     private final File file;
     private static final java.awt.Color GRAY_TEXT = new java.awt.Color(120, 120, 120);
     private static final java.awt.Color ERROR_TEXT = new java.awt.Color(190, 30, 30);
+    private static final java.awt.Color DISABLED_TEXT = new java.awt.Color(185, 185, 185);
 
     /** Help text is HTML so it wraps with its field instead of overflowing. */
     private static String escape(String text) {
@@ -58,6 +61,8 @@ public final class ConfigDialog extends JDialog {
         super(owner, "MCP Server Configuration", ModalityType.APPLICATION_MODAL);
         this.file = PluginConfig.file();
         Properties stored = PluginConfig.load();
+
+        // One row per option. The help line and the error line live in the
 
         // One row per option. The help line and the error line live in the
         // same cell as their field, stacked under it, so they cannot drift
@@ -75,7 +80,9 @@ public final class ConfigDialog extends JDialog {
             c.gridy++;
             c.weightx = 0;
             c.weighty = 0;
-            form.add(new JLabel(option.label()), c);
+            JLabel name = new JLabel(option.label());
+            form.add(name, c);
+            names.put(option.key(), name);
 
             var cell = new JPanel();
             cell.setOpaque(false);
@@ -91,6 +98,7 @@ public final class ConfigDialog extends JDialog {
             help.setAlignmentX(LEFT_ALIGNMENT);
             help.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
             cell.add(help);
+            helps.put(option.key(), help);
 
             JLabel err = new JLabel(" ");
             err.setForeground(ERROR_TEXT);
@@ -105,6 +113,12 @@ public final class ConfigDialog extends JDialog {
             fields.put(option.key(), input);
             form.add(cell, c);
         }
+
+        // BM25 is the only reader of the cap and the score, so with selection
+        // off those rows are greyed out and react to the switch live.
+        var bm25 = (JCheckBox) fields.get(PluginConfig.TOOL_BM25);
+        bm25.addItemListener(e -> applySelectionDependencies());
+        applySelectionDependencies();
 
         var body = new JPanel(new BorderLayout(0, 8));
         body.add(form, BorderLayout.CENTER);
@@ -142,6 +156,31 @@ public final class ConfigDialog extends JDialog {
         pack();
         setMinimumSize(new Dimension(Math.max(getWidth(), 640), 480));
         setLocationRelativeTo(owner);
+    }
+
+
+    /**
+     * Grey out the options BM25 is the only reader of. The row's name and help
+     * labels fade with the field, so the whole row reads as inactive rather
+     * than just the input.
+     */
+    private void applySelectionDependencies() {
+        var bm25 = (JCheckBox) fields.get(PluginConfig.TOOL_BM25);
+        boolean selectionOn = bm25 != null && bm25.isSelected();
+        for (var option : PluginConfig.options()) {
+            if (!PluginConfig.dependsOnToolSelection(option.key())) {
+                continue;
+            }
+            fields.get(option.key()).setEnabled(selectionOn);
+            var name = names.get(option.key());
+            if (name != null) {
+                name.setEnabled(selectionOn);
+            }
+            var help = helps.get(option.key());
+            if (help != null) {
+                help.setForeground(selectionOn ? GRAY_TEXT : DISABLED_TEXT);
+            }
+        }
     }
 
     /** Open the dialog for {@code owner}; returns once it is closed. */
