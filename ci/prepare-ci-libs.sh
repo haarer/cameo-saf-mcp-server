@@ -5,14 +5,20 @@ set -euo pipefail
 # Builds ci-libs/ with:
 #   - Real Jackson jars (open source, from Maven Central)
 #   - Real Groovy jar   (open source, from Maven Central)
-#   - Stub jar for Cameo proprietary classes (Plugin, Application, GUILog)
+#   - Stub jar for Cameo core classes (Plugin, Application, GUILog, ...)
+#   - Stub jars from ci-stubs/ for the MagicDraw UI, JideSoft docking and
+#     Lucene APIs
 #
 # Usage:
 #   ./ci/prepare-ci-libs.sh
 #
 # Output: ci-libs/  (suitable for -PcameoHome=ci-libs)
+#
+# Every jar here is compile-only. None is packaged into the plugin, and none
+# is loaded at runtime — a real MagicDraw install supplies the real classes.
 
-CI_LIBS="$(cd "$(dirname "$0")/.." && pwd)/ci-libs"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CI_LIBS="$REPO_ROOT/ci-libs"
 STUBS_SRC=$(mktemp -d)
 trap 'rm -rf "$STUBS_SRC"' EXIT
 
@@ -194,6 +200,15 @@ javac --release "$STUBS_RELEASE" -d "$STUBS_SRC/classes" \
 # Package into a jar that matches one of the build.gradle glob patterns
 # e.g. core-*.jar  matches  core-stubs.jar
 jar --create --file "$CI_LIBS/lib/core-stubs.jar" -C "$STUBS_SRC/classes" .
+
+# -------------------------------------------------------
+# 4. Build the remaining compile-only stub sets
+# -------------------------------------------------------
+# The hand-written stubs for the MagicDraw UI, JideSoft docking and Lucene
+# APIs live in ci-stubs/ as reviewable sources. core-stubs.jar above is
+# already built at this point, which core-ui needs for com.nomagic.magicdraw.core.Project.
+echo "--- Building ci-stubs/ sets ---"
+JAVAC_RELEASE="$STUBS_RELEASE" "$REPO_ROOT/ci-stubs/build-stubs.sh"
 
 echo "=== ci-libs/ ready ==="
 ls -la "$CI_LIBS/lib/"
