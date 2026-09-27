@@ -68,7 +68,7 @@ import java.util.logging.Logger;
  *       each tool is executed in-process, the result is appended to the
  *       conversation as a {@code tool} message, and the model is called again.
  *       The loop repeats until the model produces plain content or
- *       {@value #MAX_TOOL_ROUNDS} tool rounds are reached.</li>
+ *       the configured tool-round cap ({@code llm.tool.rounds}) is reached.</li>
  * </ul>
  */
 public class LlmChatClient {
@@ -76,9 +76,10 @@ public class LlmChatClient {
     public static final String DEFAULT_URL = "http://host.containers.internal:1234";
     private static final String DEFAULT_MODEL = "default";
     private static final String PROP_URL = "cameo.mcp.console.llm.url";
-    private static final int MAX_HISTORY = 30;
-    /** Hard cap on consecutive tool-execution rounds per user turn. */
-    static final int MAX_TOOL_ROUNDS = 8;
+    /** Default for {@code llm.context.turns}: conversation entries kept as context. */
+    static final int DEFAULT_CONTEXT_TURNS = 30;
+    /** Default for {@code llm.tool.rounds}: consecutive tool rounds per user turn. */
+    static final int DEFAULT_TOOL_ROUNDS = 8;
     /** Tool results are truncated before being sent back to the model. */
     static final int MAX_TOOL_RESULT_CHARS = 4000;
 
@@ -198,6 +199,8 @@ public class LlmChatClient {
                 // assistant reply of every previously executed turn.
                 history.add(Map.of("role", "user", "content", userText));
                 trimHistory();
+                // Per-turn tool-round cap; re-read so config changes apply to the next turn.
+                int maxRounds = toolRounds();
                 List<Map<String, Object>> messages = new ArrayList<>(history);
 
                 for (int round = 0; ; round++) {
@@ -212,9 +215,9 @@ public class LlmChatClient {
                         callback.onComplete(full.toString());
                         return;
                     }
-                    if (round + 1 >= MAX_TOOL_ROUNDS) {
+                    if (round + 1 >= maxRounds) {
                         throw new IOException("Tool loop did not finish after "
-                            + MAX_TOOL_ROUNDS + " rounds");
+                            + maxRounds + " rounds");
                     }
                     // Remember the assistant turn that asked for tools.
                     Map<String, Object> assistantMsg = new LinkedHashMap<>();
@@ -289,7 +292,7 @@ public class LlmChatClient {
     }
 
     private void trimHistory() {
-        while (history.size() > MAX_HISTORY) {
+        while (history.size() > contextTurns()) {
             history.remove(0);
         }
     }
@@ -600,5 +603,38 @@ public class LlmChatClient {
      */
     public static String configProperty(String key) {
         return propertyFromFile(key);
+    }
+
+    /**
+     * Max conversation entries (user/assistant/tool messages) kept as context;
+     * config key {@code llm.context.turns}, re-read per use, default
+     * {@value #DEFAULT_CONTEXT_TURNS}.
+     */
+    public static int contextTurns() {
+        return positiveIntProperty("llm.context.turns", DEFAULT_CONTEXT_TURNS);
+    }
+
+    /**
+     * Max consecutive tool-execution rounds per user turn; config key
+     * {@code llm.tool.rounds}, re-read per turn, default
+     * {@value #DEFAULT_TOOL_ROUNDS}.
+     */
+    public static int toolRounds() {
+        return positiveIntProperty("llm.tool.rounds", DEFAULT_TOOL_ROUNDS);
+    }
+
+    private static int positiveIntProperty(String key, int def) {
+        String v = propertyFromFile(key);
+        if (v != null) {
+            try {
+                int i = Integer.parseInt(v);
+                if (i > 0) {
+                    return i;
+                }
+            } catch (NumberFormatException ignored) {
+                // fall through to default
+            }
+        }
+        return def;
     }
 }

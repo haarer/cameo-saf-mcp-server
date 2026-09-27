@@ -13,6 +13,7 @@ import com.nomagic.magicdraw.ui.browser.WindowComponentContent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -28,6 +29,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.util.Locale;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -101,6 +104,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final JTextField input;
         private final Timer timer;
         private List<String> lastMcpToolNames = new ArrayList<>();
+        private final AtomicBoolean hideToolCalls = new AtomicBoolean(true);
 
         StatusContent(Supplier<CameoMcpServer> serverSupplier) {
             this.serverSupplier = serverSupplier;
@@ -127,15 +131,21 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
-            // -- text entry + clear --------------------------------------
+            // -- text entry + hide tool calls + clear --------------------
             input = new JTextField();
             input.addActionListener(e -> submit());
+            var hideBox = new JCheckBox("Hide Tool Calls", true);
+            hideBox.addActionListener(e -> hideToolCalls.set(hideBox.isSelected()));
             var clear = new JButton("Clear");
             clear.addActionListener(e -> clearAll());
+            var inputEast = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+            inputEast.setOpaque(false);
+            inputEast.add(hideBox);
+            inputEast.add(clear);
             var inputRow = new JPanel(new BorderLayout(6, 0));
             inputRow.setOpaque(false);
             inputRow.add(input, BorderLayout.CENTER);
-            inputRow.add(clear, BorderLayout.EAST);
+            inputRow.add(inputEast, BorderLayout.EAST);
 
             panel = new JPanel(new BorderLayout(0, 0));
             panel.setOpaque(false);
@@ -295,12 +305,18 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
                 @Override
                 public void onToolCall(String name, String argumentsJson) {
+                    if (hideToolCalls.get()) {
+                        return;
+                    }
                     SwingUtilities.invokeLater(() -> appendLine(
                         "  [tool] " + name + " " + truncate(argumentsJson, 300), TOOL_COLOR));
                 }
 
                 @Override
                 public void onToolResult(String name, String result) {
+                    if (hideToolCalls.get()) {
+                        return;
+                    }
                     SwingUtilities.invokeLater(() -> appendLine(
                         "  [result] " + truncate(result, 300), TOOL_COLOR));
                 }
