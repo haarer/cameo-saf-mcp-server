@@ -51,6 +51,11 @@ import java.util.logging.Logger;
  *       the previous exchange has fully completed; the context for each
  *       request is built at execution time, so a queued message sees the
  *       reply to the message before it.</li>
+ *   <li>Requests ask the server for token usage ({@code
+ *       stream_options.include_usage}); when the server reports it, cumulative
+ *       prompt and completion token counts are tracked and exposed via
+ *       {@link #usageStats()} together with the current context size (message
+ *       and character counts).</li>
  * </ul>
  */
 public class LlmChatClient {
@@ -77,6 +82,11 @@ public class LlmChatClient {
     private final HttpClient http;
     private final ExecutorService executor;
     private final List<Map<String, String>> history = new CopyOnWriteArrayList<>();
+    // Token-usage counters, guarded by 'this' (written on the worker thread,
+    // read from the EDT by the status window).
+    private long promptTokens;
+    private long completionTokens;
+    private boolean usageReported;
 
     public LlmChatClient(ObjectMapper mapper) {
         this.mapper = mapper;
@@ -121,10 +131,11 @@ public class LlmChatClient {
                 trimHistory();
                 List<Map<String, String>> messages = List.copyOf(history);
 
-                streamCompletions(messages, delta -> {
+                long[] usage = streamCompletions(messages, delta -> {
                     full.append(delta);
                     callback.onDelta(delta);
                 });
+                recordUsage(usage[0], usage[1]);
 
                 history.add(Map.of("role", "assistant", "content", full.toString()));
                 trimHistory();
@@ -136,9 +147,12 @@ public class LlmChatClient {
         });
     }
 
-    /** Drop the conversation history (used by the console's clear button). */
-    public void reset() {
+    /** Drop the conversation history and usage counters (console's clear button). */
+    public synchronized void reset() {
         history.clear();
+        promptTokens = 0;
+        completionTokens = 0;
+        usageReported = false;
     }
 
     private String callModel() {
@@ -154,12 +168,19 @@ public class LlmChatClient {
 
     /**
      * POST {@code /v1/chat/completions} with {@code stream: true} and feed
-     * reply chunks to {@code onDelta} as they arrive.
+     * reply chunks to {@code onDelta} as they arrive. Asks the server to
+     * include token usage ({@code stream_options.include_usage}); tolerant of
+     * servers that ignore the flag.
+     *
+     * @return server-reported usage for this request as
+     *         {@code {promptTokens, completionTokens}}; zeros when the server
+     *         does not report usage
      */
-    private void streamCompletions(List<Map<String, String>> messages, Consumer<String> onDelta) throws Exception {
+    long[] streamCompletions(List<Map<String, String>> messages, Consumer<String> onDelta) throws Exception {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", callModel());
         body.put("stream", true);
+        body.putObject("stream_options").put("include_usage", true);
         ArrayNode msgArray = body.putArray("messages");
         for (Map<String, String> m : messages) {
             ObjectNode n = msgArray.addObject();
@@ -191,6 +212,7 @@ public class LlmChatClient {
 
         final boolean[] sawData = {false};
         final StringBuilder plain = new StringBuilder();
+        final long[] usage = {0, 0};
         try (Stream<String> lines = resp.body()) {
             lines.forEach(line -> {
                 String l = line.trim();
@@ -207,6 +229,7 @@ public class LlmChatClient {
                         LOG.fine("Unparseable SSE payload: " + payload);
                         return;
                     }
+                    captureUsage(node.path("usage"), usage);
                     JsonNode content = node.path("choices").path(0).path("delta").path("content");
                     if (content.isTextual() && !content.asText().isEmpty()) {
                         onDelta.accept(content.asText());
@@ -223,11 +246,66 @@ public class LlmChatClient {
                 throw new IOException("Empty response from LLM endpoint");
             }
             JsonNode node = mapper.readTree(plain.toString());
+            captureUsage(node.path("usage"), usage);
             JsonNode content = node.path("choices").path(0).path("message").path("content");
             if (!content.isTextual()) {
                 throw new IOException("No reply content in response: " + truncate(plain.toString(), 300));
             }
             onDelta.accept(content.asText());
+        }
+        return usage;
+    }
+
+    /** Fill {@code out} with {prompt, completion} when {@code usage} carries token counts. */
+    private static void captureUsage(JsonNode usage, long[] out) {
+        if (!usage.isObject()) {
+            return;
+        }
+        long p = usage.path("prompt_tokens").asLong(0);
+        long c = usage.path("completion_tokens").asLong(0);
+        if (p > 0 || c > 0) {
+            out[0] = p;
+            out[1] = c;
+        }
+    }
+
+    private synchronized void recordUsage(long prompt, long completion) {
+        if (prompt > 0 || completion > 0) {
+            promptTokens += prompt;
+            completionTokens += completion;
+            usageReported = true;
+        }
+    }
+
+    /** Snapshot of context size and token usage for the status line. */
+    public synchronized UsageStats usageStats() {
+        long chars = 0;
+        for (Map<String, String> m : history) {
+            chars += m.get("content").length();
+        }
+        return new UsageStats(history.size(), chars, promptTokens, completionTokens, usageReported);
+    }
+
+    /** Immutable snapshot of console context size and token-usage counters. */
+    public static final class UsageStats {
+        /** Number of messages currently in the conversation context. */
+        public final int contextMessages;
+        /** Total characters across all context messages. */
+        public final long contextChars;
+        /** Cumulative prompt tokens reported by the endpoint since the last reset. */
+        public final long promptTokens;
+        /** Cumulative completion tokens reported by the endpoint since the last reset. */
+        public final long completionTokens;
+        /** Whether the endpoint has reported token usage at least once. */
+        public final boolean usageReported;
+
+        public UsageStats(int contextMessages, long contextChars, long promptTokens,
+                          long completionTokens, boolean usageReported) {
+            this.contextMessages = contextMessages;
+            this.contextChars = contextChars;
+            this.promptTokens = promptTokens;
+            this.completionTokens = completionTokens;
+            this.usageReported = usageReported;
         }
     }
 

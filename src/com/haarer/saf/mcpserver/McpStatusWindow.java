@@ -28,6 +28,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
@@ -41,7 +42,8 @@ import java.util.function.Supplier;
  * <p>Layout (top to bottom):
  * <ol>
  *   <li>one status line: running/stopped, endpoint URL, tool count, active
- *       session count, total tool call count;</li>
+ *       session count, total tool call count, LLM console context size
+ *       (messages/chars) and cumulative token usage;</li>
  *   <li>a scrollable log: user turns are echoed, LLM replies stream in below
  *       in a distinct color, errors are red;</li>
  *   <li>a text entry that sends the typed line to the OpenAI-compatible LLM
@@ -143,24 +145,42 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         }
 
         private void refresh() {
+            String mcp;
             var server = serverSupplier.get();
             if (server == null) {
                 statusLine.setText("MCP Server: not started");
                 statusLine.setForeground(STOP_COLOR);
-                detailLine.setText(" ");
-                return;
-            }
-            boolean running = server.isRunning();
-            statusLine.setText("MCP Server: " + (running ? "running" : "stopped"));
-            statusLine.setForeground(running ? OK_COLOR : STOP_COLOR);
-            if (running) {
-                detailLine.setText("http://" + server.getHost() + ":" + server.getPort() + "/mcp"
-                    + "   " + server.getToolCount() + " tools"
-                    + "   " + server.getActiveSessions() + " sessions"
-                    + "   " + McpSession.totalToolCalls() + " tool calls");
+                mcp = " ";
             } else {
-                detailLine.setText(" ");
+                boolean running = server.isRunning();
+                statusLine.setText("MCP Server: " + (running ? "running" : "stopped"));
+                statusLine.setForeground(running ? OK_COLOR : STOP_COLOR);
+                mcp = running
+                    ? "http://" + server.getHost() + ":" + server.getPort() + "/mcp"
+                      + "   " + server.getToolCount() + " tools"
+                      + "   " + server.getActiveSessions() + " sessions"
+                      + "   " + McpSession.totalToolCalls() + " tool calls"
+                    : " ";
             }
+            detailLine.setText(mcp + llmStats());
+        }
+
+        private String llmStats() {
+            LlmChatClient.UsageStats u = llm.usageStats();
+            String s = "   LLM ctx " + u.contextMessages + " msgs / " + human(u.contextChars) + " chars";
+            return s + (u.usageReported
+                ? "   " + u.promptTokens + " tok in / " + u.completionTokens + " tok out"
+                : "   tokens -");
+        }
+
+        private static String human(long n) {
+            if (n < 1000) {
+                return Long.toString(n);
+            }
+            if (n < 1_000_000) {
+                return String.format(Locale.ROOT, "%.1fk", n / 1000.0);
+            }
+            return String.format(Locale.ROOT, "%.1fM", n / 1_000_000.0);
         }
 
         private void submit() {
