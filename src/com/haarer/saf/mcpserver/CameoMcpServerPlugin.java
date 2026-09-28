@@ -40,11 +40,44 @@ public class CameoMcpServerPlugin extends Plugin {
             e.printStackTrace(System.err);
         }
 
-        // Spike: docked "MCP Status" window in the main frame. Registered
-        // once; MagicDraw calls configure() per opened project.
-        ProjectWindowsManager.ConfiguratorRegistry.addConfigurator(
-            new McpStatusWindow(() -> server));
-        log("Registered MCP status window configurator");
+        // The docked window is a nice-to-have: Cameo only calls configure()
+        // when a project is opened *after* this registration, so a project
+        // that was already open at startup would never get it and nothing
+        // would be logged. The menu item is the reliable path.
+        var configurator = new McpStatusWindow(() -> server);
+        try {
+            ProjectWindowsManager.ConfiguratorRegistry.addConfigurator(configurator);
+            log("Registered MCP status window configurator");
+        } catch (Throwable t) {
+            // NoClassDefFoundError is an Error, not an Exception: a product
+            // without this API must not be able to abort plugin startup.
+            logError("Could not register the docked status window ("
+                + t + "). Use Window > MCP Server Status to open it.");
+        }
+
+        installMenuItemWithRetry();
+    }
+
+    /**
+     * Cameo builds its menu bar during startup, after plugins initialise, so
+     * the menu may not exist on the first attempt. Poll briefly, then give up
+     * rather than retrying forever.
+     */
+    private void installMenuItemWithRetry() {
+        for (int attempt = 1; attempt <= 30; attempt++) {
+            if (McpStatusWindow.installMenuItem(() -> server)) {
+                log("Added Window > " + McpStatusWindow.WINDOW_NAME);
+                return;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        logError("Could not add the Window > " + McpStatusWindow.WINDOW_NAME
+            + " menu item; the menu bar was never available.");
     }
 
     @Override

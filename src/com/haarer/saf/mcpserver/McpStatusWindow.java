@@ -41,6 +41,13 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import com.nomagic.magicdraw.core.Application;
+import javax.swing.JDialog;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import java.awt.Window;
+
 /**
  * A dockable window inside the Cameo main frame showing MCP server status
  * plus a small LLM console.
@@ -69,6 +76,20 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
     private final Supplier<CameoMcpServer> serverSupplier;
 
+    /** True once MagicDraw has handed us a project window to dock into. */
+    private static volatile boolean docked;
+
+    private static JDialog detached;
+
+    /**
+     * Whether the status UI is already docked in the Cameo main frame.
+     * Only then is the menu entry redundant.
+     */
+    public static boolean isDocked() {
+        return docked;
+    }
+
+
     public McpStatusWindow(Supplier<CameoMcpServer> serverSupplier) {
         this.serverSupplier = serverSupplier;
     }
@@ -86,6 +107,88 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         info.setMaximizable(true);
         info.setRemoveOnHide(false);
         manager.addWindow(project, new ProjectWindow(info, new StatusContent(serverSupplier)));
+        docked = true;
+    }
+
+    /**
+     * Show the status UI in a standalone dialog.
+     *
+     * <p>The docked path above only runs when Cameo creates a project window
+     * <em>after</em> this configurator is registered. When a project is
+     * already open at plugin startup — a restored session, or an install
+     * where the plugin loads late — {@link #configure} is never called and
+     * the docked window silently never appears. This gives the user a way in
+     * that does not depend on that ordering.
+     */
+    public static synchronized void showDetached(Supplier<CameoMcpServer> serverSupplier) {
+        if (docked) {
+            return;
+        }
+        if (detached != null && detached.isDisplayable()) {
+            detached.toFront();
+            detached.requestFocus();
+            return;
+        }
+        Window owner = Application.getInstance().getMainFrame();
+        JDialog dialog = new JDialog(owner, WINDOW_NAME,
+            java.awt.Dialog.ModalityType.MODELESS);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setContentPane(new StatusContent(serverSupplier).panel);
+        dialog.pack();
+        dialog.setMinimumSize(new Dimension(500, 240));
+        dialog.setLocationRelativeTo(owner);
+        dialog.setVisible(true);
+        detached = dialog;
+    }
+
+    /**
+     * Add a "MCP Server Status" item to the Window menu, creating that menu if
+     * the product does not have one.
+     *
+     * @return true if the item is installed, false if the menu bar is not
+     *         available yet (Cameo builds it during startup, after plugins
+     *         initialise) and the caller should retry later
+     */
+    public static boolean installMenuItem(Supplier<CameoMcpServer> serverSupplier) {
+        JMenuBar bar;
+        try {
+            bar = Application.getInstance().getMainFrame().getMainMenuBar();
+        } catch (Exception | Error e) {
+            return false;
+        }
+        if (bar == null || bar.getMenuCount() == 0) {
+            return false;
+        }
+        JMenu target = findMenu(bar, "Window");
+        if (target == null) {
+            target = new JMenu("Window");
+            bar.add(target);
+        }
+        JMenuItem item = new JMenuItem(WINDOW_NAME);
+        item.addActionListener(e -> showDetached(serverSupplier));
+        target.addSeparator();
+        target.add(item);
+        bar.revalidate();
+        return true;
+    }
+
+    /** Match a top-level menu by text, ignoring accelerators and ellipses. */
+    private static JMenu findMenu(JMenuBar bar, String name) {
+        for (int i = 0; i < bar.getMenuCount(); i++) {
+            JMenu menu = bar.getMenu(i);
+            if (menu == null) {
+                continue;
+            }
+            String text = menu.getText();
+            if (text == null) {
+                continue;
+            }
+            String plain = text.replace("&", "").replace("...", "").trim();
+            if (plain.equalsIgnoreCase(name)) {
+                return menu;
+            }
+        }
+        return null;
     }
 
     private static final class StatusContent implements WindowComponentContent {

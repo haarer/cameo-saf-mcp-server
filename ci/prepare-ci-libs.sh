@@ -111,6 +111,7 @@ public class Application {
     public static Application getInstance() { return INSTANCE; }
     public GUILog getGUILog() { return new GUILog(); }
     public Project getProject() { return new Project(); }
+    public com.nomagic.magicdraw.ui.MainFrame getMainFrame() { return new com.nomagic.magicdraw.ui.MainFrame(); }
 }
 JAVA
 
@@ -136,6 +137,21 @@ package com.nomagic.magicdraw.core;
 
 public class OptionsSet {
     public String getCategoryName() { return "stub"; }
+}
+JAVA
+
+# Package: com.nomagic.magicdraw.ui
+# MainFrame lives in core-stubs.jar rather than ci-stubs/md-ui because
+# Application.getMainFrame() returns it, and Application is stubbed here.
+mkdir -p "$STUBS_SRC/com/nomagic/magicdraw/ui"
+cat > "$STUBS_SRC/com/nomagic/magicdraw/ui/MainFrame.java" << 'JAVA'
+package com.nomagic.magicdraw.ui;
+
+import javax.swing.JFrame;
+import javax.swing.JMenuBar;
+
+public class MainFrame extends JFrame {
+    public JMenuBar getMainMenuBar() { return getJMenuBar(); }
 }
 JAVA
 
@@ -193,6 +209,7 @@ javac --release "$STUBS_RELEASE" -d "$STUBS_SRC/classes" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/GUILog.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/Project.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/core/OptionsSet.java" \
+  "$STUBS_SRC/com/nomagic/magicdraw/ui/MainFrame.java" \
   "$STUBS_SRC/com/nomagic/magicdraw/uml/BaseElement.java" \
   "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel/Element.java" \
   "$STUBS_SRC/com/nomagic/uml2/ext/magicdraw/classes/mdkernel/NamedElement.java"
