@@ -259,6 +259,13 @@ public class LlmChatClient {
     /** Logger for the console; also used by the configuration UI. */
     static final Logger LOG = Logger.getLogger(LlmChatClient.class.getName());
 
+    /**
+     * Used only to test whether a tool call's arguments are well-formed. Parsing
+     * is stateless, so a shared instance avoids threading the per-client mapper
+     * into the static helpers that build history messages.
+     */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final ObjectMapper mapper;
     private final HttpClient http;
     private final ExecutorService executor;
@@ -918,7 +925,13 @@ public class LlmChatClient {
             String id = tc.id() == null || tc.id().isEmpty() ? "call_" + (i + 1) : tc.id();
             Map<String, Object> fn = new LinkedHashMap<>();
             fn.put("name", tc.name());
-            fn.put("arguments", tc.arguments());
+            // A truncated argument stream (the model hit a token limit mid-JSON)
+            // must not be echoed back verbatim: the endpoint re-parses tool_calls
+            // on the next request and rejects the whole request with HTTP 500,
+            // which kills the turn. Substituting valid JSON keeps the history
+            // parseable; the model is told what happened via the tool result.
+            String args = tc.arguments();
+            fn.put("arguments", argumentsWellFormed(args) ? args : "{}");
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("id", id);
             entry.put("type", "function");
@@ -926,6 +939,25 @@ public class LlmChatClient {
             list.add(entry);
         }
         return list;
+    }
+
+    /**
+     * Whether {@code args} is a JSON object the endpoint will accept back.
+     *
+     * <p>A tool call's arguments arrive as a string that is concatenated across
+     * streamed fragments. If generation stops partway through - a token limit, a
+     * dropped connection - the result is a prefix of valid JSON, and sending it
+     * back makes the endpoint fail the next request outright.
+     */
+    private static boolean argumentsWellFormed(String args) {
+        if (args == null || args.isBlank()) {
+            return true;
+        }
+        try {
+            return MAPPER.readTree(args) instanceof ObjectNode;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** One {@code tool}-role message carrying a tool result. */
@@ -941,6 +973,15 @@ public class LlmChatClient {
     private String executeTool(String name, String argsJson) {
         for (Tool t : tools) {
             if (t.name().equals(name)) {
+                if (!argumentsWellFormed(argsJson)) {
+                    // Executing with {} produced misleading errors from the tool
+                    // ("name is required" for a name that was sent but truncated).
+                    // Report the real cause and let the model re-issue the call.
+                    LOG.fine("Truncated tool arguments for " + name + ": " + argsJson);
+                    return "Error: the arguments for " + name + " were cut off before the "
+                        + "JSON was complete, so the tool was not run. Nothing was changed. "
+                        + "Re-send the call, and keep it short if the arguments are long.";
+                }
                 Map<String, Object> args = parseArguments(argsJson);
                 // The console runs the same tools as an MCP client but bypasses
                 // the protocol handler, so without this the status line's
