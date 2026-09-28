@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# pre-push — blocks a push that would break the CI compile job.
+#
+# Activated by:  git config core.hooksPath ci/hooks
+# Resolved via core.hooksPath, so this is invoked as ci/hooks/pre-push and
+# the repo root is two levels up.
+#
+# Bypass deliberately with:  git push --no-verify
+set -uo pipefail
+
+if [ "${SKIP_CI_VERIFY:-0}" = "1" ]; then
+  echo "pre-push: SKIP_CI_VERIFY=1, skipping CI parity check"
+  exit 0
+fi
+
+cd "$(dirname "$0")/../.." || exit 1
+
+if [ ! -x ci/verify-ci.sh ]; then
+  echo "pre-push: ci/verify-ci.sh missing or not executable" >&2
+  exit 1
+fi
+
+echo "pre-push: running CI parity check (~15s)..."
+if bash ci/verify-ci.sh; then
+  echo "pre-push: OK"
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+
+pre-push: BLOCKED - this push would fail the CI compile job.
+
+The check above mirrors .github/workflows/ci.yml exactly, so a failure here
+is a failure there. Fix the reported stub gap and re-run:
+
+    ./ci/verify-ci.sh
+
+To push anyway (not advised):  git push --no-verify
+EOF
+exit 1
