@@ -72,7 +72,7 @@ public final class PluginConfig {
                 "Conversation entries (user/assistant/tool) kept as context. Older ones are dropped.",
                 LlmChatClient.DEFAULT_CONTEXT_TURNS),
             new Option("llm.tool.rounds", "Tool rounds", Type.INT,
-                "Maximum tool-execution rounds per message before the turn is abandoned.",
+                "Maximum tool-execution rounds per message. One round can run several tools in parallel, so this is not a tool-call count. On reaching it the turn ends with a summary of what was built, not an error.",
                 LlmChatClient.DEFAULT_TOOL_ROUNDS),
             new Option("llm.tool.max", "Max tools sent", Type.INT,
                 "Most tools attached to one request. Above 25 registered tools, BM25 narrows the set to this many.",

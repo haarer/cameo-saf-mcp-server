@@ -115,8 +115,10 @@ import java.util.logging.Logger;
  *       {@code tool_calls} (streamed as {@code delta.tool_calls} fragments),
  *       each tool is executed in-process, the result is appended to the
  *       conversation as a {@code tool} message, and the model is called again.
- *       The loop repeats until the model produces plain content or
- *       the configured tool-round cap ({@code llm.tool.rounds}) is reached.</li>
+ *       The loop repeats until the model produces plain content, or the
+ *       configured tool-round cap ({@code llm.tool.rounds}) is reached - in which
+ *       case one final tools-free request asks the model to summarise what it
+ *       built, so a long turn ends with a report rather than an error.</li>
  *   <li>Nothing about a turn is logged unless {@code llm.log} is enabled, and
  *       logging never affects the conversation: every write failure is
  *       swallowed.</li>
@@ -130,8 +132,14 @@ public class LlmChatClient {
     private static final String PROP_URL = "cameo.mcp.console.llm.url";
     /** Default for {@code llm.context.turns}: conversation entries kept as context. */
     static final int DEFAULT_CONTEXT_TURNS = 30;
-    /** Default for {@code llm.tool.rounds}: consecutive tool rounds per user turn. */
-    static final int DEFAULT_TOOL_ROUNDS = 8;
+    /**
+     * Default for {@code llm.tool.rounds}: consecutive tool rounds per user turn.
+     * Rounds, not tool calls - one round can carry several parallel calls, so the
+     * effective budget is higher than this number. 8 was too small even for
+     * ordinary chat; model-building tasks need far more, and the cap is a stop
+     * that now ends the turn with a summary rather than an error.
+     */
+    static final int DEFAULT_TOOL_ROUNDS = 50;
     /** Tool results are truncated before being sent back to the model. */
     static final int MAX_TOOL_RESULT_CHARS = 4000;
     /** Default for {@code llm.tool.max}: max tools attached per request. */
@@ -342,6 +350,9 @@ public class LlmChatClient {
                 ToolSelection selection = report(selectTools(0, userText), callback, log);
                 List<Tool> selectedTools = toolsFor(selection);
 
+                // Counts tool calls, not rounds: the two differ (a round may carry
+                // several parallel calls), and only the call count reflects the work done.
+                int toolCallsRun = 0;
                 for (int round = 0; ; round++) {
                     // Per-round text, so a later round can query with what this
                     // one actually said rather than only what the user asked.
@@ -371,8 +382,16 @@ public class LlmChatClient {
                         return;
                     }
                     if (round + 1 >= maxRounds) {
-                        throw new IOException("Tool loop did not finish after "
-                            + maxRounds + " rounds");
+                        // Do not throw. The tools of this round have already run, and
+                        // every earlier round's results are in the model and in the
+                        // diagram, so throwing here discarded a turn's real work and
+                        // left the user with an error and no summary. Instead make one
+                        // final request with no tools offered, which forces a plain
+                        // text answer: the model reports what it created and what is
+                        // left. The turn still ends - the cap is a stop, not a pause.
+                        finishWithSummary(messages, full, toolCallsRun, maxRounds,
+                            callback, log);
+                        return;
                     }
                     // Remember the assistant turn that asked for tools.
                     Map<String, Object> assistantMsg = new LinkedHashMap<>();
@@ -382,6 +401,7 @@ public class LlmChatClient {
                     history.add(assistantMsg);
                     StringBuilder results = new StringBuilder();
                     for (ToolCall tc : r.toolCalls) {
+                        toolCallsRun++;
                         if (log != null) {
                             log.line("--- tool call " + tc.id() + " " + tc.name()
                                 + " args=" + tc.arguments());
@@ -416,6 +436,49 @@ public class LlmChatClient {
                 }
             }
         });
+    }
+
+    /**
+     * End a turn that hit the tool-round cap without discarding its work.
+     *
+     * <p>One final request is made with no tools offered, so the model must answer
+     * in plain text: what it created, and what is still missing. Everything the
+     * turn built is already applied in the model, so this reports real state
+     * rather than asking the model to remember.
+     *
+     * <p>If that request itself fails, the accumulated text plus an explicit
+     * note is delivered instead - the user still learns what happened rather
+     * than seeing the turn vanish.
+     */
+    private void finishWithSummary(List<Map<String, Object>> messages, StringBuilder full,
+                                  int toolCallsRun, int maxRounds, StreamCallback callback,
+                                  ConversationLog log) {
+        // Appended after the model's own words, so it is a footer stating what
+        // happened - not an instruction the model is expected to act on.
+        String notice = "\n\n---\n_Stopped: tool-round limit of " + maxRounds
+            + " reached after " + toolCallsRun + " tool calls. "
+            + "Everything above is already applied to the model._";
+        String text;
+        try {
+            List<Map<String, Object>> ask = new ArrayList<>(messages);
+            ask.add(Map.of("role", "user", "content",
+                "You have hit the tool-round limit. Do not call any more tools. "
+                    + "Summarise what you have created so far and what is still missing."));
+            // Empty active list => the request carries no "tools" field at all,
+            // so the model cannot ask for another tool call.
+            RoundResult r = streamCompletions(ask, List.of(), d -> {
+                full.append(d);
+                callback.onDelta(d);
+            }, log, -1);
+            recordUsage(r.usage[0], r.usage[1]);
+            text = full + notice;
+        } catch (Exception e) {
+            LOG.warning("Summary round after tool-round cap failed: " + e.getMessage());
+            text = full + notice + "\n\n(Summary request failed: " + e.getMessage() + ")";
+        }
+        history.add(Map.of("role", "assistant", "content", text));
+        trimHistory();
+        callback.onComplete(text);
     }
 
     /** Drop the conversation history and usage counters (console's clear button). */
