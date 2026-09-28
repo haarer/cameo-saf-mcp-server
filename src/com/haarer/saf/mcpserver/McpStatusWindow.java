@@ -96,6 +96,16 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
     @Override
     public void configure(Project project, ProjectWindowsManager manager) {
+        // Logged on entry and on failure: "registered" alone cannot tell a
+        // configurator that was never invoked from one that threw.
+        String projectName;
+        try {
+            projectName = project.getName();
+        } catch (Throwable t) {
+            projectName = "<unknown project>";
+        }
+        System.err.println("[CameoMcpServer] configure() called for project "
+            + projectName + " - docking " + WINDOW_NAME);
         var info = new WindowComponentInfo(WINDOW_ID, WINDOW_NAME, null,
             DockContext.DOCK_SIDE_SOUTH, 0, true);
         info.setTabTitle("MCP Status");
@@ -106,7 +116,13 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         info.setRearrangable(true);
         info.setMaximizable(true);
         info.setRemoveOnHide(false);
-        manager.addWindow(project, new ProjectWindow(info, new StatusContent(serverSupplier)));
+        try {
+            manager.addWindow(project, new ProjectWindow(info, new StatusContent(serverSupplier)));
+        } catch (Throwable t) {
+            System.err.println("[CameoMcpServer] ERROR: addWindow failed: " + t);
+            t.printStackTrace(System.err);
+            throw t;
+        }
         docked = true;
     }
 
