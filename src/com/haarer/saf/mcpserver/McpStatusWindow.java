@@ -76,19 +76,13 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
     private final Supplier<CameoMcpServer> serverSupplier;
 
-    /** True once MagicDraw has handed us a project window to dock into. */
-    private static volatile boolean docked;
+    /** Project + manager captured in {@link #configure}, used to re-show the
+     *  docked window from the Window menu after the user has closed it. Both
+     *  are null until a project window is created. */
+    private static volatile Project dockedProject;
+    private static volatile ProjectWindowsManager dockedManager;
 
     private static JDialog detached;
-
-    /**
-     * Whether the status UI is already docked in the Cameo main frame.
-     * Only then is the menu entry redundant.
-     */
-    public static boolean isDocked() {
-        return docked;
-    }
-
 
     public McpStatusWindow(Supplier<CameoMcpServer> serverSupplier) {
         this.serverSupplier = serverSupplier;
@@ -123,7 +117,32 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             t.printStackTrace(System.err);
             throw t;
         }
-        docked = true;
+        dockedProject = project;
+        dockedManager = manager;
+    }
+
+    /**
+     * Bring the MCP status window to the foreground from the Window menu.
+     *
+     * <p>Re-activates the docked window when one has been configured —
+     * including after the user closes it, since the component is hidden
+     * rather than removed. Only when no docked window exists (a project
+     * that was already open at startup, so {@link #configure} was never
+     * called) does it fall back to a standalone dialog.
+     */
+    public static synchronized void showOrActivate(Supplier<CameoMcpServer> serverSupplier) {
+        var mgr = dockedManager;
+        var proj = dockedProject;
+        if (mgr != null && proj != null) {
+            try {
+                mgr.activateWindow(proj, WINDOW_ID);
+                return;
+            } catch (Throwable t) {
+                System.err.println("[CameoMcpServer] activateWindow failed, "
+                    + "falling back to detached: " + t);
+            }
+        }
+        showDetached(serverSupplier);
     }
 
     /**
@@ -137,9 +156,6 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
      * that does not depend on that ordering.
      */
     public static synchronized void showDetached(Supplier<CameoMcpServer> serverSupplier) {
-        if (docked) {
-            return;
-        }
         if (detached != null && detached.isDisplayable()) {
             detached.toFront();
             detached.requestFocus();
@@ -181,7 +197,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             bar.add(target);
         }
         JMenuItem item = new JMenuItem(WINDOW_NAME);
-        item.addActionListener(e -> showDetached(serverSupplier));
+        item.addActionListener(e -> showOrActivate(serverSupplier));
         target.addSeparator();
         target.add(item);
         bar.revalidate();
@@ -205,6 +221,43 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             }
         }
         return null;
+    }
+
+    /**
+     * Install the Window menu item on the EDT without blocking startup.
+     *
+     * <p>Cameo builds its menu bar during startup, on the EDT, after plugins
+     * initialise. A blocking {@code Thread.sleep} retry loop would starve the
+     * very thread that creates the bar: it is null for the whole poll window,
+     * then we give up just before it appears. A Swing timer polls
+     * non-blockingly and installs the item on the first tick after the bar
+     * exists, then stops.
+     *
+     * @param onInstalled called once, when the item is added
+     * @param onGiveUp    called once, if the bar is still absent after the
+     *                    bounded retry window
+     */
+    public static void scheduleMenuItemInstall(
+            Supplier<CameoMcpServer> serverSupplier,
+            Runnable onInstalled,
+            Runnable onGiveUp) {
+        final int maxAttempts = 120; // ~60 s at 500 ms
+        SwingUtilities.invokeLater(() -> {
+            int[] attempts = {0};
+            Timer[] holder = new Timer[1];
+            holder[0] = new Timer(500, e -> {
+                attempts[0]++;
+                if (installMenuItem(serverSupplier)) {
+                    holder[0].stop();
+                    onInstalled.run();
+                } else if (attempts[0] >= maxAttempts) {
+                    holder[0].stop();
+                    onGiveUp.run();
+                }
+            });
+            holder[0].setRepeats(true);
+            holder[0].start();
+        });
     }
 
     private static final class StatusContent implements WindowComponentContent {

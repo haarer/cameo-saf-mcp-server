@@ -92,11 +92,14 @@ public class CameoMcpServer {
         var propertyDir = System.getProperty("cameo.mcp.server.scripts.dir");
         if (propertyDir != null) return propertyDir;
         try {
-            var jarPath = CameoMcpServerPlugin.class.getProtectionDomain()
-                .getCodeSource().getLocation().getPath();
-            var lastSlash = jarPath.lastIndexOf(File.separator);
-            if (lastSlash != -1) {
-                return jarPath.substring(0, lastSlash) + File.separator + "scripts";
+            // File(codeSource.toURI()) — not URL.getPath(): getPath() always uses
+            // '/' and percent-encoding, so lastIndexOf(File.separator) is -1 on
+            // Windows (sep is '\\') and the path is malformed either way.
+            var jarFile = new File(CameoMcpServerPlugin.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI());
+            var parent = jarFile.getParentFile();
+            if (parent != null) {
+                return new File(parent, "scripts").getAbsolutePath();
             }
         } catch (Exception ignored) {}
         return "/workspace/cameo-saf-mcp-server/scripts";
@@ -109,11 +112,12 @@ public class CameoMcpServer {
             if (f.exists()) return f.getAbsolutePath();
         }
         try {
-            var jarPath = CameoMcpServerPlugin.class.getProtectionDomain()
-                .getCodeSource().getLocation().getPath();
-            var pluginDir = new File(jarPath).getParent();
-            var dataDir = new File(pluginDir, "_data").getAbsolutePath();
-            if (new File(dataDir).exists()) return dataDir;
+            var pluginDir = new File(CameoMcpServerPlugin.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI()).getParentFile();
+            if (pluginDir != null) {
+                var dataDir = new File(pluginDir, "_data").getAbsolutePath();
+                if (new File(dataDir).exists()) return dataDir;
+            }
         } catch (Exception ignored) {}
         for (var root : List.of("plugins/com.haarer.saf.mcpserver/_data",
                 "/workspace/cameo-saf-mcp-server/_data",

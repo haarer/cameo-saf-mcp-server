@@ -15,8 +15,8 @@ def targets = [
         internalMinVer: '202600000',
     ],
     '2024x': [
-        cameoHome:      '/workspace/msosa2024',
-        jdkHome:        '/usr/lib/jvm/java-17-openjdk',
+        cameoHome:      '/workspace/MSOSA2024xRef3',
+        jdkHome:        '/usr/lib/jvm/java-21-openjdk',
         release:        17,
         automatonVer:   '2024x Refresh1',
         mdVersionMin:   '2024x',
