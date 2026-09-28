@@ -195,6 +195,7 @@ package com.nomagic.magicdraw.core;
 import com.nomagic.magicdraw.uml.BaseElement;
 
 public class Project {
+    public String getName() { return null; }
     public OptionsSet getOptions() { return new OptionsSet(); }
     public BaseElement getElementByID(String id) { return null; }
     public BaseElement getPrimaryModel() { return null; }
