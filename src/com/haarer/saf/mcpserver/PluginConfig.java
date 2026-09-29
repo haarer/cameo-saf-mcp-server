@@ -68,6 +68,11 @@ public final class PluginConfig {
             new Option("llm.key", "API key", Type.SECRET,
                 "Sent as the Authorization bearer token. Stored in plain text in this file; keep the file readable only by you.",
                 ""),
+            new Option("llm.ssl.ca", "Server certificate", Type.TEXT,
+                "Path to a PEM certificate (.pem/.crt) to trust in addition to the system store, for a "
+                    + "private or self-signed https endpoint. Relative paths resolve against the config "
+                    + "directory. Read once at startup, so changing it needs a restart of MagicDraw.",
+                ""),
             new Option("llm.context.turns", "Context messages", Type.INT,
                 "Conversation entries (user/assistant/tool) kept as context. Older ones are dropped.",
                 LlmChatClient.DEFAULT_CONTEXT_TURNS),

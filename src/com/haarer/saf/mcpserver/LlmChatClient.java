@@ -20,6 +20,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -32,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -283,9 +291,13 @@ public class LlmChatClient {
 
     public LlmChatClient(ObjectMapper mapper) {
         this.mapper = mapper;
-        this.http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .build();
+        // The trust store is built once, at construction: the certificate is
+        // read here, so changing llm.ssl.ca needs a restart of MagicDraw. That
+        // is deliberate - a trust store is not a per-turn concern, and
+        // replacing the client mid-turn would drop its connection pool.
+        HttpClient.Builder hb = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5));
+        sslContext().ifPresent(hb::sslContext);
+        this.http = hb.build();
         // Single worker: requests run FIFO, so a busy endpoint queues instead
         // of racing the conversation.
         this.executor = Executors.newSingleThreadExecutor(r -> {
@@ -293,6 +305,76 @@ public class LlmChatClient {
             t.setDaemon(true);
             return t;
         });
+    }
+
+    /**
+     * TLS context that trusts {@code llm.ssl.ca} in addition to the JVM's
+     * default trust store, or empty when the option is unset.
+     *
+     * <p>The configured certificate is <em>added to</em> the system trust store
+     * rather than replacing it, so a public endpoint keeps working while a
+     * private or self-signed one becomes reachable. A file that cannot be read
+     * or holds no certificate is reported and ignored: the console must still
+     * start, so the user sees a log warning and the ordinary error from the
+     * endpoint, rather than a plugin that refuses to load.
+     */
+    private static Optional<SSLContext> sslContext() {
+        File pem = sslCaFile();
+        if (pem == null) {
+            return Optional.empty();
+        }
+        if (!pem.isFile() || !pem.canRead()) {
+            LOG.warning("llm.ssl.ca is set to " + pem + ", which is not a readable file; "
+                + "using the default trust store.");
+            return Optional.empty();
+        }
+        try {
+            // Start from the default trust store so ordinary public endpoints
+            // are unaffected, then add the configured certificate.
+            KeyStore trust = KeyStore.getInstance(KeyStore.getDefaultType());
+            trust.load(null, null);
+            int added = 0;
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            try (InputStream in = Files.newInputStream(pem.toPath())) {
+                for (Certificate c : cf.generateCertificates(in)) {
+                    if (c instanceof X509Certificate) {
+                        trust.setCertificateEntry("llm-ssl-ca-" + (++added), c);
+                    }
+                }
+            }
+            if (added == 0) {
+                LOG.warning("llm.ssl.ca (" + pem + ") contains no X.509 certificate; "
+                    + "using the default trust store.");
+                return Optional.empty();
+            }
+            TrustManagerFactory tmf =
+                TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trust);
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, tmf.getTrustManagers(), null);
+            LOG.info("Trusting " + added + " certificate(s) from " + pem);
+            return Optional.of(ctx);
+        } catch (Exception e) {
+            // A broken certificate must not stop the console from starting.
+            LOG.warning("Could not use llm.ssl.ca (" + pem + "): " + e.getMessage()
+                + " - using the default trust store.");
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The configured {@code llm.ssl.ca} file, or null when unset. A relative
+     * path resolves against the config directory, so it travels with
+     * {@code config.properties}.
+     */
+    static File sslCaFile() {
+        String v = propertyFromFile("llm.ssl.ca");
+        if (v == null || v.isBlank()) {
+            return null;
+        }
+        File f = new File(v.trim());
+        return f.isAbsolute() ? f
+            : new File(TokenManager.getInstance().getConfigDir(), v.trim());
     }
 
     /**
