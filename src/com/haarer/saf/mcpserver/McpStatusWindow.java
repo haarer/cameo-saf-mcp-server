@@ -1,6 +1,5 @@
 package com.haarer.saf.mcpserver;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jidesoft.docking.DockContext;
 import com.nomagic.magicdraw.core.Project;
 import com.nomagic.magicdraw.ui.ProjectWindow;
@@ -75,6 +74,13 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
     public static final String WINDOW_NAME = "MCP Server Status";
 
     private final Supplier<CameoMcpServer> serverSupplier;
+    /**
+     * The conversation, shared by every window for one plugin load. Supplied
+     * rather than created here because MagicDraw recreates the project window
+     * on every model load and save: a client owned by the window would restart
+     * the conversation every time, which is what used to happen.
+     */
+    private final Supplier<LlmChatClient> llmSupplier;
 
     /** Project + manager captured in {@link #configure}, used to re-show the
      *  docked window from the Window menu after the user has closed it. Both
@@ -84,8 +90,10 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
     private static JDialog detached;
 
-    public McpStatusWindow(Supplier<CameoMcpServer> serverSupplier) {
+    public McpStatusWindow(Supplier<CameoMcpServer> serverSupplier,
+                            Supplier<LlmChatClient> llmSupplier) {
         this.serverSupplier = serverSupplier;
+        this.llmSupplier = llmSupplier;
     }
 
     @Override
@@ -111,7 +119,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         info.setMaximizable(true);
         info.setRemoveOnHide(false);
         try {
-            manager.addWindow(project, new ProjectWindow(info, new StatusContent(serverSupplier)));
+            manager.addWindow(project,
+                new ProjectWindow(info, new StatusContent(serverSupplier, llmSupplier)));
         } catch (Throwable t) {
             System.err.println("[CameoMcpServer] ERROR: addWindow failed: " + t);
             t.printStackTrace(System.err);
@@ -130,7 +139,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
      * that was already open at startup, so {@link #configure} was never
      * called) does it fall back to a standalone dialog.
      */
-    public static synchronized void showOrActivate(Supplier<CameoMcpServer> serverSupplier) {
+    public static synchronized void showOrActivate(Supplier<CameoMcpServer> serverSupplier,
+                                                 Supplier<LlmChatClient> llmSupplier) {
         var mgr = dockedManager;
         var proj = dockedProject;
         if (mgr != null && proj != null) {
@@ -142,7 +152,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     + "falling back to detached: " + t);
             }
         }
-        showDetached(serverSupplier);
+        showDetached(serverSupplier, llmSupplier);
     }
 
     /**
@@ -155,7 +165,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
      * the docked window silently never appears. This gives the user a way in
      * that does not depend on that ordering.
      */
-    public static synchronized void showDetached(Supplier<CameoMcpServer> serverSupplier) {
+    public static synchronized void showDetached(Supplier<CameoMcpServer> serverSupplier,
+                                                 Supplier<LlmChatClient> llmSupplier) {
         if (detached != null && detached.isDisplayable()) {
             detached.toFront();
             detached.requestFocus();
@@ -165,7 +176,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         JDialog dialog = new JDialog(owner, WINDOW_NAME,
             java.awt.Dialog.ModalityType.MODELESS);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-        dialog.setContentPane(new StatusContent(serverSupplier).panel);
+        dialog.setContentPane(new StatusContent(serverSupplier, llmSupplier).panel);
         dialog.pack();
         dialog.setMinimumSize(new Dimension(500, 240));
         dialog.setLocationRelativeTo(owner);
@@ -181,7 +192,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
      *         available yet (Cameo builds it during startup, after plugins
      *         initialise) and the caller should retry later
      */
-    public static boolean installMenuItem(Supplier<CameoMcpServer> serverSupplier) {
+    public static boolean installMenuItem(Supplier<CameoMcpServer> serverSupplier,
+                                         Supplier<LlmChatClient> llmSupplier) {
         JMenuBar bar;
         try {
             bar = Application.getInstance().getMainFrame().getMainMenuBar();
@@ -197,7 +209,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             bar.add(target);
         }
         JMenuItem item = new JMenuItem(WINDOW_NAME);
-        item.addActionListener(e -> showOrActivate(serverSupplier));
+        item.addActionListener(e -> showOrActivate(serverSupplier, llmSupplier));
         target.addSeparator();
         target.add(item);
         bar.revalidate();
@@ -239,6 +251,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
      */
     public static void scheduleMenuItemInstall(
             Supplier<CameoMcpServer> serverSupplier,
+            Supplier<LlmChatClient> llmSupplier,
             Runnable onInstalled,
             Runnable onGiveUp) {
         final int maxAttempts = 120; // ~60 s at 500 ms
@@ -247,7 +260,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             Timer[] holder = new Timer[1];
             holder[0] = new Timer(500, e -> {
                 attempts[0]++;
-                if (installMenuItem(serverSupplier)) {
+                if (installMenuItem(serverSupplier, llmSupplier)) {
                     holder[0].stop();
                     onInstalled.run();
                 } else if (attempts[0] >= maxAttempts) {
@@ -281,11 +294,14 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final Timer timer;
         private List<String> lastMcpToolNames = new ArrayList<>();
 
-        StatusContent(Supplier<CameoMcpServer> serverSupplier) {
+        StatusContent(Supplier<CameoMcpServer> serverSupplier,
+                      Supplier<LlmChatClient> llmSupplier) {
             this.serverSupplier = serverSupplier;
-            this.llm = new LlmChatClient(new ObjectMapper());
-
-            llm.registerTool(LlmChatClient.currentTimeTool());
+            // The shared client, not a new one. Creating it here bound the
+            // conversation to this window's lifetime, and MagicDraw rebuilds
+            // the window on every model load and save - so the model could cut
+            // its own conversation off by saving the model.
+            this.llm = llmSupplier.get();
 
             // -- status row: one line ------------------------------------
             statusLine = new JLabel("MCP Server: ...");

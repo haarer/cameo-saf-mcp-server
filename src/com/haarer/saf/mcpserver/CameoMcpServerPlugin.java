@@ -10,6 +10,14 @@ public class CameoMcpServerPlugin extends Plugin {
 
     private static final Logger LOG = Logger.getLogger(CameoMcpServerPlugin.class.getName());
     private CameoMcpServer server;
+    /**
+     * The chat client, owned here for the same reason as the server: the
+     * console UI is a per-project window that MagicDraw recreates whenever a
+     * model is loaded or saved, and a client created per window threw the
+     * conversation away on every one of those. The conversation belongs to
+     * the plugin session, not to a window.
+     */
+    private LlmChatClient llm;
 
     private void log(String msg) {
         System.err.println("[CameoMcpServer] " + msg);
@@ -44,7 +52,13 @@ public class CameoMcpServerPlugin extends Plugin {
         // when a project is opened *after* this registration, so a project
         // that was already open at startup would never get it and nothing
         // would be logged. The menu item is the reliable path.
-        var configurator = new McpStatusWindow(() -> server);
+        // Created once per plugin load, next to the server. A client owned by
+        // the status window would be rebuilt whenever MagicDraw recreates
+        // that window - which it does on every model load and save - and the
+        // running conversation would vanish with it.
+        llm = new LlmChatClient(new com.fasterxml.jackson.databind.ObjectMapper());
+        llm.registerTool(LlmChatClient.currentTimeTool());
+        var configurator = new McpStatusWindow(() -> server, () -> llm);
         try {
             ProjectWindowsManager.ConfiguratorRegistry.addConfigurator(configurator);
             log("Registered MCP status window configurator");
@@ -57,6 +71,7 @@ public class CameoMcpServerPlugin extends Plugin {
 
         McpStatusWindow.scheduleMenuItemInstall(
             () -> server,
+            () -> llm,
             () -> log("Added Window > " + McpStatusWindow.WINDOW_NAME),
             () -> log("Could not add the Window > "
                 + McpStatusWindow.WINDOW_NAME
