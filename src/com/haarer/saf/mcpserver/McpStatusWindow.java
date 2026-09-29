@@ -89,6 +89,13 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
     private static volatile ProjectWindowsManager dockedManager;
 
     private static JDialog detached;
+    /**
+     * The content of {@link #detached}. Kept so the fallback dialog's refresh
+     * timer can be stopped when it is discarded: disposing a Swing dialog does
+     * not stop a timer the content started itself, and that timer would then
+     * wake once a second forever.
+     */
+    private static StatusContent detachedContent;
 
     public McpStatusWindow(Supplier<CameoMcpServer> serverSupplier,
                             Supplier<LlmChatClient> llmSupplier) {
@@ -118,6 +125,22 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         info.setRearrangable(true);
         info.setMaximizable(true);
         info.setRemoveOnHide(false);
+        // This configurator is invoked again whenever a project window is
+        // created or rebuilt - which is what happens on a model load, a model
+        // save and a switch between models. Adding unconditionally each time
+        // is what left a second copy of the window behind: whether the
+        // previous one was torn down first is the product's business, and
+        // assuming either way is how the duplicate appeared. Removing the
+        // window we own before adding is correct either way - a no-op when
+        // the product already cleaned up, a replacement when it did not.
+        try {
+            manager.removeWindow(project, WINDOW_ID);
+        } catch (Throwable t) {
+            // No window of ours is registered yet, which is the normal case on
+            // the first call. Not worth reporting and not worth failing over.
+            System.err.println("[CameoMcpServer] no existing " + WINDOW_ID
+                + " window to replace: " + t);
+        }
         try {
             manager.addWindow(project,
                 new ProjectWindow(info, new StatusContent(serverSupplier, llmSupplier)));
@@ -128,6 +151,30 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         }
         dockedProject = project;
         dockedManager = manager;
+        // The fallback dialog exists only for the case where no docked window
+        // has been created yet. Now that one has, that dialog is a second view
+        // of the same console - and with the conversation shared between
+        // windows, two copies of it look like a bug rather than like the
+        // fallback doing its job. Discarded only after addWindow succeeded, so
+        // a failure here leaves the user with the window they already had.
+        discardDetached();
+    }
+
+    /**
+     * Dispose the fallback dialog if one is open, and stop its refresh timer.
+     * Safe to call when there is none.
+     */
+    private static synchronized void discardDetached() {
+        var dialog = detached;
+        var content = detachedContent;
+        detached = null;
+        detachedContent = null;
+        if (content != null) {
+            content.stop();
+        }
+        if (dialog != null && dialog.isDisplayable()) {
+            dialog.dispose();
+        }
     }
 
     /**
@@ -176,7 +223,11 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         JDialog dialog = new JDialog(owner, WINDOW_NAME,
             java.awt.Dialog.ModalityType.MODELESS);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-        dialog.setContentPane(new StatusContent(serverSupplier, llmSupplier).panel);
+        var content = new StatusContent(serverSupplier, llmSupplier);
+        // Retained so the dialog's refresh timer can be stopped if a docked
+        // window later supersedes it; see discardDetached().
+        detachedContent = content;
+        dialog.setContentPane(content.panel);
         dialog.pack();
         dialog.setMinimumSize(new Dimension(500, 240));
         dialog.setLocationRelativeTo(owner);
@@ -355,6 +406,16 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             refresh();
             timer = new Timer(1000, e -> refresh());
             timer.start();
+        }
+
+        /**
+         * Stop the refresh timer. A Swing dialog being disposed does not stop
+         * a timer its content started, and a content that is discarded would
+         * otherwise keep waking once a second, holding itself and its window
+         * alive for the rest of the session.
+         */
+        void stop() {
+            timer.stop();
         }
 
         private void refresh() {
