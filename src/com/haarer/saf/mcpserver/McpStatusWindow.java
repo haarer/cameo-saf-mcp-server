@@ -207,7 +207,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                                                  Supplier<LlmChatClient> llmSupplier) {
         var mgr = dockedManager;
         var proj = dockedProject;
-        if (mgr != null && proj != null) {
+        if (mgr != null && proj != null && projectStillOpen()) {
             try {
                 mgr.activateWindow(proj, WINDOW_ID);
                 return;
@@ -215,8 +215,48 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 System.err.println("[CameoMcpServer] activateWindow failed, "
                     + "falling back to detached: " + t);
             }
+        } else if (proj != null) {
+            // Every project is closed, so the window this referred to is gone.
+            // Left in place, the menu kept trying to re-activate it: that call
+            // does not throw for a project that is no longer open, it quietly
+            // does nothing, so the fallback below never ran and the menu item
+            // looked dead with no way to recover short of opening a model.
+            System.err.println("[CameoMcpServer] docked project is closed, "
+                + "forgetting it and falling back to detached");
+            forgetDocked();
         }
         showDetached(serverSupplier, llmSupplier);
+    }
+
+    /**
+     * Whether there is still a project to dock into.
+     *
+     * <p>Deliberately conservative: it answers no only when <em>no</em>
+     * project is active, which is the state closing the last project leaves
+     * behind. A window belonging to a project that is merely not the active
+     * one is still perfectly re-activatable, so that case must not be treated
+     * as closed.
+     */
+    private static boolean projectStillOpen() {
+        try {
+            return Application.getInstance().getProject() != null;
+        } catch (Throwable t) {
+            // Cannot tell. Assume the project is open, which is the status
+            // quo: a spurious fallback shows a dialog that the user can close,
+            // whereas a wrong "closed" verdict strands them with no window.
+            return true;
+        }
+    }
+
+    /** Drop the reference to a docked window whose project is gone. */
+    private static void forgetDocked() {
+        dockedProject = null;
+        dockedManager = null;
+        var content = dockedContent;
+        dockedContent = null;
+        if (content != null) {
+            content.stop();
+        }
     }
 
     /**
