@@ -47,6 +47,9 @@ public final class PluginConfig {
     /** Console key controlling whether tool calls are printed. */
     public static final String SHOW_TOOL_CALLS = "console.showToolCalls";
 
+    /** Console key controlling whether the model's reasoning is printed. */
+    public static final String SHOW_THINKING = "console.showThinking";
+
     /** Key switching BM25 tool selection off. */
     public static final String TOOL_BM25 = "llm.tool.bm25";
 
@@ -114,6 +117,11 @@ public final class PluginConfig {
                 LlmChatClient.DEFAULT_LOG_FILE),
             new Option(SHOW_TOOL_CALLS, "Show tool calls", Type.BOOL,
                 "Print tool calls and their results in the console. The per-round tool selection goes to the conversation log only.",
+                false),
+            new Option(SHOW_THINKING, "Show thinking", Type.BOOL,
+                "Print the model's reasoning in the console as it streams, in italics above the reply. Only "
+                    + "providers that stream reasoning separately (delta.reasoning_content) produce it; others "
+                    + "show nothing. The reasoning always reaches the conversation log regardless of this.",
                 false)
         );
     }

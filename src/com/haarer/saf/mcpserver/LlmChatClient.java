@@ -223,6 +223,19 @@ public class LlmChatClient {
         default void onToolSelection(ToolSelection selection) {
         }
 
+        /**
+         * A chunk of the model's reasoning arrived, streamed as it is
+         * produced, before the reply text that follows it.
+         *
+         * <p>Not every provider streams reasoning separately: only the ones
+         * that expose {@code delta.reasoning_content} ever call this, so an
+         * implementation must not assume it fires. Implementations that
+         * render the console can use it to show a live "thinking" block
+         * instead of an apparently frozen pane during a long reasoning phase.
+         */
+        default void onReasoning(String delta) {
+        }
+
     }
 
     /**
@@ -473,7 +486,7 @@ public class LlmChatClient {
                         roundText.append(delta);
                         full.append(delta);
                         callback.onDelta(delta);
-                    }, log, round);
+                    }, callback::onReasoning, log, round);
                     if (log != null) {
                         ObjectNode summary = mapper.createObjectNode();
                         summary.put("finish_reason", r.finishReason);
@@ -581,7 +594,7 @@ public class LlmChatClient {
             RoundResult r = streamCompletions(ask, List.of(), d -> {
                 full.append(d);
                 callback.onDelta(d);
-            }, log, -1);
+            }, callback::onReasoning, log, -1);
             recordUsage(r.usage[0], r.usage[1]);
             text = full + notice;
         } catch (Exception e) {
@@ -772,7 +785,9 @@ public class LlmChatClient {
             Map.of("role", "user", "content", prompt.toString()));
         StringBuilder out = new StringBuilder();
         try {
-            RoundResult r = streamCompletions(ask, List.of(), out::append, log, -1);
+            // No reasoning consumer: compaction is internal housekeeping, and
+            // its thinking is not part of the conversation the user is having.
+            RoundResult r = streamCompletions(ask, List.of(), out::append, s -> { }, log, -1);
             // Usage of the summarising request is not part of the conversation
             // being summarised, so it is deliberately not recorded.
             if (r.toolCalls != null && !r.toolCalls.isEmpty()) {
@@ -1002,7 +1017,8 @@ public class LlmChatClient {
      * {@link ToolCall}s.
      */
     RoundResult streamCompletions(List<Map<String, Object>> messages, List<Tool> active,
-                                  Consumer<String> onDelta, ConversationLog log, int round)
+                                  Consumer<String> onDelta, Consumer<String> onReasoning,
+                                  ConversationLog log, int round)
         throws Exception {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", callModel());
@@ -1102,6 +1118,10 @@ public class LlmChatClient {
                     JsonNode reasoning = delta.path("reasoning_content");
                     if (reasoning.isTextual() && !reasoning.asText().isEmpty()) {
                         result.reasoning.append(reasoning.asText());
+                        // Streamed as it arrives, not held back to the end of the
+                        // round: a reasoning phase can run for many seconds, and a
+                        // console that shows nothing until it finishes looks hung.
+                        onReasoning.accept(reasoning.asText());
                     }
                     collectToolCalls(delta.path("tool_calls"), result);
                 } else if (!l.isEmpty()) {
@@ -1143,11 +1163,16 @@ public class LlmChatClient {
             }
             JsonNode message = node.path("choices").path(0).path("message");
             JsonNode content = message.path("content");
+            // Reasoning first, matching the streaming order: the model thinks
+            // before it answers, and a console that printed the answer before
+            // the thinking that produced it would read backwards.
+            if (message.path("reasoning_content").isTextual()) {
+                String r = message.path("reasoning_content").asText();
+                result.reasoning.append(r);
+                onReasoning.accept(r);
+            }
             if (content.isTextual()) {
                 onDelta.accept(content.asText());
-            }
-            if (message.path("reasoning_content").isTextual()) {
-                result.reasoning.append(message.path("reasoning_content").asText());
             }
             collectToolCalls(message.path("tool_calls"), result);
             if (content.isMissingNode() && result.toolCalls.isEmpty()) {

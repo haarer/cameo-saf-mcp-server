@@ -268,6 +268,9 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private static final Color ERROR_COLOR = new Color(190, 30, 30);
         private static final Color TOOL_COLOR = new Color(180, 100, 0);
         private static final Color INFO_COLOR = Color.GRAY;
+        // Deliberately desaturated and set in italics: reasoning is context for
+        // the reply, and must not be mistaken for the answer itself.
+        private static final Color THINKING_COLOR = new Color(115, 115, 140);
         private final Supplier<CameoMcpServer> serverSupplier;
         private final LlmChatClient llm;
         private final JPanel panel;
@@ -462,20 +465,53 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             }
             input.setText("");
             appendLine("> " + text, USER_COLOR);
+            // Read once per turn, not per chunk: the block's open/closed state
+            // has to stay consistent for the whole turn, and this still gives
+            // the documented "takes effect on the next message" behaviour.
+            final boolean showThinking = PluginConfig.flag(PluginConfig.SHOW_THINKING, false);
+            // Whether a thinking block is currently open in the pane. The
+            // callbacks arrive on the worker thread in order, and every one
+            // of them reposts to the EDT through invokeLater, which preserves
+            // that order - so plain booleans are enough here.
+            final boolean[] thinkingOpen = {false};
+
             llm.send(text, new LlmChatClient.StreamCallback() {
                 @Override
+                public void onReasoning(String delta) {
+                    if (!showThinking) {
+                        return;
+                    }
+                    SwingUtilities.invokeLater(() -> {
+                        if (!thinkingOpen[0]) {
+                            thinkingOpen[0] = true;
+                            appendText("\nthinking: ", THINKING_COLOR, true);
+                        }
+                        appendText(delta, THINKING_COLOR, true);
+                    });
+                }
+
+                @Override
                 public void onDelta(String delta) {
-                    SwingUtilities.invokeLater(() -> appendText(delta, REPLY_COLOR));
+                    SwingUtilities.invokeLater(() -> {
+                        closeThinking(thinkingOpen);
+                        appendText(delta, REPLY_COLOR);
+                    });
                 }
 
                 @Override
                 public void onComplete(String fullReply) {
-                    SwingUtilities.invokeLater(() -> appendText("\n", REPLY_COLOR));
+                    SwingUtilities.invokeLater(() -> {
+                        closeThinking(thinkingOpen);
+                        appendText("\n", REPLY_COLOR);
+                    });
                 }
 
                 @Override
                 public void onError(String message) {
-                    SwingUtilities.invokeLater(() -> appendLine("error: " + message, ERROR_COLOR));
+                    SwingUtilities.invokeLater(() -> {
+                        closeThinking(thinkingOpen);
+                        appendLine("error: " + message, ERROR_COLOR);
+                    });
                 }
 
                 @Override
@@ -483,8 +519,10 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     if (!showToolCalls()) {
                         return;
                     }
-                    SwingUtilities.invokeLater(() -> appendLine(
-                        "  [tool] " + name + " " + truncate(argumentsJson, 300), TOOL_COLOR));
+                    SwingUtilities.invokeLater(() -> {
+                        closeThinking(thinkingOpen);
+                        appendLine("  [tool] " + name + " " + truncate(argumentsJson, 300), TOOL_COLOR);
+                    });
                 }
 
                 @Override
@@ -492,11 +530,25 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     if (!showToolCalls()) {
                         return;
                     }
-                    SwingUtilities.invokeLater(() -> appendLine(
-                        "  [result] " + truncate(result, 300), TOOL_COLOR));
+                    SwingUtilities.invokeLater(() -> {
+                        closeThinking(thinkingOpen);
+                        appendLine("  [result] " + truncate(result, 300), TOOL_COLOR);
+                    });
                 }
 
             });
+        }
+
+        /**
+         * Close an open thinking block with a blank line, so the reply that
+         * follows never runs into the reasoning above it. Must be called on
+         * the EDT, which is where every console mutation happens.
+         */
+        private void closeThinking(boolean[] open) {
+            if (open[0]) {
+                open[0] = false;
+                appendText("\n", THINKING_COLOR, true);
+            }
         }
 
         /**
@@ -518,6 +570,17 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         }
 
         private void appendText(String text, Color color) {
+            appendText(text, color, false);
+        }
+
+        /**
+         * Append styled text at the end of the pane and follow it with the
+         * caret. Every attribute is set explicitly rather than inherited: a
+         * {@link javax.swing.text.DefaultStyledDocument} keeps the previous
+         * run's attributes at the insertion point, so an italic reasoning run
+         * would otherwise bleed italics into the reply that follows it.
+         */
+        private void appendText(String text, Color color, boolean italic) {
             if (text == null || text.isEmpty()) {
                 return;
             }
@@ -525,6 +588,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 StyledDocument doc = logPane.getStyledDocument();
                 SimpleAttributeSet attrs = new SimpleAttributeSet();
                 StyleConstants.setForeground(attrs, color);
+                StyleConstants.setItalic(attrs, italic);
                 doc.insertString(doc.getLength(), text, attrs);
                 logPane.setCaretPosition(doc.getLength());
             } catch (BadLocationException e) {
