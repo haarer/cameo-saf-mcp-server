@@ -419,10 +419,31 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
             appendLine("LLM endpoint: " + llm.baseUrl(), INFO_COLOR);
             appendLine("Type a message and press Enter to chat with the LLM.", INFO_COLOR);
+            // The conversation outlives this window: the client is shared for
+            // the whole session, so a window built after a model load, a save
+            // or a switch starts blank while the model still remembers
+            // everything. Repopulating keeps the two from disagreeing.
+            restoreConversation();
 
             refresh();
             timer = new Timer(1000, e -> refresh());
             timer.start();
+        }
+
+        /**
+         * Print the conversation the client already holds into a freshly built
+         * window, so a window that appears after a model load, a save or a
+         * switch shows what the model can see rather than starting blank. A
+         * no-op for a genuinely new conversation.
+         */
+        private void restoreConversation() {
+            for (var e : llm.conversation()) {
+                if ("user".equals(e.role())) {
+                    appendLine("> " + e.text(), USER_COLOR);
+                } else {
+                    appendLine(e.text(), REPLY_COLOR);
+                }
+            }
         }
 
         /**

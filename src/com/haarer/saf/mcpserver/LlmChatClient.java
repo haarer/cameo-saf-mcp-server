@@ -1321,6 +1321,38 @@ public class LlmChatClient {
         }
     }
 
+    /**
+     * The conversation so far, as {@code user} and {@code assistant} text.
+     *
+     * <p>Entries that carry no text - an assistant entry holding
+     * {@code tool_calls} - are omitted, because there is nothing to show for
+     * them and the console already prints tool activity live under the
+     * "Show tool calls" option.
+     *
+     * <p>Used to repopulate a console window that was rebuilt while the
+     * conversation continued. The conversation outlives the window, so a new
+     * window that started empty would look reset while the model still
+     * remembered everything - the two disagreeing is worse than either alone.
+     */
+    public synchronized List<ConversationEntry> conversation() {
+        List<ConversationEntry> out = new ArrayList<>();
+        for (Map<String, Object> m : history) {
+            Object role = m.get("role");
+            Object content = m.get("content");
+            if (!(role instanceof String r) || !(content instanceof String c) || c.isEmpty()) {
+                continue;
+            }
+            if ("user".equals(r) || "assistant".equals(r)) {
+                out.add(new ConversationEntry(r, c));
+            }
+        }
+        return out;
+    }
+
+    /** One exchange of the conversation, as the model sees it. */
+    public record ConversationEntry(String role, String text) {
+    }
+
     /** Snapshot of context size and token usage for the status line. */
     public synchronized UsageStats usageStats() {
         long chars = 0;
