@@ -5,6 +5,8 @@ Versions refer to git tags that define release packages.
 
 ## [Unreleased]
 
+## [v0.1.12] - 2026-09-29
+
 ### Added
 
 - Tool-surface administration: filtering which MCP tools are visible/callable (admin_set_enabled_tools, admin_get_enabled_tools, /admin web page, per-tool call telemetry) — iteration 7
