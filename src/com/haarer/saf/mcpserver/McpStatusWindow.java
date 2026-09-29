@@ -97,6 +97,15 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
      */
     private static StatusContent detachedContent;
 
+    /**
+     * The content of the window most recently docked by {@link #configure}.
+     * Held only so its refresh timer can be stopped when that window is
+     * replaced: {@code removeWindow} disposes of the window by id, and the
+     * content it owned is not reachable afterwards, so an orphaned timer
+     * would otherwise wake once a second for the rest of the session.
+     */
+    private static StatusContent dockedContent;
+
     public McpStatusWindow(Supplier<CameoMcpServer> serverSupplier,
                             Supplier<LlmChatClient> llmSupplier) {
         this.serverSupplier = serverSupplier;
@@ -141,9 +150,17 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             System.err.println("[CameoMcpServer] no existing " + WINDOW_ID
                 + " window to replace: " + t);
         }
+        var content = new StatusContent(serverSupplier, llmSupplier);
         try {
-            manager.addWindow(project,
-                new ProjectWindow(info, new StatusContent(serverSupplier, llmSupplier)));
+            manager.addWindow(project, new ProjectWindow(info, content));
+            // The window just replaced is gone either way - removed above, or
+            // torn down by the product - so its timer has nothing left to
+            // refresh, and it holds its content alive for the whole session.
+            var replaced = dockedContent;
+            dockedContent = content;
+            if (replaced != null && replaced != content) {
+                replaced.stop();
+            }
         } catch (Throwable t) {
             System.err.println("[CameoMcpServer] ERROR: addWindow failed: " + t);
             t.printStackTrace(System.err);
