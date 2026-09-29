@@ -141,6 +141,21 @@ public class LlmChatClient {
     /** Default for {@code llm.context.turns}: conversation entries kept as context. */
     static final int DEFAULT_CONTEXT_TURNS = 30;
     /**
+     * Default for {@code llm.context.window}: the assumed context window in
+     * tokens. Deliberately conservative (128k) because a wrong value only
+     * makes compaction run earlier or later than ideal, while compaction
+     * itself is what keeps a long session from failing outright.
+     */
+    static final int DEFAULT_CONTEXT_WINDOW = 128000;
+    /**
+     * Default for {@code llm.context.compact}: compact once a request reaches
+     * this fraction of {@code llm.context.window}. 0.8 leaves headroom for
+     * the completion, which shares the window with the prompt.
+     */
+    static final double DEFAULT_COMPACT_FRACTION = 0.8;
+    /** Default for {@code llm.context.keep}: recent turns kept verbatim. */
+    static final int DEFAULT_KEEP_TURNS = 3;
+    /**
      * Default for {@code llm.tool.rounds}: consecutive tool rounds per user turn.
      * Rounds, not tool calls - one round can carry several parallel calls, so the
      * effective budget is higher than this number. 8 was too small even for
@@ -284,6 +299,10 @@ public class LlmChatClient {
     private long promptTokens;
     private long completionTokens;
     private boolean usageReported;
+    // Prompt size of the most recent round, i.e. the context as the endpoint
+    // last saw it. This is the measured signal compaction triggers on: no
+    // tokenizer is needed, and it is exact for the model that will be asked.
+    private long lastPromptTokens;
     // BM25 selector over the tool registry: rebuilt lazily on the worker
     // thread whenever the registered tool set changes.
     private volatile boolean selectorDirty = true;
@@ -428,6 +447,10 @@ public class LlmChatClient {
                 if (log != null) {
                     log.line("--- turn " + Instant.now() + " user: " + truncate(userText, 500));
                 }
+                // Before the new user message is added, so the kept tail
+                // counts completed turns and the current one is never
+                // summarised away from under the model.
+                compactIfNeeded(log);
                 // History is mutated here (at execution time) on the single
                 // context snapshot for this request already contains the
                 // assistant reply of every previously executed turn.
@@ -576,6 +599,7 @@ public class LlmChatClient {
         promptTokens = 0;
         completionTokens = 0;
         usageReported = false;
+        lastPromptTokens = 0;
     }
 
     /** Built-in tool: current date and time, optionally in an IANA time zone. */
@@ -621,10 +645,164 @@ public class LlmChatClient {
         return v != null ? v : DEFAULT_MODEL;
     }
 
+    /**
+     * Drop the oldest history entries down to {@code llm.context.turns}, but
+     * only on a whole-turn boundary.
+     *
+     * <p>A tool round appends one {@code assistant} message carrying
+     * {@code tool_calls} followed by one {@code tool} result per call. Cutting
+     * between them leaves a {@code tool} result whose call is gone, which an
+     * OpenAI-compatible endpoint rejects with 400 - so the cut advances to the
+     * next {@code user} message, which can only ever start a turn.
+     */
     private void trimHistory() {
-        while (history.size() > contextTurns()) {
-            history.remove(0);
+        int limit = contextTurns();
+        if (history.size() <= limit) {
+            return;
         }
+        // Find the earliest turn boundary at or after the target cut, so the
+        // smallest amount of history is dropped.
+        int cut = -1;
+        for (int i = Math.max(1, history.size() - limit); i < history.size(); i++) {
+            if ("user".equals(history.get(i).get("role"))) {
+                cut = i;
+                break;
+            }
+        }
+        if (cut < 0) {
+            // No boundary left to cut on: a single turn longer than the limit.
+            // Dropping part of it would orphan a tool result, so keep it whole.
+            return;
+        }
+        history.subList(0, cut).clear();
+    }
+
+    /**
+     * Summarise older turns when the conversation approaches the model's
+     * context window, replacing them with a single stand-in entry.
+     *
+     * <p>Runs at the start of a turn, never mid-turn, so in-flight tool calls
+     * and their results are never touched. The trigger is the prompt size the
+     * endpoint reported for the previous round, which is the exact size the
+     * next request would carry - no tokenizer and no character estimate.
+     *
+     * <p>The split is on a {@code user} boundary, so the retained tail is a
+     * whole number of turns and the summary stands where those turns stood. If
+     * the summary request fails the history is left untouched: a working
+     * conversation that is slightly too long beats a compacted one that
+     * silently lost the model's own account of what it built.
+     */
+    private void compactIfNeeded(ConversationLog log) {
+        double fraction = compactFraction();
+        if (fraction <= 0) {
+            return;
+        }
+        long window = contextWindow();
+        long threshold = (long) (window * fraction);
+        long seen;
+        synchronized (this) {
+            seen = lastPromptTokens;
+        }
+        if (seen < threshold) {
+            return;
+        }
+
+        // Keep the most recent N whole turns; summarise everything before them.
+        int keep = keepTurns();
+        int cut = -1;
+        int turns = 0;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            if ("user".equals(history.get(i).get("role")) && ++turns > keep) {
+                cut = i;
+                break;
+            }
+        }
+        if (cut <= 0) {
+            // Fewer than keep+1 turns, so there is nothing older to fold away.
+            return;
+        }
+
+        List<Map<String, Object>> older = new ArrayList<>(history.subList(0, cut));
+        if (log != null) {
+            log.line("--- compacting: last prompt " + seen + " tokens, threshold " + threshold
+                + " (" + fraction + " of " + window + "); summarising " + older.size()
+                + " of " + history.size() + " entries");
+        }
+
+        String summary = summarize(older, log);
+        if (summary == null || summary.isBlank()) {
+            if (log != null) {
+                log.line("--- compaction skipped: summary request produced nothing");
+            }
+            return;
+        }
+
+        history.subList(0, cut).clear();
+        // Prepended as a user entry so the model reads it as context rather
+        // than as its own prior words; the next kept turn is a user message too,
+        // which keeps the assistant/user alternation valid.
+        history.add(0, Map.of("role", "user",
+            "content", "Summary of the earlier conversation, compacted to save context:\n\n" + summary));
+        if (log != null) {
+            log.line("--- compacted " + older.size() + " entries into a "
+                + summary.length() + "-char summary; history now " + history.size() + " entries");
+        }
+    }
+
+    /**
+     * Ask the model to summarise {@code entries} into a standalone account of
+     * what was established. Returns null when the request fails, so the caller
+     * can leave the history alone.
+     *
+     * <p>No tools are offered: a summarising request that starts calling tools
+     * would change the model, which is exactly what compaction must not do.
+     */
+    private String summarize(List<Map<String, Object>> entries, ConversationLog log) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Summarise the following conversation so it can replace the original as context.\n")
+            .append("Keep: what the user asked for, the decisions taken, and concrete identifiers that\n")
+            .append("were produced (element, diagram and package IDs and names, requirements). Drop the\n")
+            .append("tool call mechanics, and do not invent anything not present below.\n")
+            .append("Write plain prose, no preamble.\n\n--- conversation ---\n");
+        for (Map<String, Object> m : entries) {
+            prompt.append(roleOf(m)).append(": ").append(contentOf(m)).append("\n");
+        }
+
+        List<Map<String, Object>> ask = List.of(
+            Map.of("role", "user", "content", prompt.toString()));
+        StringBuilder out = new StringBuilder();
+        try {
+            RoundResult r = streamCompletions(ask, List.of(), out::append, log, -1);
+            // Usage of the summarising request is not part of the conversation
+            // being summarised, so it is deliberately not recorded.
+            if (r.toolCalls != null && !r.toolCalls.isEmpty()) {
+                return null;
+            }
+            return out.toString().trim();
+        } catch (Exception e) {
+            LOG.warning("Compaction summary failed: " + e.getMessage());
+            if (log != null) {
+                log.line("--- compaction summary failed: " + e.getMessage());
+            }
+            return null;
+        }
+    }
+
+    /** Role of a history entry, or {@code "?"} when it carries none. */
+    private static String roleOf(Map<String, Object> m) {
+        Object r = m.get("role");
+        return r instanceof String s ? s : "?";
+    }
+
+    /** Printable text of a history entry, including tool results. */
+    private static String contentOf(Map<String, Object> m) {
+        Object c = m.get("content");
+        if (c instanceof String s) {
+            return s;
+        }
+        // A tool-call entry has no text; its calls are what matter, but the
+        // summariser is told to drop mechanics anyway.
+        return c != null ? String.valueOf(c) : "(requested tool calls)";
     }
 
     /**
@@ -1112,6 +1290,9 @@ public class LlmChatClient {
             promptTokens += prompt;
             completionTokens += completion;
             usageReported = true;
+            if (prompt > 0) {
+                lastPromptTokens = prompt;
+            }
         }
     }
 
@@ -1214,6 +1395,36 @@ public class LlmChatClient {
      */
     public static int contextTurns() {
         return positiveIntProperty("llm.context.turns", DEFAULT_CONTEXT_TURNS);
+    }
+
+    /**
+     * The model's context window in tokens; config key
+     * {@code llm.context.window}, re-read per use, default
+     * {@value #DEFAULT_CONTEXT_WINDOW}.
+     */
+    public static int contextWindow() {
+        return positiveIntProperty("llm.context.window", DEFAULT_CONTEXT_WINDOW);
+    }
+
+    /**
+     * Fraction of the context window at which older turns are summarised;
+     * config key {@code llm.context.compact}, re-read per use, default
+     * {@value #DEFAULT_COMPACT_FRACTION}. {@code <= 0} disables compaction, and
+     * {@code >= 1} is clamped to 1, because a value above 1 would mean the
+     * prompt may already exceed the window.
+     */
+    public static double compactFraction() {
+        double v = positiveDoubleProperty("llm.context.compact", DEFAULT_COMPACT_FRACTION);
+        return v >= 1.0 ? 1.0 : v;
+    }
+
+    /**
+     * Recent turns kept verbatim when compaction runs; config key
+     * {@code llm.context.keep}, re-read per use, default
+     * {@value #DEFAULT_KEEP_TURNS}.
+     */
+    public static int keepTurns() {
+        return positiveIntProperty("llm.context.keep", DEFAULT_KEEP_TURNS);
     }
 
     /**

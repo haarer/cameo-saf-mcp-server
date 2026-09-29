@@ -74,8 +74,22 @@ public final class PluginConfig {
                     + "directory. Read once at startup, so changing it needs a restart of MagicDraw.",
                 ""),
             new Option("llm.context.turns", "Context messages", Type.INT,
-                "Conversation entries (user/assistant/tool) kept as context. Older ones are dropped.",
+                "Hard cap on conversation entries (user/assistant/tool) kept as context; older ones are "
+                    + "dropped whole turns at a time. Compaction normally runs first and replaces older "
+                    + "turns with a summary, so this only bites in very long sessions.",
                 LlmChatClient.DEFAULT_CONTEXT_TURNS),
+            new Option("llm.context.window", "Context window", Type.INT,
+                "The model's context window in tokens, used to decide when to compact. Set it to the "
+                    + "figure your provider documents; there is no reliable way to detect it from the endpoint.",
+                LlmChatClient.DEFAULT_CONTEXT_WINDOW),
+            new Option("llm.context.compact", "Compact above", Type.DOUBLE,
+                "Fraction of the context window at which older turns are summarised. 0.8 means compact once "
+                    + "a request reaches 80% of the window. 0 disables compaction entirely. Compaction costs one "
+                    + "extra model request, so it is not free.",
+                LlmChatClient.DEFAULT_COMPACT_FRACTION),
+            new Option("llm.context.keep", "Turns kept", Type.INT,
+                "Recent turns kept verbatim when compaction runs. The summary covers everything older.",
+                LlmChatClient.DEFAULT_KEEP_TURNS),
             new Option("llm.tool.rounds", "Tool rounds", Type.INT,
                 "Maximum tool-execution rounds per message. One round can run several tools in parallel, so this is not a tool-call count. On reaching it the turn ends with a summary of what was built, not an error.",
                 LlmChatClient.DEFAULT_TOOL_ROUNDS),
