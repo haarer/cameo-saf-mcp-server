@@ -53,23 +53,39 @@ def _assert_arg(desc_or_args, arg_name, *fragments):
         assert f.lower() in desc_or_args.lower(), f"'{arg_name}' arg missing '{f}': {desc_or_args}"
 
 
-def test_saf_create_diagram_diagram_type_uses_real_values(client):
-    """The diagramType surface must not mislead with non-functional symbolic constants.
+def test_saf_create_diagram_has_no_kind_or_domain_argument(client):
+    """The viewpoint dictates the diagram kind, so there is nothing to pass.
 
-    Regression: the tool used to throw 'Unknown diagram type: UML_CLASS_DIAGRAM'
-    because it passed the symbolic name straight to createDiagram(). The surface must
-    accept friendly names and document that BDD='Class Diagram', IBD='Composite
-    Structure Diagram' (not UML_* constants).
+    Regression: the tool used to take diagramType and resolve it against an
+    alias table, and the tool description claimed 'Omitting both draws all
+    children' while dropping every relationship. A caller-chosen kind let a
+    SAF-conformant view come out in the wrong shape, and domainFilter filtered
+    on a per-element domain guess that the viewpoint chain already replaces.
+    Both are gone rather than deprecated: an argument that is accepted and
+    ignored is the same lie the description was telling.
     """
     defs = _tool_defs(client)
     assert "saf_create_diagram" in defs
-    d = defs["saf_create_diagram"]
-    props = d["inputSchema"]["properties"]
-    assert "diagramType" in props, "diagramType arg missing"
-    dt = props["diagramType"]["description"]
-    assert "class diagram" in dt.lower(), f"diagramType arg missing BDD=Class Diagram: {dt}"
-    assert "composite structure diagram" in dt.lower(), f"diagramType arg missing IBD guidance: {dt}"
-    assert "UML_CLASS_DIAGRAM" in dt, f"diagramType arg unhelpful: {dt}"
+    props = defs["saf_create_diagram"]["inputSchema"]["properties"]
+    assert "diagramType" not in props, "diagram kind must come from the viewpoint"
+    assert "domainFilter" not in props, "domainFilter was a per-element domain guess"
+    assert "viewpoint" in props, "the viewpoint must remain the way the kind is decided"
+
+
+def test_saf_create_diagram_description_states_what_is_not_drawn(client):
+    """The description used to promise a diagram it did not draw.
+
+    'Omitting both draws all children of parentId' was false: isNonShapeable
+    Group dropped comments, literals and every relationship kind, and
+    saf_add_association_paths could only draw Association, so a dependency
+    between two shapes had no drawing path at all. The description must now
+    say so, and name the tool that does draw them.
+    """
+    defs = _tool_defs(client)
+    desc = defs["saf_create_diagram"]["description"]
+    low = desc.lower()
+    for fragment in ("relationshipsskipped", "saf_add_association_paths", "not drawn"):
+        assert fragment in low, f"description must mention {fragment!r}: {desc}"
 
 
 def test_create_relationship_warns_composition_is_not_part(client):
@@ -152,7 +168,6 @@ def test_saf_create_diagram_skips_documentation_comment(client, writable_root):
         result = _call_tool(client, session_id, "saf_create_diagram",
                             {"name": "ScratchCommentSkipBDD",
                              "parentId": writable_root,
-                             "diagramType": "Class Diagram",
                              "scopeElementId": owner["id"]})
 
         # No crash: we got a normal result with a diagramId.
@@ -177,9 +192,9 @@ def test_saf_create_diagram_skips_documentation_comment(client, writable_root):
 
 
 def test_saf_create_diagram_viewpoint_driven_surface(client):
-    """The viewpoint arg must be present and documented as the chain-driven collect
-    (viewpoint--exposes->concept--realizes->stereotype), replacing per-element
-    domain inference; domainFilter must be marked deprecated.
+    """The viewpoint arg must be present, documented as the chain-driven collect
+    (viewpoint--exposes->concept--realizes->stereotype), and now also carry the
+    diagram kind and the view stereotype. domainFilter is gone, not deprecated.
     """
     defs = _tool_defs(client)
     assert "saf_create_diagram" in defs
@@ -187,10 +202,9 @@ def test_saf_create_diagram_viewpoint_driven_surface(client):
     assert "viewpoint" in props, "viewpoint arg missing"
     vp_desc = props["viewpoint"]["description"]
     assert "exposes" in vp_desc and "realizes" in vp_desc, f"viewpoint arg must describe the chain: {vp_desc}"
-    assert "domain inference" in vp_desc.lower() or "domain" in vp_desc.lower(), f"viewpoint arg must contrast with domain inference: {vp_desc}"
-    assert "domainFilter" in props
-    df_desc = props["domainFilter"]["description"]
-    assert "deprecated" in df_desc.lower(), f"domainFilter must be deprecated: {df_desc}"
+    assert "domain" in vp_desc.lower(), f"viewpoint arg must contrast with domain inference: {vp_desc}"
+    assert "stereotype" in vp_desc.lower(), f"viewpoint arg must say it marks the view: {vp_desc}"
+    assert "domainFilter" not in props, "domainFilter was a per-element domain guess, superseded by the chain"
 
 
 def test_saf_create_diagram_viewpoint_driven_collects_only_realizing_elements(client, writable_root):
@@ -221,7 +235,6 @@ def test_saf_create_diagram_viewpoint_driven_collects_only_realizing_elements(cl
         result = _call_tool(client, session_id, "saf_create_diagram",
                             {"name": "ScratchViewpointDriven",
                              "parentId": pkg["id"],
-                             "diagramType": "Class Diagram",
                              "viewpoint": "O2_OCYD"})
 
         assert "diagramId" in result, f"expected diagramId, got: {result}"
@@ -236,3 +249,94 @@ def test_saf_create_diagram_viewpoint_driven_collects_only_realizing_elements(cl
         _call_tool(client, session_id, "delete_element", {"elementId": phys["id"]})
         _call_tool(client, session_id, "delete_element", {"elementId": op_cap["id"]})
         _call_tool(client, session_id, "delete_element", {"elementId": pkg["id"]})
+
+
+def test_saf_create_diagram_kind_comes_from_the_viewpoint(client, writable_root):
+    """A viewpoint's own presentation dictates the kind.
+
+    O2_OCYD's Presentation asks for a block definition diagram, which
+    createDiagram() spells "Class Diagram". The result must say the kind came
+    from the viewpoint, so a caller can tell it was chosen rather than guessed.
+    """
+    session_id = _mcp_init(client)
+    result = _call_tool(client, session_id, "saf_create_diagram",
+                        {"name": "ScratchKindFromViewpoint",
+                         "parentId": writable_root,
+                         "viewpoint": "O2_OCYD"})
+    try:
+        assert result["diagramType"] == "Class Diagram", \
+            f"O2_OCYD must draw a BDD: {result}"
+        assert result["diagramTypeSource"] == "viewpoint", \
+            f"the kind must be attributed to the viewpoint: {result}"
+        assert result["viewpoint"] == "O2_OCYD", f"viewpoint must be echoed: {result}"
+    finally:
+        _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+
+
+def test_saf_create_diagram_marks_the_view_with_its_stereotype(client, writable_root):
+    """A diagram built for a viewpoint must be discoverable as one.
+
+    saf_get_viewpoint_views and cameo://saf-views identify a SAF view purely by
+    the SAF_<VP_ID> stereotype being applied to the diagram, so a diagram that
+    was never marked was invisible to every SAF viewpoint query.
+    """
+    session_id = _mcp_init(client)
+    result = _call_tool(client, session_id, "saf_create_diagram",
+                        {"name": "ScratchViewMarked",
+                         "parentId": writable_root,
+                         "viewpoint": "O2_OCYD"})
+    try:
+        assert result.get("viewStereotypeApplied"), \
+            f"the view stereotype must be applied: {result}"
+
+        views = _call_tool(client, session_id, "saf_get_viewpoint_views",
+                           {"viewpointCode": "O", "parentId": writable_root})
+        names = {v.get("name") for v in views.get("diagrams", views.get("views", []))}
+        assert "ScratchViewMarked" in names, \
+            f"the new diagram must be reported as an O-domain view: {views}"
+    finally:
+        _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+
+
+def test_saf_create_diagram_reports_undrawn_relationships(client, writable_root):
+    """A dependency between two drawn shapes was silently invisible.
+
+    Relationships are never drawn as shapes, and saf_add_association_paths used
+    to accept only mdkernel.Association, so a dependency had no drawing path at
+    all. It must now be reported rather than dropped, and the path tool must
+    accept it.
+    """
+    session_id = _mcp_init(client)
+
+    pkg = _call_tool(client, session_id, "create_element",
+                     {"type": "Package", "name": "ScratchRelPkg",
+                      "parentId": writable_root})
+    a = _call_tool(client, session_id, "create_element",
+                   {"type": "Class", "name": "RelEndA", "parentId": pkg["id"]})
+    b = _call_tool(client, session_id, "create_element",
+                   {"type": "Class", "name": "RelEndB", "parentId": pkg["id"]})
+    dep = _call_tool(client, session_id, "create_relationship",
+                     {"type": "dependency", "sourceId": a["id"], "targetId": b["id"]})
+    result = None
+    try:
+        result = _call_tool(client, session_id, "saf_create_diagram",
+                            {"name": "ScratchRelBDD",
+                             "parentId": pkg["id"],
+                             "elementIds": [a["id"], b["id"]]})
+
+        skipped_ids = {r["elementId"] for r in result.get("relationshipsSkipped", [])}
+        assert dep["id"] in skipped_ids, \
+            f"an undrawn dependency must be reported: {result}"
+
+        paths = _call_tool(client, session_id, "saf_add_association_paths",
+                           {"diagramId": result["diagramId"],
+                            "relationshipIds": [dep["id"]]})
+        assert paths["relationshipsFound"] == 1, \
+            f"a dependency must be accepted by the path tool: {paths}"
+        assert not paths.get("notRelationships"), \
+            f"a dependency is a relationship and must not be rejected: {paths}"
+    finally:
+        if result and "diagramId" in result:
+            _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+        for el in (dep, b, a, pkg):
+            _call_tool(client, session_id, "delete_element", {"elementId": el["id"]})

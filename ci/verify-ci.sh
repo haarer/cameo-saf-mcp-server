@@ -74,6 +74,18 @@ for leg in "${MATRIX[@]}"; do
   echo "PASS  target=$target"
 done
 
+# Same step as the compile job: the static viewpoint->diagram-type table must
+# stay in step with _data/viewpoints.json.
+echo
+echo "==================================================="
+echo "  viewpoint diagram-type table"
+echo "==================================================="
+if python3 scripts/check_viewpoint_diagram_types.py; then
+  :
+else
+  FAILED+=("diagram-type-table: drift from viewpoints.json")
+fi
+
 echo
 if [ ${#FAILED[@]} -eq 0 ]; then
   echo "CI parity: all ${#MATRIX[@]} legs passed"

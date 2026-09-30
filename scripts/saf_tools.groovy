@@ -2200,97 +2200,114 @@ Domain and aspect take the SAF name or the short code from a viewpoint's VP_ID (
 
     /* ---- Diagram creation ---- */
 
-    // Friendly diagram-type names (symbolic constants and human labels) mapped to the
-    // actual string value that ModelElementsManager.createDiagram(String, Element)
-    // accepts. See com.nomagic.uml2.diagram.DiagramTypes for the authoritative values.
-    private static final DIAGRAM_TYPE_ALIASES = [
-        // canonical DiagramTypes string values (pass-through targets)
-        "Activity Diagram": "Activity Diagram",
-        "Class Diagram": "Class Diagram",
-        "Component Diagram": "Component Diagram",
-        "Composite Structure Diagram": "Composite Structure Diagram",
-        "Deployment Diagram": "Deployment Diagram",
-        "Package Diagram": "Package Diagram",
-        "Sequence Diagram": "Sequence Diagram",
-        "State Machine Diagram": "State Machine Diagram",
-        "Use Case Diagram": "Use Case Diagram",
-        "Object Diagram": "Object Diagram",
-        "Communication Diagram": "Communication Diagram",
-        "Interaction Diagram": "Interaction Diagram",
-        "Profile Diagram": "Profile Diagram",
-        "Interaction Overview Diagram": "Interaction Overview Diagram",
-        "Protocol State Machine Diagram": "Protocol State Machine Diagram",
-        "Static Diagram": "Static Diagram",
-        "Content Diagram": "Content Diagram",
-        // symbolic UMLConstants-style names often guessed by agents
-        "UML_ACTIVITY_DIAGRAM": "Activity Diagram",
-        "UML_CLASS_DIAGRAM": "Class Diagram",
-        "UML_COMPONENT_DIAGRAM": "Component Diagram",
-        "UML_COMPOSITE_STRUCTURE_DIAGRAM": "Composite Structure Diagram",
-        "UML_DEPLOYMENT_DIAGRAM": "Deployment Diagram",
-        "UML_PACKAGE_DIAGRAM": "Package Diagram",
-        "UML_SEQUENCE_DIAGRAM": "Sequence Diagram",
-        "UML_STATECHART_DIAGRAM": "State Machine Diagram",
-        "UML_USECASE_DIAGRAM": "Use Case Diagram",
-        "UML_OBJECT_DIAGRAM": "Object Diagram",
-        "UML_COMMUNICATION_DIAGRAM": "Communication Diagram",
-        "UML_INTERACTION_DIAGRAM": "Interaction Diagram",
-        "UML_PROFILE_DIAGRAM": "Profile Diagram",
-        "UML_INTERACTION_OVERVIEW_DIAGRAM": "Interaction Overview Diagram",
-        "UML_PROTOCOL_STATE_MACHINE_DIAGRAM": "Protocol State Machine Diagram",
-        "UML_STATIC_DIAGRAM": "Static Diagram",
-        "UML_BEHAVIOR_DIAGRAM": "Behavior Diagram",
-        "UML_ANY_DIAGRAM": "Any Diagram",
-        "CONTENT_DIAGRAM": "Content Diagram",
+    // VP_ID -> the diagram kind that viewpoint's Presentation prose asks for,
+    // as a canonical DiagramTypes value (com.nomagic.uml2.diagram.DiagramTypes,
+    // e.g. CONTENT_DIAGRAM = "Content Diagram"), which is what
+    // ModelElementsManager.createDiagram(String, Element) accepts.
+    //
+    // The caller does not choose: a viewpoint already dictates its view, and
+    // letting an argument override it is how a "SAF-conformant" diagram ends
+    // up in the wrong shape. Derived from _data/viewpoints.json; a viewpoint
+    // whose Presentation names no diagram is deliberately absent.
+    private static final Map<String, String> VIEWPOINT_DIAGRAM_TYPE = [
+        "A2_ARAS": "Class Diagram",
+        "A2_CSTD": "Class Diagram",
+        "A2_GRID": "Content Diagram",
+        "A8_EATR": "Class Diagram",
+        "C1_SCXD": "Class Diagram",
+        "C1_SCXE": "Composite Structure Diagram",
+        "C1_SUCD": "Use Case Diagram",
+        "C2_SCYD": "Class Diagram",
+        "C2_SETD": "Class Diagram",
+        "C2_SFBS": "Class Diagram",
+        "C2_SSTD": "Class Diagram",
+        "C3_SFRE": "Activity Diagram",
+        "C3_SPRO": "Activity Diagram",
+        "C3_SSTA": "Class Diagram",
+        "C4_SCXI": "Sequence Diagram",
+        "C4_SIEX": "Composite Structure Diagram",
+        "C4_SITI": "Sequence Diagram",
+        "C5_SIFD": "Class Diagram",
+        "D2_COTD": "Class Diagram",
+        "D2_STKD": "Class Diagram",
+        "D2_VPTI": "Profile Diagram",
+        "D2_VPTO": "Content Diagram",
+        "O1_OCXD": "Class Diagram",
+        "O1_OCXE": "Composite Structure Diagram",
+        "O1_OSTY": "Use Case Diagram",
+        "O2_OCYD": "Class Diagram",
+        "O2_OETD": "Class Diagram",
+        "O2_OPRF": "Class Diagram",
+        "O2_STID": "Class Diagram",
+        "O3_OPRO": "Activity Diagram",
+        "O3_OSTA": "Class Diagram",
+        "O4_OCXI": "Sequence Diagram",
+        "P1_PCXD": "Class Diagram",
+        "P1_PCXE": "Composite Structure Diagram",
+        "P2_PETD": "Class Diagram",
+        "P2_PSTD": "Class Diagram",
+        "P4_PCXI": "Sequence Diagram",
+        "P4_PIEX": "Composite Structure Diagram",
+        "P5_PIFD": "Class Diagram",
     ]
 
-    // Input passed to ModelElementsManager.createDiagram must be the canonical string value.
-    String resolveDiagramType(String raw) {
-        if (raw == null) return "Composite Structure Diagram"
-        def trimmed = raw.trim()
-        if (trimmed.isEmpty()) return "Composite Structure Diagram"
-        // direct canonical value (case-insensitive) is accepted as-is
-        def exact = DIAGRAM_TYPE_ALIASES.entrySet().find { it.key.equalsIgnoreCase(trimmed) }
-        if (exact != null) return exact.value as String
-        return lookupDiagramType(trimmed)
+    /** Used when the caller named no viewpoint. DiagramTypes.CONTENT_DIAGRAM. */
+    private static final String DEFAULT_DIAGRAM_TYPE = "Content Diagram"
+
+    /**
+     * Used when a viewpoint is named but its Presentation asks for a table or
+     * matrix rather than a diagram. A BDD is the closest thing this tool can
+     * draw that still shows the viewpoint's elements, and the result says so
+     * rather than passing it off as the prescribed view.
+     */
+    private static final String TABULAR_VIEWPOINT_FALLBACK = "Class Diagram"
+
+    /**
+     * The diagram kind for a viewpoint, or null when the viewpoint's own
+     * Presentation names no diagram.
+     */
+    static String diagramTypeForViewpoint(String vpId) {
+        return VIEWPOINT_DIAGRAM_TYPE.get(vpId)
     }
 
-    String lookupDiagramType(String key) {
-        def lower = key.toLowerCase()
-        def hit = DIAGRAM_TYPE_ALIASES.entrySet().find {
-            (it.key as String).toLowerCase() == lower
-        }
-        if (hit != null) return hit.value as String
-        throw new IllegalArgumentException(
-            "Unknown diagram type: '${key}'. Valid values: " +
-            (DIAGRAM_TYPE_ALIASES.keySet().toSorted() as List).join(", "))
-    }
+    @McpTool(name = "saf_create_diagram", description = '''Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.
 
-    @McpTool(name = "saf_create_diagram", description = '''Create a SAF-conformant diagram. Returns the diagram ID.
+The viewpoint decides the diagram kind. A SAF viewpoint specifies how it is
+presented, so a BDD is a BDD and an IBD is an IBD; passing a kind in would let
+a "conformant" view come out in the wrong shape, so there is no kind argument.
+A viewpoint whose own presentation asks for a table or matrix has no diagram
+kind to copy, and falls back to a BDD with diagramTypeSource=fallback.
 
-Pass elementIds to draw exactly the shapes you chose, or a viewpoint
-(name, VP_ID like C1_SCXD, or ID) to auto-collect the elements that
-viewpoint exposes. Omitting both draws all children of parentId.
+Pass elementIds to draw exactly the elements you chose, or a viewpoint
+(name, VP_ID like C1_SCXD, or ID) to collect the elements that viewpoint
+exposes. Passing both draws only elementIds. With neither, every classifier
+directly under parentId is drawn.
 
-Package-level associations are not drawn as connector lines; call
-saf_add_association_paths for those.''')
+The diagram is marked with the viewpoint's view stereotype (SAF_<VP_ID>), so
+saf_get_viewpoint_views and cameo://saf-views report it as a view of that
+viewpoint rather than as an unmarked diagram.
+
+WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
+
+- Relationships are never shapes. Associations, dependencies, generalizations,
+  abstractions and SysML relationships are not drawn at all by this tool, even
+  when they connect two elements that both became shapes. They are listed in
+  relationshipsSkipped. Call saf_add_association_paths to draw them.
+- Comments and literals are never drawn; they carry nothing to show on a
+  diagram and are omitted without being listed.''')
     @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
     @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
-    @McpToolArgument(name = "diagramType", type = "string", description = "Diagram kind. Default: 'Composite Structure Diagram' (IBD). BDD uses 'Class Diagram'. Accepted: friendly names ('Class Diagram', 'Composite Structure Diagram', 'Package Diagram', ...) and UMLConstants-style aliases ('UML_CLASS_DIAGRAM', 'UML_COMPOSITE_STRUCTURE_DIAGRAM', ...).")
-    @McpToolArgument(name = "elementIds", type = "array", description = "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.")
-    @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds all direct children of parentId. Avoid - prefer elementIds or viewpoint for the correct subset.")
-    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Does NOT render package-level Association/Composition relationships - use saf_add_association_paths for those. Default: false")
-    @McpToolArgument(name = "viewpoint", type = "string", description = "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). When set (with elementIds omitted), only owned elements that realize one of the viewpoint's exposed concepts are collected - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference. ")
-    @McpToolArgument(name = "domainFilter", type = "string", description = "DEPRECATED. Ignored when viewpoint is set. Inferres elements by per-element domain - use viewpoint instead. Only elements matching this domain are added (auto path only).")
+    @McpToolArgument(name = "elementIds", type = "array", description = "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected, and the viewpoint then only decides the diagram kind and the view stereotype. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.")
+    @McpToolArgument(name = "viewpoint", type = "string", description = "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). Decides the diagram kind and marks the diagram with the viewpoint's view stereotype. When elementIds is omitted, also collects the owned elements that realize one of the viewpoint's exposed concepts - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference.")
+    @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds the classifiers directly under parentId. Avoid - prefer elementIds or viewpoint for the correct subset.")
+    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_association_paths. Default: false")
     @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when auto-collecting owned elements. Default: 2")
     Map safCreateDiagram(Map<String, Object> args) {
         def name = args.get("name") as String
         def parentId = args.get("parentId") as String
-        def diagramType = resolveDiagramType(args.get("diagramType") as String)
         def scopeElementId = args.get("scopeElementId") as String
         def elementIds = args.get("elementIds") as List
         def includeConnectors = (args.get("includeConnectors") as Boolean) ?: false
-        def domainFilter = args.get("domainFilter") as String
         def viewpoint = args.get("viewpoint") as String
         def maxDepth = (int) (args.get("maxDepth") ?: 2)
 
@@ -2306,20 +2323,40 @@ saf_add_association_paths for those.''')
 
         def elementsToAdd = []
         def connectorsToAdd = []
+        def relationshipsSkipped = []
 
-        // Viewpoint-driven collect: resolve the viewpoint's exposed concepts and
-        // their realizing stereotypes (SAF stereotype, SysML stereotype, or UML
+        // Viewpoint-driven: resolve the viewpoint's exposed concepts and their
+        // realizing stereotypes (SAF stereotype, SysML stereotype, or UML
         // metaclass), then collect elements that carry one of those stereotypes.
         // This is the authoritative chain (viewpoint--exposes->concept--realizes->stereotype);
         // it replaces the underdetermined per-element safDomain inference.
         def viewpointStereoNames = null
+        def viewpointRecord = null
+        def diagramType = DEFAULT_DIAGRAM_TYPE
+        def diagramTypeSource = "default"
+        def diagramTypeNote = null
         if (viewpoint) {
-            def vp = SafDataStore.getInstance().getCurrentIndex()?.getViewpoint(viewpoint)
-            if (vp == null) {
+            viewpointRecord = SafDataStore.getInstance().getCurrentIndex()?.getViewpoint(viewpoint)
+            if (viewpointRecord == null) {
                 return [error: "Viewpoint not found: " + viewpoint + ". Use spec_get_viewpoint (name/VP_ID/ID) to find a valid viewpoint."]
             }
+            def fromViewpoint = diagramTypeForViewpoint(viewpointRecord.vpId())
+            if (fromViewpoint != null) {
+                diagramType = fromViewpoint
+                diagramTypeSource = "viewpoint"
+            } else {
+                // The viewpoint's own Presentation asks for a table or matrix,
+                // so there is no diagram kind to copy. Draw a BDD so the work
+                // is not refused outright, but say so rather than let a
+                // fallback pass for the prescribed view.
+                diagramType = TABULAR_VIEWPOINT_FALLBACK
+                diagramTypeSource = "fallback"
+                diagramTypeNote = "Viewpoint " + viewpointRecord.vpId()
+                    + " specifies a table or matrix rather than a diagram; "
+                    + "drew a " + diagramType + " instead."
+            }
             viewpointStereoNames = new LinkedHashSet<String>()
-            for (concept in SafDataStore.getInstance().getCurrentIndex().getConceptsForViewpoint(vp.id())) {
+            for (concept in SafDataStore.getInstance().getCurrentIndex().getConceptsForViewpoint(viewpointRecord.id())) {
                 def stereos = SafDataStore.getInstance().getCurrentIndex().getAllStereotypesForConcept(concept.id())
                 for (st in stereos) {
                     def n = st.name()
@@ -2344,14 +2381,14 @@ saf_add_association_paths for those.''')
                 return [error: "Some elementIds could not be resolved: " + missing.join(", ")]
             }
         } else if (viewpointStereoNames != null) {
-            collectElementsByViewpoint(parent, elementsToAdd, connectorsToAdd, 0, maxDepth, viewpointStereoNames)
+            collectElementsByViewpoint(parent, elementsToAdd, connectorsToAdd, relationshipsSkipped, 0, maxDepth, viewpointStereoNames)
         } else if (scopeElementId) {
             def scope = resolveElement(scopeElementId)
             if (scope == null) return [error: "Scope element not found: " + scopeElementId]
             elementsToAdd.add(scope)
-            collectElementsForDiagram(scope, elementsToAdd, connectorsToAdd, 0, maxDepth, domainFilter)
+            collectElementsForDiagram(scope, elementsToAdd, connectorsToAdd, relationshipsSkipped, 0, maxDepth)
         } else {
-            collectElementsFromParent(parent, elementsToAdd, connectorsToAdd, domainFilter)
+            collectElementsFromParent(parent, elementsToAdd, connectorsToAdd, relationshipsSkipped)
         }
 
         def sm = SessionManager.getInstance()
@@ -2359,6 +2396,29 @@ saf_add_association_paths for those.''')
         try {
             def diagramElem = ModelElementsManager.getInstance().createDiagram(diagramType, parent)
             diagramElem.setName(name)
+
+            // Mark the diagram as a view of the viewpoint. Without this the
+            // SAF viewpoint queries - saf_get_viewpoint_views, cameo://saf-views
+            // - identify a view purely by this stereotype being present, so a
+            // diagram built "for" a viewpoint stayed invisible to all of them.
+            def viewStereotypeApplied = null
+            if (viewpointRecord != null) {
+                def direct = SafDataStore.getInstance().getCurrentIndex()
+                    .getDirectStereotypesForConcept(viewpointRecord.id())
+                for (st in direct) {
+                    def sname = st.name()
+                    if (sname == null || sname.isEmpty()) continue
+                    def stereo = findStereotype(sname)
+                    if (stereo == null) continue
+                    try {
+                        StereotypesHelper.addStereotype(diagramElem, stereo)
+                        viewStereotypeApplied = sname
+                        break
+                    } catch (Exception se) {
+                        // Not applicable to a Diagram; try the next one.
+                    }
+                }
+            }
 
             def pem = com.nomagic.magicdraw.openapi.uml.PresentationElementsManager.getInstance()
             def diagramPres = project.getDiagram(diagramElem)
@@ -2406,6 +2466,10 @@ saf_add_association_paths for those.''')
                 diagramId: diagramElem.getID(),
                 name: name,
                 diagramType: diagramType,
+                diagramTypeSource: diagramTypeSource,
+                diagramTypeNote: diagramTypeNote,
+                viewpoint: viewpointRecord?.vpId(),
+                viewStereotypeApplied: viewStereotypeApplied,
                 parentId: parentId,
                 shapesAdded: shapeIds.size(),
                 shapes: shapeIds,
@@ -2413,6 +2477,7 @@ saf_add_association_paths for those.''')
                 connectorsAdded: connectorIds.size(),
                 connectors: connectorIds,
                 connectorsSkipped: connectorSkips,
+                relationshipsSkipped: relationshipsSkipped,
                 scopeElementId: scopeElementId
             ]
         } catch (Exception e) {
@@ -2421,12 +2486,14 @@ saf_add_association_paths for those.''')
         }
     }
 
-    @McpTool(name = "saf_add_association_paths", description = '''Draw association path shapes (including composition/aggregation) on an existing diagram, between the classifier shapes already present. Use after saf_create_diagram to show composition relationships on a BDD (e.g. the C1_SCXD requirement that the context block compose the SOI and each context element).
+    @McpTool(name = "saf_add_association_paths", description = '''Draw relationship paths on an existing diagram, between shapes already present. Use after saf_create_diagram: that tool never draws a relationship as a shape, so a freshly created BDD shows its classifiers unconnected until you call this.
 
-Given a diagram and a set of Associations (explicit relationshipIds, or all Associations owned by an element - containerId, else the diagram's owner), the tool finds the shape presentations of the two end classifiers already in the diagram and creates a PathElement between them. Any association whose end classifiers are not both already present as shapes is reported as skipped (never created silently).''')
-    @McpToolArgument(name = "diagramId", type = "string", description = "Element ID of the diagram to add association paths to", required = true)
-    @McpToolArgument(name = "relationshipIds", type = "array", description = "Optional list of Association element IDs to draw. If omitted, containerId (or the element owning the diagram) is scanned for owned Associations.")
-    @McpToolArgument(name = "containerId", type = "string", description = "Optional element whose owned Associations are scanned when relationshipIds is omitted.")
+Despite the name it handles every relationship kind, not just Association: association, composition, aggregation, dependency, generalization, abstraction, interface realization and SysML relationships. Only a relationship is accepted; anything else passed in relationshipIds is reported under notRelationships rather than silently ignored.
+
+Given a diagram and a set of relationships (explicit relationshipIds, or every owned relationship of containerId - else the element owning the diagram), the tool finds the shape presentations of both ends already in the diagram and creates a PathElement between them. A relationship whose ends are not both present as shapes is reported as skipped, never created silently.''')
+    @McpToolArgument(name = "diagramId", type = "string", description = "Element ID of the diagram to add relationship paths to", required = true)
+    @McpToolArgument(name = "relationshipIds", type = "array", description = "Optional list of relationship element IDs to draw - association, dependency, generalization, abstraction, interface realization or SysML relationship. If omitted, containerId (or the element owning the diagram) is scanned for owned relationships. The relationshipsSkipped list returned by saf_create_diagram is a ready-made list of the ones worth passing here.")
+    @McpToolArgument(name = "containerId", type = "string", description = "Optional element whose owned relationships are scanned when relationshipIds is omitted.")
     Map safAddAssociationPaths(Map<String, Object> args) {
         def diagramId = args.get("diagramId") as String
         def relationshipIds = args.get("relationshipIds") as List
@@ -2447,29 +2514,36 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
             return [error: "Failed to get diagram presentation for diagram " + diagramId + ". Diagram may need to be opened in UI first."]
         }
 
-        def associations = []
+        def relationships = []
+        def notRelationships = []
         if (relationshipIds != null && !relationshipIds.isEmpty()) {
             for (rid in relationshipIds) {
                 def rel = resolveElement(rid as String)
-                if (rel != null && rel instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Association) {
-                    associations.add(rel)
+                if (rel == null) {
+                    notRelationships.add([relationshipId: rid, reason: "element not found"])
+                } else if (!isRelationship(rel)) {
+                    notRelationships.add([relationshipId: rid, type: rel.getHumanType(),
+                                           reason: "not a relationship"])
+                } else {
+                    relationships.add(rel)
                 }
             }
         } else {
             def container = containerId ? resolveElement(containerId) : diagramElem.getOwner()
-            if (container == null) return [error: "No container element for association scan"]
+            if (container == null) return [error: "No container element for relationship scan"]
             try {
                 for (child in container.getOwnedElement()) {
-                    if (child instanceof com.nomagic.uml2.ext.magicdraw.classes.mdkernel.Association) {
-                        associations.add(child)
+                    if (isRelationship(child)) {
+                        relationships.add(child)
                     }
                 }
             } catch (ignored) {}
         }
 
-        if (associations.isEmpty()) {
-            return [diagramId: diagramId, associationsFound: 0, added: [], addedCount: 0, skipped: [], skippedCount: 0,
-                    note: "no associations to draw"]
+        if (relationships.isEmpty()) {
+            return [diagramId: diagramId, relationshipsFound: 0, added: [], addedCount: 0,
+                    skipped: [], skippedCount: 0, notRelationships: notRelationships,
+                    note: "no relationships to draw"]
         }
 
         // Map model element ID -> shape presentation for classifier shapes already in the diagram.
@@ -2488,90 +2562,128 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
         def added = []
         def skipped = []
         try {
-            for (assoc in associations) {
-                def endTypes = []
-                try { endTypes = new ArrayList(assoc.getEndType()) } catch (ignoredE) {}
-                if (endTypes == null || endTypes.size() < 2) {
-                    skipped.add([associationId: assoc.getID(), name: assoc.getName(), reason: "association has fewer than 2 end types"])
+            for (rel in relationships) {
+                def ends = relationshipEnds(rel)
+                if (ends == null) {
+                    skipped.add([relationshipId: rel.getID(), name: rel.getName(), type: rel.getHumanType(),
+                                 reason: "could not resolve both ends of the relationship"])
                     continue
                 }
-                def shapeA = shapeByElementId[endTypes.get(0).getID()]
-                def shapeB = shapeByElementId[endTypes.get(1).getID()]
+                def shapeA = shapeByElementId[ends.get(0).getID()]
+                def shapeB = shapeByElementId[ends.get(1).getID()]
                 if (shapeA == null || shapeB == null) {
-                    skipped.add([associationId: assoc.getID(), name: assoc.getName(), reason: "end classifier shape not present in diagram"])
+                    skipped.add([relationshipId: rel.getID(), name: rel.getName(), type: rel.getHumanType(),
+                                 reason: "end element shape not present in diagram"])
                     continue
                 }
-                // createPathElement validates that the passed client/supplier shapes' model
-                // elements equal the relationship's client/supplier. For an (unordered)
-                // Association this ordering is not implied by getEndType(), so try both.
+                // createPathElement validates that the passed client/supplier
+                // shapes' model elements equal the relationship's client and
+                // supplier. An unordered relationship's end order is not
+                // implied by getRelated(), so try both.
                 def path = null
                 def lastErr = null
                 for (pair in [[shapeA, shapeB], [shapeB, shapeA]]) {
                     try {
-                        path = pem.createPathElement(assoc, pair.get(0), pair.get(1))
+                        path = pem.createPathElement(rel, pair.get(0), pair.get(1))
                         if (path != null) break
                     } catch (Exception pairErr) {
                         lastErr = pairErr.toString()
                     }
                 }
                 if (path != null) {
-                    added.add([associationId: assoc.getID(), name: assoc.getName(), pathId: path.getID()])
+                    added.add([relationshipId: rel.getID(), name: rel.getName(),
+                               type: rel.getHumanType(), pathId: path.getID()])
                 } else {
-                    skipped.add([associationId: assoc.getID(), name: assoc.getName(),
+                    skipped.add([relationshipId: rel.getID(), name: rel.getName(),
+                                 type: rel.getHumanType(),
                                  reason: lastErr ?: "createPathElement returned null for both end orderings"])
                 }
             }
             sm.closeSession(project)
-            return [diagramId: diagramId, associationsFound: associations.size(),
+            return [diagramId: diagramId, relationshipsFound: relationships.size(),
                     added: added, addedCount: added.size(),
-                    skipped: skipped, skippedCount: skipped.size()]
+                    skipped: skipped, skippedCount: skipped.size(),
+                    notRelationships: notRelationships]
         } catch (Exception e) {
             sm.cancelSession(project)
             return [error: e.getClass().getName() + ": " + (e.getMessage() ?: ""), stack: e.toString()]
         }
     }
 
-    boolean isNonShapeableGroup(def elem) {
-        // Elements that must never be added as standalone classifier shapes.
-        if (elem instanceof Comment) return true                                    // documentation comments
-        def metatype = elem.getHumanType()?.toLowerCase() ?: ""
-        if (metatype.contains("literal")) return true                                // multiplicity literals (LiteralInteger, etc.)
-        if (metatype == "association" || metatype == "connector") return true        // package-level association / connector (drawn as paths, not shapes)
-        if (metatype.contains("dependency") || metatype.contains("abstraction")
-                || metatype == "generalization") return true                        // relationship views -> paths, not shapes
-        if (metatype.contains("directed relationship") || metatype.contains("relationship")) return true
-        return false
+    /**
+     * The two ends of a relationship, in no particular order, or null when
+     * they cannot be resolved.
+     *
+     * <p>{@code getRelated()} is the UML2-wide accessor and covers every
+     * relationship kind, so it is tried first; an Association's end types are
+     * the fallback because that is what an ordered Association actually wants
+     * to attach a path to.
+     */
+    List relationshipEnds(def rel) {
+        try {
+            def related = new ArrayList(rel.getRelated())
+            related.removeIf { it == null }
+            if (related.size() >= 2) return related
+        } catch (ignored) {}
+        try {
+            def endTypes = new ArrayList(rel.getEndType())
+            if (endTypes != null && endTypes.size() >= 2) return endTypes
+        } catch (ignored) {}
+        return null
     }
 
-    void collectElementsFromParent(def parent, List elements, List connectors, String domainFilter) {
+    /**
+     * Elements that are never drawn as standalone shapes, split by whether the
+     * omission is worth reporting.
+     *
+     * <p>A relationship (association, dependency, generalization, abstraction,
+     * SysML relationship) is drawn as a path element, never as a shape. It is
+     * reported in {@code relationshipsSkipped} so a diagram that looks
+     * unconnected is visibly so, and can be finished with
+     * {@code saf_add_association_paths}.
+     */
+    boolean isRelationship(def elem) {
+        def metatype = elem.getHumanType()?.toLowerCase() ?: ""
+        if (metatype == "association" || metatype == "connector") return true
+        if (metatype.contains("dependency") || metatype.contains("abstraction")
+                || metatype == "generalization") return true
+        // Covers DirectedRelationship and every SysML kind named "...Relationship".
+        return metatype.contains("relationship")
+    }
+
+    /** Elements with nothing to show, omitted without comment. */
+    boolean isCommentOrLiteral(def elem) {
+        if (elem instanceof Comment) return true
+        def metatype = elem.getHumanType()?.toLowerCase() ?: ""
+        return metatype.contains("literal")
+    }
+
+    /** Record a relationship that was not drawn, so none is dropped silently. */
+    void noteSkippedRelationship(def elem, List skipped) {
+        try {
+            skipped.add([elementId: elem.getID(), name: safeName(elem),
+                         type: elem.getHumanType()])
+        } catch (ignored) {
+            skipped.add([elementId: null, name: "<unreadable>", type: "unknown"])
+        }
+    }
+
+    void collectElementsFromParent(def parent, List elements, List connectors, List skipped) {
         try {
             for (child in parent.getOwnedElement()) {
-                def childStereos = []
-                try {
-                    for (st in child.getAppliedStereotype()) {
-                        def n = st.getName()
-                        if (n != null) childStereos.add(n)
+                if (isCommentOrLiteral(child)) continue
+                if (isRelationship(child)) {
+                    // A Connector is the internal-structure kind and is drawn
+                    // when includeConnectors asks for it. Everything else is a
+                    // path and belongs to saf_add_association_paths.
+                    if (child.getHumanType().toLowerCase().contains("connector")) {
+                        connectors.add(child)
+                    } else {
+                        noteSkippedRelationship(child, skipped)
                     }
-                } catch (ignored) {}
-
-                if (isNonShapeableGroup(child)) {
-                    // Comments, literal integers, relationship views are not
-                    // standalone classifier shapes on a BDD; skip them.
                     continue
                 }
-                def isConnector = child.getHumanType().toLowerCase().contains("connector")
-                if (isConnector) {
-                    connectors.add(child)
-                } else {
-                    if (domainFilter && !childStereos.isEmpty()) {
-                        def domain = resolveSafDomain(childStereos)
-                        if (domain && domain.toLowerCase() == domainFilter.toLowerCase()) {
-                            elements.add(child)
-                        }
-                    } else if (!domainFilter) {
-                        elements.add(child)
-                    }
-                }
+                elements.add(child)
             }
         } catch (ignored) {}
     }
@@ -2583,10 +2695,19 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
      * domain inference; elements without any of the realizing stereotypes are
      * not added. Recurses into nested containers up to maxDepth.
      */
-    void collectElementsByViewpoint(def parent, List elements, List connectors, int depth, int maxDepth, Set<String> viewpointStereoNames) {
+    void collectElementsByViewpoint(def parent, List elements, List connectors, List skipped, int depth, int maxDepth, Set<String> viewpointStereoNames) {
         if (depth > maxDepth) return
         try {
             for (child in parent.getOwnedElement()) {
+                if (isCommentOrLiteral(child)) continue
+                if (isRelationship(child)) {
+                    if (child.getHumanType().toLowerCase().contains("connector")) {
+                        connectors.add(child)
+                    } else {
+                        noteSkippedRelationship(child, skipped)
+                    }
+                    continue
+                }
                 def childStereos = []
                 try {
                     for (st in child.getAppliedStereotype()) {
@@ -2594,52 +2715,32 @@ Given a diagram and a set of Associations (explicit relationshipIds, or all Asso
                         if (n != null) childStereos.add(n)
                     }
                 } catch (ignored) {}
-
-                if (isNonShapeableGroup(child)) continue
-                def isConnector = child.getHumanType().toLowerCase().contains("connector")
-                if (isConnector) {
-                    connectors.add(child)
-                    continue
-                }
-                def matches = childStereos.any { viewpointStereoNames.contains(it) }
-                if (matches) {
+                if (childStereos.any { viewpointStereoNames.contains(it) }) {
                     elements.add(child)
                 }
                 if (depth < maxDepth) {
-                    collectElementsByViewpoint(child, elements, connectors, depth + 1, maxDepth, viewpointStereoNames)
+                    collectElementsByViewpoint(child, elements, connectors, skipped, depth + 1, maxDepth, viewpointStereoNames)
                 }
             }
         } catch (ignored) {}
     }
 
-    void collectElementsForDiagram(def element, List elements, List connectors, int depth, int maxDepth, String domainFilter) {
+    void collectElementsForDiagram(def element, List elements, List connectors, List skipped, int depth, int maxDepth) {
         if (depth > maxDepth) return
         try {
             for (child in element.getOwnedElement()) {
-                def childStereos = []
-                try {
-                    for (st in child.getAppliedStereotype()) {
-                        def n = st.getName()
-                        if (n != null) childStereos.add(n)
+                if (isCommentOrLiteral(child)) continue
+                if (isRelationship(child)) {
+                    if (child.getHumanType().toLowerCase().contains("connector")) {
+                        connectors.add(child)
+                    } else {
+                        noteSkippedRelationship(child, skipped)
                     }
-                } catch (ignored) {}
-
-                if (isNonShapeableGroup(child)) {
-                    // Comments, literal integers, relationship views are not
-                    // standalone classifier shapes; skip them.
                     continue
                 }
-                def isConnector = child.getHumanType().toLowerCase().contains("connector")
-                if (isConnector) {
-                    connectors.add(child)
-                } else {
-                    def kind = resolveSafKind(childStereos)
-                    if (!kind || !kind.toLowerCase().contains("relationship")) {
-                        elements.add(child)
-                        if (depth < maxDepth) {
-                            collectElementsForDiagram(child, elements, connectors, depth + 1, maxDepth, domainFilter)
-                        }
-                    }
+                elements.add(child)
+                if (depth < maxDepth) {
+                    collectElementsForDiagram(child, elements, connectors, skipped, depth + 1, maxDepth)
                 }
             }
         } catch (ignored) {}

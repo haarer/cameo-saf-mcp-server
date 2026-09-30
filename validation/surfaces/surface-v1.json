@@ -1,9 +1,9 @@
 {
   "version": "v1",
-  "generated": "2026-09-26T06:15:16Z",
+  "generated": "2026-09-30T06:59:48Z",
   "source": {
     "kind": "groovy-scripts",
-    "plugin_commit": "59ab707",
+    "plugin_commit": "2cdc830",
     "scripts_dir": "scripts",
     "script_files": [
       "admin_bridge.groovy",
@@ -31,7 +31,7 @@
     "tools": 75,
     "resources": 12,
     "prompts": 1,
-    "arguments": 174
+    "arguments": 172
   },
   "families": {
     "admin": 9,
@@ -546,7 +546,7 @@
           "description": "Name for the flow (e.g. 'flow for SystemOperationalMode'). Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 670
+            "line": 619
           }
         },
         {
@@ -556,7 +556,7 @@
           "description": "Element ID of the parent package that will own the InformationFlow. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 671
+            "line": 620
           }
         },
         {
@@ -566,7 +566,7 @@
           "description": "Element ID of the source participant (a Part role or Classifier). Required. Get IDs from saf_find_elements_by_type or the cameo://element/{id} resource.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 672
+            "line": 621
           }
         },
         {
@@ -576,7 +576,7 @@
           "description": "Element ID of the target participant (a Part role or Classifier). Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 673
+            "line": 622
           }
         },
         {
@@ -586,7 +586,7 @@
           "description": "Optional element ID of the conveyed classifier (e.g. a SAF_ConceptualExchangeType Qualification/realization of the exchange). When set, the flow conveys it and the ItemFlow stereotype is applied.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 674
+            "line": 623
           }
         },
         {
@@ -596,7 +596,7 @@
           "description": "Optional element ID of the Connector that realizes this flow (the 'realizing connector' reference; on an IBD the item flow is draped over this connector).",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 675
+            "line": 624
           }
         },
         {
@@ -606,7 +606,7 @@
           "description": "Optional element ID of the ActivityEdge/ObjectFlow that realizes this flow (the 'realizing activity edge' reference; links the flow to an object flow on an activity diagram).",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 676
+            "line": 625
           }
         },
         {
@@ -616,7 +616,7 @@
           "description": "Optional element ID of the Message that realizes this flow (the 'realizing message' reference; links the flow to a message on a sequence diagram).",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 677
+            "line": 626
           }
         },
         {
@@ -626,13 +626,13 @@
           "description": "Optional documentation text stored as a comment attached to the flow.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 678
+            "line": 627
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 663
+        "line": 612
       },
       "family": "core",
       "description_chars": 1343,
@@ -1579,45 +1579,45 @@
     },
     {
       "name": "saf_add_association_paths",
-      "description": "Draw association path shapes (including composition/aggregation) on an existing diagram, between the classifier shapes already present. Use after saf_create_diagram to show composition relationships on a BDD (e.g. the C1_SCXD requirement that the context block compose the SOI and each context element).\n\nGiven a diagram and a set of Associations (explicit relationshipIds, or all Associations owned by an element - containerId, else the diagram's owner), the tool finds the shape presentations of the two end classifiers already in the diagram and creates a PathElement between them. Any association whose end classifiers are not both already present as shapes is reported as skipped (never created silently).",
+      "description": "Draw relationship paths on an existing diagram, between shapes already present. Use after saf_create_diagram: that tool never draws a relationship as a shape, so a freshly created BDD shows its classifiers unconnected until you call this.\n\nDespite the name it handles every relationship kind, not just Association: association, composition, aggregation, dependency, generalization, abstraction, interface realization and SysML relationships. Only a relationship is accepted; anything else passed in relationshipIds is reported under notRelationships rather than silently ignored.\n\nGiven a diagram and a set of relationships (explicit relationshipIds, or every owned relationship of containerId - else the element owning the diagram), the tool finds the shape presentations of both ends already in the diagram and creates a PathElement between them. A relationship whose ends are not both present as shapes is reported as skipped, never created silently.",
       "arguments": [
         {
           "name": "diagramId",
           "type": "string",
           "required": true,
-          "description": "Element ID of the diagram to add association paths to",
+          "description": "Element ID of the diagram to add relationship paths to",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2474
+            "line": 2494
           }
         },
         {
           "name": "relationshipIds",
           "type": "array",
           "required": false,
-          "description": "Optional list of Association element IDs to draw. If omitted, containerId (or the element owning the diagram) is scanned for owned Associations.",
+          "description": "Optional list of relationship element IDs to draw - association, dependency, generalization, abstraction, interface realization or SysML relationship. If omitted, containerId (or the element owning the diagram) is scanned for owned relationships. The relationshipsSkipped list returned by saf_create_diagram is a ready-made list of the ones worth passing here.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2475
+            "line": 2495
           }
         },
         {
           "name": "containerId",
           "type": "string",
           "required": false,
-          "description": "Optional element whose owned Associations are scanned when relationshipIds is omitted.",
+          "description": "Optional element whose owned relationships are scanned when relationshipIds is omitted.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2476
+            "line": 2496
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 2471
+        "line": 2489
       },
       "family": "saf",
-      "description_chars": 710,
+      "description_chars": 953,
       "required_arguments": 1,
       "optional_arguments": 2,
       "arguments_total": 3
@@ -1633,7 +1633,7 @@
           "description": "Element ID to start the traceability chain from",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1452
+            "line": 1435
           }
         },
         {
@@ -1643,13 +1643,13 @@
           "description": "Maximum BFS traversal depth (default: 3)",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1453
+            "line": 1436
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 1451
+        "line": 1434
       },
       "family": "saf",
       "description_chars": 256,
@@ -1668,7 +1668,7 @@
           "description": "Element ID to check within. Omit to check the entire primary model.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1480
+            "line": 1463
           }
         },
         {
@@ -1678,13 +1678,13 @@
           "description": "List of checks to run. Default: all. Options: orphan_requirements, broken_chains, stereotype_compliance, cross_domain_alignment",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1481
+            "line": 1464
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 1479
+        "line": 1462
       },
       "family": "saf",
       "description_chars": 339,
@@ -1694,7 +1694,7 @@
     },
     {
       "name": "saf_create_diagram",
-      "description": "Create a SAF-conformant diagram.\n\nTHINK FIRST - decide WHICH elements to show. A diagram does NOT show everything owned by an element or package. It deliberately shows a SUBSET: the specific classifiers (and, for an IBD, the specific parts/connectors) that the viewpoint's recipe calls for. Focused views are standard practice - especially IBDs, which highlight only certain aspects. Do not add multiplicity literals, parts-as-floating-blocks on a BDD, or relationship views as shapes.\n\nSELECTIVE (recommended): pass elementIds - add shapes for exactly the elements you chose and nothing else. This is how you build the correct, focused diagram for the viewpoint. Example - System Context BDD: pass the context block and each context element as elementIds, then call saf_add_association_paths to draw the composition links between them. Example - IBD: pass the part properties you want visible; connectors are drawn with the connector/port tools, not as elementIds shapes.\n\nVIEWPOINT-DRIVEN AUTO: omit elementIds and pass a viewpoint (name, VP_ID like C1_SCXD, or ID). The tool walks the viewpoint--exposes->concept--realizes->stereotype/metaclass chain and auto-collects only owned elements whose applied stereotype is one of the viewpoint's realizing stereotypes. This is the correct way to get 'the subset this viewpoint cares about' without guessing per-element domains.\n\nLEGACY AUTO (avoid): omit elementIds and viewpoint to auto-collect the scope element (or all children of parentId). The auto path skips comments, literal integers, and relationship views, but it still cannot represent the deliberate subset each viewpoint needs - so prefer elementIds or the viewpoint arg.\n\nNote: Package-level Association/Composition relationships are NOT rendered as connector lines by this tool - call saf_add_association_paths afterwards to draw them between the shapes you added.",
+      "description": "Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.\n\nThe viewpoint decides the diagram kind. A SAF viewpoint specifies how it is\npresented, so a BDD is a BDD and an IBD is an IBD; passing a kind in would let\na \"conformant\" view come out in the wrong shape, so there is no kind argument.\nA viewpoint whose own presentation asks for a table or matrix has no diagram\nkind to copy, and falls back to a BDD with diagramTypeSource=fallback.\n\nPass elementIds to draw exactly the elements you chose, or a viewpoint\n(name, VP_ID like C1_SCXD, or ID) to collect the elements that viewpoint\nexposes. Passing both draws only elementIds. With neither, every classifier\ndirectly under parentId is drawn.\n\nThe diagram is marked with the viewpoint's view stereotype (SAF_<VP_ID>), so\nsaf_get_viewpoint_views and cameo://saf-views report it as a view of that\nviewpoint rather than as an unmarked diagram.\n\nWHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:\n\n- Relationships are never shapes. Associations, dependencies, generalizations,\n  abstractions and SysML relationships are not drawn at all by this tool, even\n  when they connect two elements that both became shapes. They are listed in\n  relationshipsSkipped. Call saf_add_association_paths to draw them.\n- Comments and literals are never drawn; they carry nothing to show on a\n  diagram and are omitted without being listed.",
       "arguments": [
         {
           "name": "name",
@@ -1703,7 +1703,7 @@
           "description": "Diagram name (e.g. 'Coffee Machine System Context BDD')",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2324
+            "line": 2298
           }
         },
         {
@@ -1713,67 +1713,47 @@
           "description": "Parent package element ID to contain the diagram",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2325
-          }
-        },
-        {
-          "name": "diagramType",
-          "type": "string",
-          "required": false,
-          "description": "Diagram kind. Default: 'Composite Structure Diagram' (IBD). BDD uses 'Class Diagram'. Accepted: friendly names ('Class Diagram', 'Composite Structure Diagram', 'Package Diagram', ...) and UMLConstants-style aliases ('UML_CLASS_DIAGRAM', 'UML_COMPOSITE_STRUCTURE_DIAGRAM', ...).",
-          "decl": {
-            "file": "scripts/saf_tools.groovy",
-            "line": 2326
+            "line": 2299
           }
         },
         {
           "name": "elementIds",
           "type": "array",
           "required": false,
-          "description": "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.",
+          "description": "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected, and the viewpoint then only decides the diagram kind and the view stereotype. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2327
-          }
-        },
-        {
-          "name": "scopeElementId",
-          "type": "string",
-          "required": false,
-          "description": "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds all direct children of parentId. Avoid - prefer elementIds or viewpoint for the correct subset.",
-          "decl": {
-            "file": "scripts/saf_tools.groovy",
-            "line": 2328
-          }
-        },
-        {
-          "name": "includeConnectors",
-          "type": "boolean",
-          "required": false,
-          "description": "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Does NOT render package-level Association/Composition relationships - use saf_add_association_paths for those. Default: false",
-          "decl": {
-            "file": "scripts/saf_tools.groovy",
-            "line": 2329
+            "line": 2300
           }
         },
         {
           "name": "viewpoint",
           "type": "string",
           "required": false,
-          "description": "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). When set (with elementIds omitted), only owned elements that realize one of the viewpoint's exposed concepts are collected - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference. ",
+          "description": "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). Decides the diagram kind and marks the diagram with the viewpoint's view stereotype. When elementIds is omitted, also collects the owned elements that realize one of the viewpoint's exposed concepts - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2330
+            "line": 2301
           }
         },
         {
-          "name": "domainFilter",
+          "name": "scopeElementId",
           "type": "string",
           "required": false,
-          "description": "DEPRECATED. Ignored when viewpoint is set. Inferres elements by per-element domain - use viewpoint instead. Only elements matching this domain are added (auto path only).",
+          "description": "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds the classifiers directly under parentId. Avoid - prefer elementIds or viewpoint for the correct subset.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2331
+            "line": 2302
+          }
+        },
+        {
+          "name": "includeConnectors",
+          "type": "boolean",
+          "required": false,
+          "description": "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_association_paths. Default: false",
+          "decl": {
+            "file": "scripts/saf_tools.groovy",
+            "line": 2303
           }
         },
         {
@@ -1783,19 +1763,19 @@
           "description": "Max recursion depth when auto-collecting owned elements. Default: 2",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2332
+            "line": 2304
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 2313
+        "line": 2273
       },
       "family": "saf",
-      "description_chars": 1876,
+      "description_chars": 1421,
       "required_arguments": 2,
-      "optional_arguments": 7,
-      "arguments_total": 9
+      "optional_arguments": 5,
+      "arguments_total": 7
     },
     {
       "name": "saf_create_element",
@@ -1808,7 +1788,7 @@
           "description": "SAF concept kind (case-insensitive, underscores for spaces). Required.\n\nCommon kinds:\n- 'system_requirement' → Class with SAF_SystemRequirement stereotype\n- 'conceptual_system' → Class with SAF_ConceptualSystem stereotype  \n- 'physical_system' → Class with SAF_PhysicalSystem stereotype\n- 'operational_performer' → Class with SAF_OperationalPerformer stereotype\n- 'stakeholder' → Class with SAF_Stakeholder stereotype\n- 'concern' → Comment with SAF_Concern stereotype\n- 'mission' → Class with SAF_Mission stereotype\n- 'conceptual_function' → Activity with SAF_ConceptualFunction stereotype\n- 'proxy_port' → ProxyPort with SAF_ProxyPort stereotype\n\nFull list of ~90+ kinds loaded from SAF spec at startup. Error message shows valid kinds if kind is unknown.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 223
+            "line": 195
           }
         },
         {
@@ -1818,7 +1798,7 @@
           "description": "Name for the new element (e.g., 'FFDS System', 'Fire Chief', 'REQ-001'). Required.\n\nUse meaningful names that reflect the element's purpose in your architecture.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 237
+            "line": 209
           }
         },
         {
@@ -1828,7 +1808,7 @@
           "description": "Element ID of the parent package to contain the element. Required.\n\nGet parent IDs from:\n- create_element(type='Package', ...) returns {id, ...}\n- saf_find_elements_by_type(type='Package') \n- get parent IDs from the cameo://element/{id} resource on a package\n- Model browser in Cameo\n\nElements must have a parent package. Create one first if needed.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 240
+            "line": 212
           }
         },
         {
@@ -1838,13 +1818,13 @@
           "description": "Optional documentation text stored as a comment attached to the element.\n\nUse this for descriptions, rationales, or additional context. Example: 'This system handles fire detection and suppression in commercial buildings.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 249
+            "line": 221
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 200
+        "line": 172
       },
       "family": "saf",
       "description_chars": 1490,
@@ -1854,7 +1834,7 @@
     },
     {
       "name": "saf_create_relationship",
-      "description": "Create a relationship between two elements using SAF semantics. SAF relationship types (satisfy, derive, trace, refine, verify, allocate) automatically apply the correct SysML base type and SAF stereotype. Also supports raw SysML types (composition, dependency, generalization, association, controlflow, objectflow, connector). Returns the relationship ID.\n\nUse this tool when:\n- Linking requirements to systems/functions (satisfy, verify)\n- Tracing requirement dependencies (derive, trace)\n- Refining concepts across viewpoints (refine: operational→conceptual→physical)\n- Allocating functions to systems (allocate)\n- Building system composition hierarchies (composition)\n\nSAF relationship types (apply stereotypes automatically):\n- 'satisfy': Requirement → System/Function (abstraction + <<Satisfy>>)\n- 'derive': Requirement → Requirement (abstraction + <<DeriveReqt>>)  \n- 'trace': Requirement → Requirement (abstraction + <<Trace>>)\n- 'refine': Abstract → Concrete across viewpoints (abstraction + <<Refine>>); for known source/target SAF kinds the matching specific SAF stereotype is applied automatically instead (e.g. functional requirement → system function becomes <<SAF_SystemFunctionalRequirementRefinement>>)\n- 'verify': Requirement → Test/Verification (abstraction + <<Verify>>)\n- 'allocate': Function/Capability → System (dependency + <<allocate>>)\n\nRaw SysML types (no stereotype):\n- 'composition': Whole → Part (strong ownership)\n- 'aggregation': Whole → Part (weak ownership, uses association)\n- 'dependency': Client → Supplier\n- 'generalization': Specific → General (inheritance)\n- 'controlflow': ActivityNode → ActivityNode\n- 'objectflow': ActivityNode → ActivityNode  \n- 'connector': Connector between elements\n- 'association': Generic association\n\nReturns: {id, type, sysmlType, stereotype, sourceId, targetId}\n\nExample workflows:\n1. Requirement satisfaction:\n   - Create requirement: saf_create_element(kind='system_requirement', ...)\n   - Create system: saf_create_element(kind='conceptual_system', ...)\n   - Link: saf_create_relationship(type='satisfy', sourceId='<req-id>', targetId='<sys-id>')\n\n2. Cross-viewpoint refinement:\n   - Operational: saf_create_element(kind='operational_capability', ...)\n   - Conceptual: saf_create_element(kind='conceptual_function', ...)\n   - Refine: saf_create_relationship(type='refine', sourceId='<conceptual-id>', targetId='<operational-id>')\n\n3. System composition:\n   - Parent system: saf_create_element(kind='physical_system', name='Vehicle')\n   - Subsystem: saf_create_element(kind='physical_system', name='Engine')\n   - Compose: saf_create_relationship(type='composition', sourceId='<vehicle-id>', targetId='<engine-id>')",
+      "description": "Create a relationship between two elements. 'type' selects a UML metaclass and, for the six SAF aliases, also applies a SAF stereotype. Returns the relationship ID.\n\nSAF aliases (metaclass + stereotype):\n- 'satisfy': abstraction + <<Satisfy>>   Requirement → System/Function\n- 'derive':  abstraction + <<DeriveReqt>>  Requirement → Requirement\n- 'trace':   abstraction + <<Trace>>      Requirement → Requirement\n- 'refine':  abstraction + <<Refine>>     Abstract → Concrete\n  For known source/target SAF kinds a more specific stereotype is applied instead, e.g. functional requirement → system function becomes <<SAF_SystemFunctionalRequirementRefinement>>\n- 'verify':  abstraction + <<Verify>>     Requirement → Test\n- 'allocate': dependency + <<Allocate>>   Function/Capability → System\n\nPlain UML metaclasses (no stereotype):\n- 'composition': Association with composite aggregation   Whole → Part\n- 'aggregation': Association with shared aggregation     Whole → Part\n- 'dependency':  Dependency                              Client → Supplier\n- 'generalization': Generalization                       Specific → General\n- 'controlflow' / 'objectflow': ControlFlow / ObjectFlow ActivityNode → ActivityNode\n- 'connector':  Connector\n- 'association': Association\n\nReturns {id, type, sysmlType, stereotype, sourceId, targetId}, where sysmlType is the UML metaclass instantiated.",
       "arguments": [
         {
           "name": "type",
@@ -1863,7 +1843,7 @@
           "description": "Relationship type. Required.\n\nSAF types (with stereotypes): 'satisfy', 'derive', 'trace', 'refine', 'verify', 'allocate'\nSysML types (no stereotype): 'composition', 'aggregation', 'dependency', 'generalization', 'controlflow', 'objectflow', 'connector', 'association'\n\nDefault: 'dependency' if not specified.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 531
+            "line": 480
           }
         },
         {
@@ -1873,7 +1853,7 @@
           "description": "Element ID of the source (client/specific/whole) element. Required.\n\nFor SAF relationships:\n- satisfy: requirement is source, system/function is target\n- refine: more-specific/concrete is source, more-abstract is target  \n- allocate: capability/function is source, system is target\n\nGet IDs from saf_find_elements_by_type(), the cameo://element/{id} resource, or creation responses.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 537
+            "line": 486
           }
         },
         {
@@ -1883,42 +1863,42 @@
           "description": "Element ID of the target (supplier/general/part) element. Required.\n\nFor SAF relationships:\n- satisfy: system/function that satisfies the requirement\n- refine: abstracted capability/system being refined\n- allocate: system that is allocated the function/capability\n\nGet IDs from saf_find_elements_by_type(), the cameo://element/{id} resource, or creation responses.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 545
+            "line": 494
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 487
+        "line": 459
       },
       "family": "saf",
-      "description_chars": 2685,
+      "description_chars": 1375,
       "required_arguments": 0,
       "optional_arguments": 3,
       "arguments_total": 3
     },
     {
       "name": "saf_export_viewpoint",
-      "description": "Export a SAF viewpoint as structured data. Returns all matching elements with safKind, safDomain, tagged values, and intra-viewpoint relationship edges. Filter by domain (architecture_management, operational, conceptual, physical) and/or aspect (requirement, structure, behavior, interface, context, traceability). Useful for reporting and downloading.",
+      "description": "Export a SAF viewpoint as structured data. Returns all matching elements with safKind, safDomain, tagged values, and intra-viewpoint relationship edges.\nDomain and aspect take the SAF name or the short code from a viewpoint's VP_ID (domains A, C, D, O, P; aspects 1-8); unknown spellings are resolved by similarity search and reported under \"viewpoint\". Omit to include all.",
       "arguments": [
         {
           "name": "domain",
           "type": "string",
           "required": false,
-          "description": "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all.",
+          "description": "SAF domain name or short code: Architecture Management (A), Conceptual (C), SAF Development (D), Operational (O), Physical (P). Omit to include all.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1756
+            "line": 1713
           }
         },
         {
           "name": "aspect",
           "type": "string",
           "required": false,
-          "description": "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all.",
+          "description": "SAF aspect name or short id: Context & Exchange (1), Taxonomy & Structure (2), Process & Behavior (3), Interaction & Collaboration (4), Interface (5), Requirement (6), Safety & Security (7), Traceability & Mapping (8). Omit to include all.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1757
+            "line": 1714
           }
         },
         {
@@ -1928,16 +1908,16 @@
           "description": "Element ID to export from. Omit to export from the entire primary model.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1758
+            "line": 1715
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 1755
+        "line": 1711
       },
       "family": "saf",
-      "description_chars": 352,
+      "description_chars": 374,
       "required_arguments": 0,
       "optional_arguments": 3,
       "arguments_total": 3
@@ -1953,7 +1933,7 @@
           "description": "Substring to match against element human-readable type (case-insensitive). Leave empty to match all. Common SysML types: cameo://tool/stereotype-search.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1318
+            "line": 1322
           }
         },
         {
@@ -1963,7 +1943,7 @@
           "description": "Substring to match against applied stereotype names (case-insensitive). Leave empty to match all. Naming convention + examples: cameo://tool/stereotype-search.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1319
+            "line": 1323
           }
         },
         {
@@ -1973,7 +1953,7 @@
           "description": "Substring to match against element names (case-insensitive). Leave empty to match all.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1320
+            "line": 1324
           }
         },
         {
@@ -1983,13 +1963,13 @@
           "description": "Element ID to search within instead of the entire primary model. Omit to search the whole model. Get parent IDs from prior search results or the cameo://element/{id} resource.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1321
+            "line": 1325
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 1317
+        "line": 1321
       },
       "family": "saf",
       "description_chars": 715,
@@ -1999,7 +1979,7 @@
     },
     {
       "name": "saf_get_element_semantics",
-      "description": "Get the SAF interpretation of one or more elements by ID: which SAF concept kind each element realizes (safKind), which SAF domain (architecture_management/operational/conceptual/physical), and which SAF viewpoints use that kind. This is the ONLY SAF-interpretation read — for raw model facts (name, stereotypes, tagged values, owned elements, relationships) use the cameo://element/{id} resource and its /children and /relationships slices instead. Batch input: pass all element IDs whose semantics you want, in one call (e.g. to annotate every result of saf_find_elements_by_type).\n\nAMBIGUITY-AWARE: a single SAF stereotype can realize SEVERAL concept kinds (e.g. ItemFlow realizes Conceptual/Operational/Physical Item Exchange simultaneously). This tool never hides that. Every row carries:\n- candidateKinds: the FULL list of distinct concept kinds the element's stereootypes realize, each with {kind, concept, stereotype, domain}\n- ambiguous: true iff more than one distinct candidate kind applies\n- safKind/safDomain: the resolved kind/domain when it can be uniquely determined — the single candidate, OR the candidate selected by context (the element's conveyed/source/target ends' domain when it narrows to exactly one); otherwise safKind/safDomain are empty strings\n- disambiguation (only when context resolved an ambiguity): a human-readable note of which context signal >selected the kind\nSo a row for an ItemFlow that conveys a conceptual item shows candidateKinds with all three item-exchange kinds and a safKind narrowed to the conceptual one when the conveyed classifier's own domain says so.\n\nUse this tool when:\n- You have element IDs from a search and need their SAF meaning (kind, domain, viewpoints)\n- You want to annotate finder results without a per-element roundtrip\n- You need requirement id/text (included as 'requirement' when the element is a requirement kind)\n\nDo NOT use this tool for: raw tagged values, owned elements, or relationship lists — those are resource reads.\n\nReturns a list, one object per element:\n- id, name, type, stereotypes[]\n- safKind (e.g. 'conceptual_system'), safDomain (e.g. 'conceptual')\n- ambiguous, candidateKinds, disambiguation (see AMBIGUITY-AWARE above)\n- viewpoints: [{id, vpId, name}] — SAF viewpoints that expose the element's concept kind(s)\n- requirement: {id, text} when the element carries SAF_SystemRequirement (incl. EAP-migrated StringTaggedValue text)\n- error: \"Element not found: <id>\" for unresolvable IDs\n\nExample workflow:\n1. Search: saf_find_elements_by_type(stereotype='SAF_SystemRequirement', name='FFDS')\n2. Annotate: saf_get_element_semantics(elementIds=['<id1>', '<id2>', ...])\n3. Read requirements' id/text from the 'requirement' field",
+      "description": "Get the SAF interpretation of one or more elements by ID: which SAF concept kind each element realizes (safKind), which SAF domain (architecture_management/operational/conceptual/physical), and which viewpoints use that kind. Pass all element IDs in one call to annotate a whole finder result.\n\nThis is the ONLY SAF-interpretation read. For raw model facts (name, stereotypes, tagged values, owned elements, relationships) use the cameo://element/{id} resource and its /children and /relationships slices.\n\nA single SAF stereotype can realize several concept kinds, so a row also carries candidateKinds (every applicable kind, each with kind/concept/stereotype/domain) and ambiguous. safKind/safDomain are empty when no single candidate applies.\n\nReturns one object per element: id, name, type, stereotypes[], safKind, safDomain, ambiguous, candidateKinds, disambiguation, viewpoints: [{id, vpId, name}], requirement: {id, text} for requirement kinds, error for unresolvable IDs.",
       "arguments": [
         {
           "name": "elementIds",
@@ -2008,42 +1988,42 @@
           "description": "Element IDs to interpret. Required. Batch input — annotate many elements in one call.\n\nGet element IDs from:\n- saf_find_elements_by_type() results\n- find_elements_by_type() results\n- cameo://element/{id}/children slices\n- Model browser in Cameo (right-click → Copy ID)",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1397
+            "line": 1380
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 1369
+        "line": 1373
       },
       "family": "saf",
-      "description_chars": 2715,
+      "description_chars": 979,
       "required_arguments": 0,
       "optional_arguments": 1,
       "arguments_total": 1
     },
     {
       "name": "saf_get_viewpoint_views",
-      "description": "Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by short code (AM=architecture_management, OV=operational, CV=conceptual, PV=physical) or by full domain name. Returns diagrams sorted by conformance score. Optionally include diagram element content.\n\nOnly domain codes are supported: AM, OV, CV, PV. For specific sub-viewpoints (e.g., C1_SCXD, O2_OPFR), use spec_get_viewpoint instead.",
+      "description": "Find diagrams that conform to a SAF viewpoint. Identify the viewpoint by its SAF domain short code - the letter in a viewpoint's VP_ID: A (Architecture Management), C (Conceptual), D (SAF Development), O (Operational), P (Physical) - or by the domain name. An unknown spelling is resolved by similarity search and the readings are reported back. Returns diagrams sorted by conformance score. Optionally include diagram element content.\n\nFor a specific sub-viewpoint (e.g. C1_SCXD, O2_OPFR), use spec_get_viewpoint instead.",
       "arguments": [
         {
           "name": "viewpointCode",
           "type": "string",
           "required": false,
-          "description": "Viewpoint short code: AM, OV, CV, or PV. Mutually exclusive with viewpointName. For sub-viewpoint codes (e.g., C1_SCXD), use spec_get_viewpoint instead.",
+          "description": "SAF domain short code: A, C, D, O or P. Mutually exclusive with viewpointName. For sub-viewpoint codes (e.g. C1_SCXD), use spec_get_viewpoint instead.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1595
+            "line": 1578
           }
         },
         {
           "name": "viewpointName",
           "type": "string",
           "required": false,
-          "description": "Viewpoint domain name: architecture_management, operational, conceptual, physical. Mutually exclusive with viewpointCode.",
+          "description": "SAF domain name: Architecture Management, Conceptual, SAF Development, Operational, Physical. Mutually exclusive with viewpointCode.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1596
+            "line": 1579
           }
         },
         {
@@ -2053,7 +2033,7 @@
           "description": "Element ID to search diagrams within. Omit to search the entire model.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1597
+            "line": 1580
           }
         },
         {
@@ -2063,42 +2043,42 @@
           "description": "If true, include diagram element details in results (default: false)",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 1598
+            "line": 1581
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 1592
+        "line": 1575
       },
       "family": "saf",
-      "description_chars": 406,
+      "description_chars": 522,
       "required_arguments": 0,
       "optional_arguments": 4,
       "arguments_total": 4
     },
     {
       "name": "saf_query_viewpoint",
-      "description": "Query model elements filtered by SAF viewpoint domain and optional aspect. Returns elements whose stereotypes match the viewpoint's element kinds. Valid domains: architecture_management, operational, conceptual, physical. Valid aspects: requirement, structure, behavior, interface, context, traceability. Omit both to get all SAF elements.\n\nAll parameters are case-insensitive — don't retry with different casing.\nUse spec_list_stereotypes to see all available stereotype names in the model.",
+      "description": "Query model elements belonging to a SAF viewpoint grid cell.\n\nDomain and aspect are resolved against the SAF vocabulary in the spec data (domains.json / aspects.json). Pass the SAF name (\"Physical\", \"Context & Exchange\") or the short code taken from a viewpoint's VP_ID — domain \"P\", aspect \"1\"; C1_SCXD is Conceptual x Context & Exchange. An unknown spelling is resolved by similarity search: the closest readings are applied and reported in the result as \"interpreted\" plus the ranked candidates, so the reading can be checked. Omit both to search all domains and aspects.\n\nThe matching viewpoints' exposed concepts decide the result; an element matches when it carries one of those concepts as an applied stereotype. An empty \"elements\" list means the cell resolved but no element of the model carries those stereotypes - that is not an error. A domain or aspect matching no SAF value returns an error listing the available values and the grid cells in use.\nUse spec_list_stereotypes to see all available stereotype names in the model.",
       "arguments": [
         {
           "name": "domain",
           "type": "string",
           "required": false,
-          "description": "SAF domain: architecture_management, operational, conceptual, physical. Omit to include all domains. Case-insensitive.",
+          "description": "SAF domain name or short code: Architecture Management (A), Conceptual (C), SAF Development (D), Operational (O), Physical (P). Omit to include all domains.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 988
+            "line": 939
           }
         },
         {
           "name": "aspect",
           "type": "string",
           "required": false,
-          "description": "SAF aspect: requirement, structure, behavior, interface, context, traceability. Omit to include all aspects. Case-insensitive.",
+          "description": "SAF aspect name or short id: Context & Exchange (1), Taxonomy & Structure (2), Process & Behavior (3), Interaction & Collaboration (4), Interface (5), Requirement (6), Safety & Security (7), Traceability & Mapping (8). Omit to include all aspects.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 989
+            "line": 940
           }
         },
         {
@@ -2108,16 +2088,16 @@
           "description": "Element ID to search within. Omit to search the entire primary model.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 990
+            "line": 941
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 984
+        "line": 933
       },
       "family": "saf",
-      "description_chars": 491,
+      "description_chars": 1038,
       "required_arguments": 0,
       "optional_arguments": 3,
       "arguments_total": 3
@@ -2133,7 +2113,7 @@
           "description": "Element ID of the requirement element. Required.\n\nGet from saf_create_element() response or saf_find_elements_by_type(stereotype='SAF_SystemRequirement').",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 392
+            "line": 364
           }
         },
         {
@@ -2143,7 +2123,7 @@
           "description": "Requirement identifier for traceability and reference. Required.\n\nExamples: 'REQ-001', 'SYS-REQ-2.1', 'FR-101', 'SAFETY-REQ-5'\nUse a consistent naming convention for your project.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 395
+            "line": 367
           }
         },
         {
@@ -2153,13 +2133,13 @@
           "description": "Requirement statement text. Required.\n\nWrite clear, unambiguous requirements using standard formats:\n- \"The system shall...\" (functional)\n- \"The system shall respond within X seconds\" (performance)  \n- \"The probability of failure shall be less than Y\" (reliability)\n\nExample: 'The FFDS system shall detect smoke in any protected area within 10 seconds of smoke reaching the detector.'",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 399
+            "line": 371
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 367
+        "line": 339
       },
       "family": "saf",
       "description_chars": 1506,
@@ -2178,7 +2158,7 @@
           "description": "Element ID of the System Use Case (UML UseCase). Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 330
+            "line": 302
           }
         },
         {
@@ -2188,13 +2168,13 @@
           "description": "Element ID of the classifier block to set as subject (e.g. the context block or SOI). Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 331
+            "line": 303
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 324
+        "line": 296
       },
       "family": "saf",
       "description_chars": 572,
@@ -2248,7 +2228,7 @@
           "description": "Element ID of the InformationFlow/ItemFlow to update. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 783
+            "line": 732
           }
         },
         {
@@ -2258,7 +2238,7 @@
           "description": "Optional element ID of the Connector that realizes this flow. Replaces the flow's realizingConnector list. Required unless another realizing* is given.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 784
+            "line": 733
           }
         },
         {
@@ -2268,7 +2248,7 @@
           "description": "Optional element ID of the ActivityEdge/ObjectFlow (activity diagram object flow) that realizes this flow. Replaces the flow's realizingActivityEdge list. Required unless another realizing* is given.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 785
+            "line": 734
           }
         },
         {
@@ -2278,13 +2258,13 @@
           "description": "Optional element ID of the Message (sequence diagram message) that realizes this flow. Replaces the flow's realizingMessage list. Required unless another realizing* is given.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 786
+            "line": 735
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 780
+        "line": 729
       },
       "family": "core",
       "description_chars": 808,
@@ -2303,7 +2283,7 @@
           "description": "Element ID of the InformationFlow/ItemFlow to update. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 866
+            "line": 815
           }
         },
         {
@@ -2313,13 +2293,13 @@
           "description": "Element ID of the Connector that realizes this flow. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 867
+            "line": 816
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 865
+        "line": 814
       },
       "family": "core",
       "description_chars": 426,
@@ -2373,7 +2353,7 @@
           "description": "Element ID of the Message Occurrence Specification (or Occurrence Specification) whose 'covered' to set. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 949
+            "line": 898
           }
         },
         {
@@ -2383,13 +2363,13 @@
           "description": "Element ID of the Lifeline this occurrence covers. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 950
+            "line": 899
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 948
+        "line": 897
       },
       "family": "core",
       "description_chars": 635,
@@ -2408,7 +2388,7 @@
           "description": "Element ID of the Message whose event ends to fill in. Required.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 875
+            "line": 824
           }
         },
         {
@@ -2418,7 +2398,7 @@
           "description": "Optional element ID of the Lifeline the send event sits on (sets the occurrence's 'covered').",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 876
+            "line": 825
           }
         },
         {
@@ -2428,13 +2408,13 @@
           "description": "Optional element ID of the Lifeline the receive event sits on (sets the occurrence's 'covered').",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 877
+            "line": 826
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 874
+        "line": 823
       },
       "family": "core",
       "description_chars": 753,

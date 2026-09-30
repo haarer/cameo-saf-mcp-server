@@ -1,29 +1,29 @@
 {
-  "note": "surface as declared by scripts/*.groovy at plugin 59ab707; ground truth 75 tools / 174 args / 12 resources / 1 prompt. Analyzer pinned by tests/harness_test.py (21 checks).",
+  "note": "saf_create_diagram now auto-selects the kind from the viewpoint and states what it does not draw; its description shrank 1876->1421 chars and its optional args 7->5, resolving two oversized-description warnings. The info count rises because the analyzer reports the longest descriptions and the diagram tools now explain their limits honestly.",
   "budgets": {},
   "report": {
     "surface": "v1",
-    "generated": "2026-09-26T06:11:15Z",
+    "generated": "2026-09-30T06:59:48Z",
     "source": "groovy-scripts",
     "headline": {
       "tools": 75,
-      "arguments": 174,
+      "arguments": 172,
       "resources": 12,
       "prompts": 1,
-      "approx_description_tokens": 16142,
-      "warn": 6,
-      "info": 25
+      "approx_description_tokens": 15526,
+      "warn": 4,
+      "info": 28
     },
     "metrics": {
       "context_cost": {
-        "tool_description_chars": 37768,
-        "argument_description_chars": 20345,
-        "argument_name_overhead_chars": 3661,
-        "total_description_chars": 58113,
-        "approx_tokens": 16142,
+        "tool_description_chars": 35195,
+        "argument_description_chars": 20699,
+        "argument_name_overhead_chars": 3614,
+        "total_description_chars": 55894,
+        "approx_tokens": 15526,
         "tools": 75,
-        "arguments": 174,
-        "approx_tokens_per_tool": 775,
+        "arguments": 172,
+        "approx_tokens_per_tool": 745,
         "chars_per_tool": {
           "admin_apply_profile": 338,
           "admin_close_model": 107,
@@ -63,17 +63,17 @@
           "modify_element": 160,
           "plugincode_introspect": 1286,
           "remove_stereotype": 151,
-          "saf_add_association_paths": 710,
+          "saf_add_association_paths": 953,
           "saf_build_traceability_chain": 256,
           "saf_check_consistency": 339,
-          "saf_create_diagram": 1876,
+          "saf_create_diagram": 1421,
           "saf_create_element": 1490,
-          "saf_create_relationship": 2685,
-          "saf_export_viewpoint": 352,
+          "saf_create_relationship": 1375,
+          "saf_export_viewpoint": 374,
           "saf_find_elements_by_type": 715,
-          "saf_get_element_semantics": 2715,
-          "saf_get_viewpoint_views": 406,
-          "saf_query_viewpoint": 491,
+          "saf_get_element_semantics": 979,
+          "saf_get_viewpoint_views": 522,
+          "saf_query_viewpoint": 1038,
           "saf_set_requirement_tags": 1506,
           "saf_set_use_case_subject": 572,
           "set_constrained_element": 515,
@@ -107,40 +107,34 @@
         "error_above_chars": 2000,
         "over_warn": [
           {
-            "name": "saf_get_element_semantics",
-            "chars": 2715,
-            "file": "scripts/saf_tools.groovy",
-            "line": 1369
-          },
-          {
-            "name": "saf_create_relationship",
-            "chars": 2685,
-            "file": "scripts/saf_tools.groovy",
-            "line": 487
-          },
-          {
-            "name": "saf_create_diagram",
-            "chars": 1876,
-            "file": "scripts/saf_tools.groovy",
-            "line": 2313
-          },
-          {
             "name": "saf_set_requirement_tags",
             "chars": 1506,
             "file": "scripts/saf_tools.groovy",
-            "line": 367
+            "line": 339
           },
           {
             "name": "saf_create_element",
             "chars": 1490,
             "file": "scripts/saf_tools.groovy",
-            "line": 200
+            "line": 172
+          },
+          {
+            "name": "saf_create_diagram",
+            "chars": 1421,
+            "file": "scripts/saf_tools.groovy",
+            "line": 2273
+          },
+          {
+            "name": "saf_create_relationship",
+            "chars": 1375,
+            "file": "scripts/saf_tools.groovy",
+            "line": 459
           },
           {
             "name": "create_information_flow",
             "chars": 1343,
             "file": "scripts/saf_tools.groovy",
-            "line": 663
+            "line": 612
           },
           {
             "name": "plugincode_introspect",
@@ -155,10 +149,28 @@
             "line": 135
           },
           {
+            "name": "saf_query_viewpoint",
+            "chars": 1038,
+            "file": "scripts/saf_tools.groovy",
+            "line": 933
+          },
+          {
             "name": "modelcode_spec_update",
             "chars": 992,
             "file": "scripts/modelcode.groovy",
             "line": 72
+          },
+          {
+            "name": "saf_get_element_semantics",
+            "chars": 979,
+            "file": "scripts/saf_tools.groovy",
+            "line": 1373
+          },
+          {
+            "name": "saf_add_association_paths",
+            "chars": 953,
+            "file": "scripts/saf_tools.groovy",
+            "line": 2489
           },
           {
             "name": "diff",
@@ -176,25 +188,12 @@
             "name": "set_information_flow_realizing",
             "chars": 808,
             "file": "scripts/saf_tools.groovy",
-            "line": 780
+            "line": 729
           }
         ],
-        "over_error": [
-          {
-            "name": "saf_get_element_semantics",
-            "chars": 2715,
-            "file": "scripts/saf_tools.groovy",
-            "line": 1369
-          },
-          {
-            "name": "saf_create_relationship",
-            "chars": 2685,
-            "file": "scripts/saf_tools.groovy",
-            "line": 487
-          }
-        ],
+        "over_error": [],
         "median_chars": 338,
-        "max_chars": 2715
+        "max_chars": 1506
       },
       "names": {
         "duplicate_names": [],
@@ -238,12 +237,6 @@
             "name": "find_elements_by_type",
             "total": 7,
             "required": 0,
-            "optional": 7
-          },
-          {
-            "name": "saf_create_diagram",
-            "total": 9,
-            "required": 2,
             "optional": 7
           }
         ],
@@ -346,12 +339,6 @@
             "optional": 9
           },
           {
-            "name": "saf_create_diagram",
-            "total": 9,
-            "required": 2,
-            "optional": 7
-          },
-          {
             "name": "create_connector",
             "total": 8,
             "required": 5,
@@ -362,6 +349,12 @@
             "total": 7,
             "required": 0,
             "optional": 7
+          },
+          {
+            "name": "saf_create_diagram",
+            "total": 7,
+            "required": 2,
+            "optional": 5
           },
           {
             "name": "create_association_class",
@@ -832,7 +825,7 @@
               "saf_create_relationship"
             ],
             "most_documented": "saf_create_relationship",
-            "self_similarity": 0.222,
+            "self_similarity": 0.292,
             "boundary_documented": false,
             "cross_references": {
               "saf_create_relationship": null,
@@ -867,8 +860,6 @@
           "get_model_info",
           "logging_demo",
           "remove_stereotype",
-          "saf_add_association_paths",
-          "saf_create_diagram",
           "set_multiplicity",
           "set_tagged_values",
           "spec_get_concept",
@@ -913,14 +904,15 @@
           "modelcode_validation_run",
           "modify_element",
           "remove_stereotype",
-          "saf_add_association_paths",
           "saf_build_traceability_chain",
           "saf_check_consistency",
           "saf_create_element",
           "saf_create_relationship",
           "saf_export_viewpoint",
           "saf_find_elements_by_type",
+          "saf_get_element_semantics",
           "saf_get_viewpoint_views",
+          "saf_query_viewpoint",
           "saf_set_requirement_tags",
           "set_constrained_element",
           "set_information_flow_realizing",
@@ -949,8 +941,8 @@
         "arguments_without_description": [],
         "counts": {
           "tools": 75,
-          "without_usage_guidance": 18,
-          "without_boundary_guidance": 67,
+          "without_usage_guidance": 16,
+          "without_boundary_guidance": 68,
           "arguments_without_description": 0
         }
       }
@@ -959,7 +951,7 @@
       {
         "rule": "3",
         "severity": "warn",
-        "message": "18/75 tools never say when to use them",
+        "message": "16/75 tools never say when to use them",
         "subject": null,
         "suggestion": "Add one 'Use this when ...' line; tool selection is where a small model actually fails.",
         "evidence": {
@@ -973,8 +965,6 @@
             "get_model_info",
             "logging_demo",
             "remove_stereotype",
-            "saf_add_association_paths",
-            "saf_create_diagram",
             "set_multiplicity",
             "set_tagged_values",
             "spec_get_concept",
@@ -983,26 +973,6 @@
             "spec_list_stereotypes",
             "validation_introspect"
           ]
-        }
-      },
-      {
-        "rule": "3",
-        "severity": "warn",
-        "message": "description is 2685 chars (budget 2000)",
-        "subject": "saf_create_relationship",
-        "suggestion": "Split the reference material into a deep-contract resource (`cameo://tool/*`) and keep the card to intent + when-to-use.",
-        "evidence": {
-          "decl": "scripts/saf_tools.groovy:487"
-        }
-      },
-      {
-        "rule": "3",
-        "severity": "warn",
-        "message": "description is 2715 chars (budget 2000)",
-        "subject": "saf_get_element_semantics",
-        "suggestion": "Split the reference material into a deep-contract resource (`cameo://tool/*`) and keep the card to intent + when-to-use.",
-        "evidence": {
-          "decl": "scripts/saf_tools.groovy:1369"
         }
       },
       {
@@ -1016,7 +986,7 @@
       {
         "rule": "8",
         "severity": "warn",
-        "message": "`create_relationship` / `saf_create_relationship` share the stem `create_relationship` with no stated boundary (self-similarity 0.222, refs {'saf_create_relationship': None, 'create_relationship': 'dispatches'})",
+        "message": "`create_relationship` / `saf_create_relationship` share the stem `create_relationship` with no stated boundary (self-similarity 0.292, refs {'saf_create_relationship': None, 'create_relationship': 'dispatches'})",
         "subject": "create_relationship",
         "suggestion": "Same stem in two prefixes forces the model to compare them blind. State which one to use, or merge them.",
         "evidence": {}
@@ -1046,7 +1016,7 @@
       {
         "rule": "1",
         "severity": "info",
-        "message": "75 tools, 174 arguments, ~16142 description tokens (775/tool)",
+        "message": "75 tools, 172 arguments, ~15526 description tokens (745/tool)",
         "subject": null,
         "suggestion": "Tool count alone is not a target. Use it to compare surfaces, then let task success decide.",
         "evidence": {}
@@ -1078,7 +1048,7 @@
       {
         "rule": "3",
         "severity": "info",
-        "message": "67 tools give no 'do not use this when' guidance",
+        "message": "68 tools give no 'do not use this when' guidance",
         "subject": "admin_apply_profile",
         "suggestion": null,
         "evidence": {
@@ -1118,14 +1088,15 @@
             "modelcode_validation_run",
             "modify_element",
             "remove_stereotype",
-            "saf_add_association_paths",
             "saf_build_traceability_chain",
             "saf_check_consistency",
             "saf_create_element",
             "saf_create_relationship",
             "saf_export_viewpoint",
             "saf_find_elements_by_type",
+            "saf_get_element_semantics",
             "saf_get_viewpoint_views",
+            "saf_query_viewpoint",
             "saf_set_requirement_tags",
             "set_constrained_element",
             "set_information_flow_realizing",
@@ -1156,6 +1127,14 @@
       {
         "rule": "3",
         "severity": "info",
+        "message": "description is 1038 chars",
+        "subject": "saf_query_viewpoint",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
         "message": "description is 1052 chars",
         "subject": "create_part",
         "suggestion": null,
@@ -1180,6 +1159,22 @@
       {
         "rule": "3",
         "severity": "info",
+        "message": "description is 1375 chars",
+        "subject": "saf_create_relationship",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1421 chars",
+        "subject": "saf_create_diagram",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
         "message": "description is 1490 chars",
         "subject": "saf_create_element",
         "suggestion": null,
@@ -1190,14 +1185,6 @@
         "severity": "info",
         "message": "description is 1506 chars",
         "subject": "saf_set_requirement_tags",
-        "suggestion": null,
-        "evidence": {}
-      },
-      {
-        "rule": "3",
-        "severity": "info",
-        "message": "description is 1876 chars",
-        "subject": "saf_create_diagram",
         "suggestion": null,
         "evidence": {}
       },
@@ -1222,6 +1209,22 @@
         "severity": "info",
         "message": "description is 946 chars",
         "subject": "diff",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 953 chars",
+        "subject": "saf_add_association_paths",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 979 chars",
+        "subject": "saf_get_element_semantics",
         "suggestion": null,
         "evidence": {}
       },
@@ -1286,14 +1289,6 @@
         "severity": "info",
         "message": "7 optional arguments",
         "subject": "find_elements_by_type",
-        "suggestion": null,
-        "evidence": {}
-      },
-      {
-        "rule": "4",
-        "severity": "info",
-        "message": "7 optional arguments",
-        "subject": "saf_create_diagram",
         "suggestion": null,
         "evidence": {}
       },
