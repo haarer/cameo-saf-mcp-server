@@ -74,8 +74,21 @@ for leg in "${MATRIX[@]}"; do
   echo "PASS  target=$target"
 done
 
-# Same step as the compile job: the static viewpoint->diagram-type table must
-# stay in step with _data/viewpoints.json.
+# Same steps as the compile job. gradle builds the Java layer only and a
+# Groovy parse check never resolves a type, so a bad type reference in one
+# script silently takes down every Groovy-registered tool at runtime.
+echo
+echo "==================================================="
+echo "  Groovy scripts resolve against the MagicDraw jars"
+echo "==================================================="
+if bash ci/compile_scripts.sh; then
+  :
+else
+  FAILED+=("groovy-scripts: a script does not resolve")
+fi
+
+# The static viewpoint->diagram-type table must stay in step with
+# _data/viewpoints.json.
 echo
 echo "==================================================="
 echo "  viewpoint diagram-type table"

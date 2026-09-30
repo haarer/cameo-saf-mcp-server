@@ -36,6 +36,13 @@ jobs:
       - name: Check the viewpoint diagram-type table against viewpoints.json
         run: python3 scripts/check_viewpoint_diagram_types.py
 
+      # gradle compiles the Java layer only, and a Groovy parse check never
+      # resolves a type. An unresolvable type in one script aborts the load of
+      # every Groovy script, so the saf_*/structural_* half of the tool surface
+      # disappears at runtime with nothing to point at the cause.
+      - name: Resolve every Groovy script against the MagicDraw jars
+        run: bash ci/compile_scripts.sh
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [compile]

@@ -1,9 +1,9 @@
 {
   "version": "v1",
-  "generated": "2026-09-30T07:10:06Z",
+  "generated": "2026-09-30T07:40:20Z",
   "source": {
     "kind": "groovy-scripts",
-    "plugin_commit": "ece4252",
+    "plugin_commit": "44bbf4b",
     "scripts_dir": "scripts",
     "script_files": [
       "admin_bridge.groovy",
@@ -1588,7 +1588,7 @@
           "description": "Element ID of the diagram to add relationship paths to",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2494
+            "line": 2536
           }
         },
         {
@@ -1598,7 +1598,7 @@
           "description": "Optional list of relationship element IDs to draw - association, dependency, generalization, abstraction, interface realization or SysML relationship. If omitted, containerId (or the element owning the diagram) is scanned for owned relationships. The relationshipsSkipped list returned by saf_create_diagram is a ready-made list of the ones worth passing here.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2495
+            "line": 2537
           }
         },
         {
@@ -1608,13 +1608,13 @@
           "description": "Optional element whose owned relationships are scanned when relationshipIds is omitted.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2496
+            "line": 2538
           }
         }
       ],
       "decl": {
         "file": "scripts/saf_tools.groovy",
-        "line": 2489
+        "line": 2531
       },
       "family": "saf",
       "description_chars": 914,
@@ -1694,7 +1694,7 @@
     },
     {
       "name": "saf_create_diagram",
-      "description": "Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.\n\nThe viewpoint decides the diagram kind. A SAF viewpoint specifies how it is\npresented, so a BDD is a BDD and an IBD is an IBD; passing a kind in would let\na \"conformant\" view come out in the wrong shape, so there is no kind argument.\nA viewpoint whose own presentation asks for a table or matrix has no diagram\nkind to copy, and falls back to a BDD with diagramTypeSource=fallback.\n\nPass elementIds to draw exactly the elements you chose, or a viewpoint\n(name, VP_ID like C1_SCXD, or ID) to collect the elements that viewpoint\nexposes. Passing both draws only elementIds. With neither, every classifier\ndirectly under parentId is drawn.\n\nThe diagram is marked with the viewpoint's view stereotype (SAF_<VP_ID>), so\nsaf_get_viewpoint_views and cameo://saf-views report it as a view of that\nviewpoint rather than as an unmarked diagram.\n\nWHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:\n\n- Relationships are never shapes. Associations, dependencies, generalizations,\n  abstractions and SysML relationships are not drawn at all by this tool, even\n  when they connect two elements that both became shapes. They are listed in\n  relationshipsSkipped. Call saf_add_relationship_paths to draw them.\n- Comments and literals are never drawn; they carry nothing to show on a\n  diagram and are omitted without being listed.",
+      "description": "Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.\n\nThe viewpoint decides the diagram kind. A SAF viewpoint specifies how it is\npresented, so a BDD is a BDD and an IBD is an IBD; there is no kind argument.\nA viewpoint asking for a table or matrix has no diagram kind to copy and falls\nback to a BDD with diagramTypeSource=fallback.\n\nPass elementIds to draw exactly the elements you chose, or a viewpoint (name,\nVP_ID like C1_SCXD, or ID) to collect what that viewpoint exposes. Passing both\ndraws only elementIds. With neither, every classifier directly under parentId is\ndrawn. The diagram is marked with the viewpoint's view stereotype\n(SAF_<VP_ID>), so cameo://saf-views lists it as a view of that viewpoint.\nsaf_get_viewpoint_views does NOT read that stereotype - it scores diagram\ncontent, so a 0 from it does not mean the diagram is not a valid SAF view.\n\nWHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:\n\n- Relationships are never shapes, even between two elements that both became\n  shapes. They are listed in relationshipsSkipped; call\n  saf_add_relationship_paths to draw them.\n- Comments and literals are never drawn, and are omitted without being listed.\n- Auto-collection never draws a part property. A part is the internal\n  structure of its owner and belongs on an IBD; a BDD showing one reads as\n  though the SOI were composed of its own parts. SAF context roles are applied\n  to parts as well as classifiers, so a viewpoint collect finds them and then\n  leaves them out - each is listed in shapesSkipped. Name a part in\n  elementIds to draw it, which is how an IBD is built.",
       "arguments": [
         {
           "name": "name",
@@ -1703,17 +1703,17 @@
           "description": "Diagram name (e.g. 'Coffee Machine System Context BDD')",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2298
+            "line": 2300
           }
         },
         {
           "name": "parentId",
           "type": "string",
           "required": true,
-          "description": "Parent package element ID to contain the diagram",
+          "description": "Parent element to contain the diagram. Usually a Package. For an IBD (a Composite Structure Diagram) it must be the Block that owns the parts - an IBD is a block's internal structure, and hanging one off a package makes MagicDraw create an empty new block to hold it. If you pass a Package for an IBD, the tool re-homes the diagram on the owning block and reports reparentedOnto; it refuses rather than invent a block when the parts have no single owner.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2299
+            "line": 2301
           }
         },
         {
@@ -1723,7 +1723,7 @@
           "description": "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected, and the viewpoint then only decides the diagram kind and the view stereotype. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2300
+            "line": 2302
           }
         },
         {
@@ -1733,7 +1733,7 @@
           "description": "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). Decides the diagram kind and marks the diagram with the viewpoint's view stereotype. When elementIds is omitted, also collects the owned elements that realize one of the viewpoint's exposed concepts - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2301
+            "line": 2303
           }
         },
         {
@@ -1743,7 +1743,7 @@
           "description": "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds the classifiers directly under parentId. Avoid - prefer elementIds or viewpoint for the correct subset.",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2302
+            "line": 2304
           }
         },
         {
@@ -1753,7 +1753,7 @@
           "description": "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_relationship_paths. Default: false",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2303
+            "line": 2305
           }
         },
         {
@@ -1763,7 +1763,7 @@
           "description": "Max recursion depth when auto-collecting owned elements. Default: 2",
           "decl": {
             "file": "scripts/saf_tools.groovy",
-            "line": 2304
+            "line": 2306
           }
         }
       ],
@@ -1772,7 +1772,7 @@
         "line": 2273
       },
       "family": "saf",
-      "description_chars": 1422,
+      "description_chars": 1650,
       "required_arguments": 2,
       "optional_arguments": 5,
       "arguments_total": 7

@@ -2273,30 +2273,32 @@ Domain and aspect take the SAF name or the short code from a viewpoint's VP_ID (
     @McpTool(name = "saf_create_diagram", description = '''Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.
 
 The viewpoint decides the diagram kind. A SAF viewpoint specifies how it is
-presented, so a BDD is a BDD and an IBD is an IBD; passing a kind in would let
-a "conformant" view come out in the wrong shape, so there is no kind argument.
-A viewpoint whose own presentation asks for a table or matrix has no diagram
-kind to copy, and falls back to a BDD with diagramTypeSource=fallback.
+presented, so a BDD is a BDD and an IBD is an IBD; there is no kind argument.
+A viewpoint asking for a table or matrix has no diagram kind to copy and falls
+back to a BDD with diagramTypeSource=fallback.
 
-Pass elementIds to draw exactly the elements you chose, or a viewpoint
-(name, VP_ID like C1_SCXD, or ID) to collect the elements that viewpoint
-exposes. Passing both draws only elementIds. With neither, every classifier
-directly under parentId is drawn.
-
-The diagram is marked with the viewpoint's view stereotype (SAF_<VP_ID>), so
-saf_get_viewpoint_views and cameo://saf-views report it as a view of that
-viewpoint rather than as an unmarked diagram.
+Pass elementIds to draw exactly the elements you chose, or a viewpoint (name,
+VP_ID like C1_SCXD, or ID) to collect what that viewpoint exposes. Passing both
+draws only elementIds. With neither, every classifier directly under parentId is
+drawn. The diagram is marked with the viewpoint's view stereotype
+(SAF_<VP_ID>), so cameo://saf-views lists it as a view of that viewpoint.
+saf_get_viewpoint_views does NOT read that stereotype - it scores diagram
+content, so a 0 from it does not mean the diagram is not a valid SAF view.
 
 WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
 
-- Relationships are never shapes. Associations, dependencies, generalizations,
-  abstractions and SysML relationships are not drawn at all by this tool, even
-  when they connect two elements that both became shapes. They are listed in
-  relationshipsSkipped. Call saf_add_relationship_paths to draw them.
-- Comments and literals are never drawn; they carry nothing to show on a
-  diagram and are omitted without being listed.''')
+- Relationships are never shapes, even between two elements that both became
+  shapes. They are listed in relationshipsSkipped; call
+  saf_add_relationship_paths to draw them.
+- Comments and literals are never drawn, and are omitted without being listed.
+- Auto-collection never draws a part property. A part is the internal
+  structure of its owner and belongs on an IBD; a BDD showing one reads as
+  though the SOI were composed of its own parts. SAF context roles are applied
+  to parts as well as classifiers, so a viewpoint collect finds them and then
+  leaves them out - each is listed in shapesSkipped. Name a part in
+  elementIds to draw it, which is how an IBD is built.''')
     @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
-    @McpToolArgument(name = "parentId", type = "string", description = "Parent package element ID to contain the diagram", required = true)
+    @McpToolArgument(name = "parentId", type = "string", description = "Parent element to contain the diagram. Usually a Package. For an IBD (a Composite Structure Diagram) it must be the Block that owns the parts - an IBD is a block's internal structure, and hanging one off a package makes MagicDraw create an empty new block to hold it. If you pass a Package for an IBD, the tool re-homes the diagram on the owning block and reports reparentedOnto; it refuses rather than invent a block when the parts have no single owner.", required = true)
     @McpToolArgument(name = "elementIds", type = "array", description = "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected, and the viewpoint then only decides the diagram kind and the view stereotype. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.")
     @McpToolArgument(name = "viewpoint", type = "string", description = "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). Decides the diagram kind and marks the diagram with the viewpoint's view stereotype. When elementIds is omitted, also collects the owned elements that realize one of the viewpoint's exposed concepts - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference.")
     @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds the classifiers directly under parentId. Avoid - prefer elementIds or viewpoint for the correct subset.")
@@ -2365,6 +2367,10 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
             }
         }
 
+        // Collected-but-not-drawn elements are reported, never dropped in
+        // silence: a part property left off a BDD should be visible as a
+        // deliberate omission rather than look like a lost relationship.
+        def shapeSkips = []
         boolean selective = elementIds != null && !elementIds.isEmpty()
         if (selective) {
             def missing = []
@@ -2381,14 +2387,49 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
                 return [error: "Some elementIds could not be resolved: " + missing.join(", ")]
             }
         } else if (viewpointStereoNames != null) {
-            collectElementsByViewpoint(parent, elementsToAdd, connectorsToAdd, relationshipsSkipped, 0, maxDepth, viewpointStereoNames)
+            collectElementsByViewpoint(parent, elementsToAdd, connectorsToAdd, relationshipsSkipped, shapeSkips, 0, maxDepth, viewpointStereoNames)
         } else if (scopeElementId) {
             def scope = resolveElement(scopeElementId)
             if (scope == null) return [error: "Scope element not found: " + scopeElementId]
             elementsToAdd.add(scope)
-            collectElementsForDiagram(scope, elementsToAdd, connectorsToAdd, relationshipsSkipped, 0, maxDepth)
+            collectElementsForDiagram(scope, elementsToAdd, connectorsToAdd, relationshipsSkipped, shapeSkips, 0, maxDepth)
         } else {
-            collectElementsFromParent(parent, elementsToAdd, connectorsToAdd, relationshipsSkipped)
+            collectElementsFromParent(parent, elementsToAdd, connectorsToAdd, relationshipsSkipped, shapeSkips)
+        }
+
+        // An IBD is the internal structure of a block, not a diagram that lives
+        // in a package. Handing createDiagram a Package makes MagicDraw invent a
+        // fresh Block to hang the diagram on, which silently orphans the parts
+        // it is supposed to show: the new block owns no part properties, so the
+        // diagram depicts an empty whole. Re-home it on the block that actually
+        // owns the parts being drawn.
+        def reparentedOnto = null
+        if (diagramType == "Composite Structure Diagram" && parent instanceof Package) {
+            def owners = new LinkedHashSet()
+            for (elem in elementsToAdd) {
+                def owner = null
+                try { owner = elem.getOwner() } catch (ignored) {}
+                // A SysML Block IS a mdkernel Class; there is no Block
+                // metaclass, so `instanceof Class` is the test.
+                if (owner instanceof Class) owners.add(owner)
+            }
+            if (owners.size() == 1) {
+                def whole = owners.iterator().next()
+                def roWhole = writableCheck(whole)
+                if (roWhole != null) return roWhole
+                reparentedOnto = whole
+                parent = whole
+                parentId = whole.getID()
+            } else {
+                return [
+                    error: "A " + diagramType + " is the internal structure of a block, so parentId must be the Block that owns the parts, not a Package."
+                    + (owners.isEmpty()
+                        ? " None of the elements being drawn is a part of a block."
+                        : " The parts given belong to " + owners.size() + " different blocks; name one of them, or split the diagram."),
+                    hint: "Find the block with get_block_structure(blockId) or list_owned_elements, and pass its id as parentId.",
+                    blockIds: owners.collect { it.getID() }
+                ]
+            }
         }
 
         def sm = SessionManager.getInstance()
@@ -2397,10 +2438,11 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
             def diagramElem = ModelElementsManager.getInstance().createDiagram(diagramType, parent)
             diagramElem.setName(name)
 
-            // Mark the diagram as a view of the viewpoint. Without this the
-            // SAF viewpoint queries - saf_get_viewpoint_views, cameo://saf-views
-            // - identify a view purely by this stereotype being present, so a
-            // diagram built "for" a viewpoint stayed invisible to all of them.
+            // Mark the diagram as a view of the viewpoint. cameo://saf-views
+            // identifies a view purely by this stereotype being present on the
+            // diagram element, so a diagram built "for" a viewpoint stayed
+            // invisible to it. (saf_get_viewpoint_views scores diagram content
+            // instead and does not consult this stereotype.)
             def viewStereotypeApplied = null
             if (viewpointRecord != null) {
                 def direct = SafDataStore.getInstance().getCurrentIndex()
@@ -2429,7 +2471,6 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
             }
 
             def shapeIds = []
-            def shapeSkips = []
             for (elem in elementsToAdd) {
                 try {
                     def shape = pem.createShapeElement(elem, diagramPres, false)
@@ -2471,6 +2512,7 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
                 viewpoint: viewpointRecord?.vpId(),
                 viewStereotypeApplied: viewStereotypeApplied,
                 parentId: parentId,
+                reparentedOnto: reparentedOnto,
                 shapesAdded: shapeIds.size(),
                 shapes: shapeIds,
                 shapesSkipped: shapeSkips,
@@ -2668,7 +2710,7 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
         }
     }
 
-    void collectElementsFromParent(def parent, List elements, List connectors, List skipped) {
+    void collectElementsFromParent(def parent, List elements, List connectors, List skipped, List shapeSkips) {
         try {
             for (child in parent.getOwnedElement()) {
                 if (isCommentOrLiteral(child)) continue
@@ -2683,9 +2725,41 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
                     }
                     continue
                 }
+                if (isStructuralFeature(child)) {
+                    shapeSkips.add([elementId: child.getID(), name: safeName(child),
+                                    type: child.getHumanType(),
+                                    reason: "part property / structural feature: internal structure, "
+                                          + "not a classifier shape. It belongs on an IBD; pass it in "
+                                          + "elementIds to draw it there."])
+                    continue
+                }
                 elements.add(child)
             }
         } catch (ignored) {}
+    }
+
+    /**
+     * A Property is a structural feature owned by a classifier, not a
+     * classifier. It is the internal structure of its owner, so it belongs on
+     * an IBD and must never be auto-collected onto a BDD.
+     *
+     * <p>This bites hardest on a viewpoint-driven collect: SAF context roles
+     * are applied to the part properties inside a SAF_ConceptualContext as
+     * well as to the classifiers, and both realize concepts the viewpoint
+     * exposes. Left alone the recursion into the context block pulled its
+     * parts up onto a block definition diagram, where they read as if the SOI
+     * were composed of them.
+     *
+     * <p>Only the auto-collectors consult this. A caller who names a part
+     * property in elementIds still gets it drawn, which is how an IBD is built.
+     */
+    boolean isStructuralFeature(def elem) {
+        if (elem == null) return false
+        if (!(elem instanceof Property)) return false
+        // A Property whose owner is a block is a part; any other Property is
+        // a feature of some classifier and equally is not a shape in its own
+        // right on a block diagram.
+        return true
     }
 
     /**
@@ -2695,7 +2769,7 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
      * domain inference; elements without any of the realizing stereotypes are
      * not added. Recurses into nested containers up to maxDepth.
      */
-    void collectElementsByViewpoint(def parent, List elements, List connectors, List skipped, int depth, int maxDepth, Set<String> viewpointStereoNames) {
+    void collectElementsByViewpoint(def parent, List elements, List connectors, List skipped, List shapeSkips, int depth, int maxDepth, Set<String> viewpointStereoNames) {
         if (depth > maxDepth) return
         try {
             for (child in parent.getOwnedElement()) {
@@ -2715,17 +2789,23 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
                         if (n != null) childStereos.add(n)
                     }
                 } catch (ignored) {}
-                if (childStereos.any { viewpointStereoNames.contains(it) }) {
+                if (isStructuralFeature(child)) {
+                    shapeSkips.add([elementId: child.getID(), name: safeName(child),
+                                    type: child.getHumanType(),
+                                    reason: "part property / structural feature: internal structure, "
+                                          + "not a classifier shape. It belongs on an IBD; pass it in "
+                                          + "elementIds to draw it there."])
+                } else if (childStereos.any { viewpointStereoNames.contains(it) }) {
                     elements.add(child)
                 }
                 if (depth < maxDepth) {
-                    collectElementsByViewpoint(child, elements, connectors, skipped, depth + 1, maxDepth, viewpointStereoNames)
+                    collectElementsByViewpoint(child, elements, connectors, skipped, shapeSkips, depth + 1, maxDepth, viewpointStereoNames)
                 }
             }
         } catch (ignored) {}
     }
 
-    void collectElementsForDiagram(def element, List elements, List connectors, List skipped, int depth, int maxDepth) {
+    void collectElementsForDiagram(def element, List elements, List connectors, List skipped, List shapeSkips, int depth, int maxDepth) {
         if (depth > maxDepth) return
         try {
             for (child in element.getOwnedElement()) {
@@ -2738,9 +2818,17 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
                     }
                     continue
                 }
+                if (isStructuralFeature(child)) {
+                    shapeSkips.add([elementId: child.getID(), name: safeName(child),
+                                    type: child.getHumanType(),
+                                    reason: "part property / structural feature: internal structure, "
+                                          + "not a classifier shape. It belongs on an IBD; pass it in "
+                                          + "elementIds to draw it there."])
+                    continue
+                }
                 elements.add(child)
                 if (depth < maxDepth) {
-                    collectElementsForDiagram(child, elements, connectors, skipped, depth + 1, maxDepth)
+                    collectElementsForDiagram(child, elements, connectors, skipped, shapeSkips, depth + 1, maxDepth)
                 }
             }
         } catch (ignored) {}

@@ -274,11 +274,16 @@ def test_saf_create_diagram_kind_comes_from_the_viewpoint(client, writable_root)
 
 
 def test_saf_create_diagram_marks_the_view_with_its_stereotype(client, writable_root):
-    """A diagram built for a viewpoint must be discoverable as one.
+    """A diagram built for a viewpoint must actually carry the view stereotype.
 
-    saf_get_viewpoint_views and cameo://saf-views identify a SAF view purely by
-    the SAF_<VP_ID> stereotype being applied to the diagram, so a diagram that
-    was never marked was invisible to every SAF viewpoint query.
+    cameo://saf-views identifies a SAF view purely by the SAF_<VP_ID> stereotype
+    being applied to the diagram element, so a diagram that was never marked
+    was invisible to it. The stereotype is read back off the element here
+    rather than trusted from the tool's own return value.
+
+    Note this is deliberately NOT asserted through saf_get_viewpoint_views:
+    that tool scores a diagram by the SAF kinds of its content and never
+    consults the view stereotype, so it cannot confirm the marking.
     """
     session_id = _mcp_init(client)
     result = _call_tool(client, session_id, "saf_create_diagram",
@@ -286,14 +291,14 @@ def test_saf_create_diagram_marks_the_view_with_its_stereotype(client, writable_
                          "parentId": writable_root,
                          "viewpoint": "O2_OCYD"})
     try:
-        assert result.get("viewStereotypeApplied"), \
-            f"the view stereotype must be applied: {result}"
+        assert result.get("viewStereotypeApplied") == "SAF_O2_OCYD", \
+            f"the view stereotype must be reported as applied: {result}"
 
-        views = _call_tool(client, session_id, "saf_get_viewpoint_views",
-                           {"viewpointCode": "O", "parentId": writable_root})
-        names = {v.get("name") for v in views.get("diagrams", views.get("views", []))}
-        assert "ScratchViewMarked" in names, \
-            f"the new diagram must be reported as an O-domain view: {views}"
+        applied = _call_tool(client, session_id, "get_stereotype_tags",
+                             {"elementId": result["diagramId"]})
+        names = {t.get("stereotype") for t in applied.get("tags", [])}
+        assert "SAF_O2_OCYD" in names, \
+            f"the diagram element must really carry the stereotype: {applied}"
     finally:
         _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
 
@@ -339,4 +344,88 @@ def test_saf_create_diagram_reports_undrawn_relationships(client, writable_root)
         if result and "diagramId" in result:
             _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
         for el in (dep, b, a, pkg):
+            _call_tool(client, session_id, "delete_element", {"elementId": el["id"]})
+
+
+def test_saf_create_diagram_bdd_never_draws_part_properties(client, writable_root):
+    """A part is internal structure and must not land on a block definition diagram.
+
+    SAF context roles are applied to the part properties inside a SAF context
+    as well as to the classifiers, and both realize concepts the viewpoint
+    exposes. A viewpoint collect therefore found the parts, passed them
+    through the stereotype test, and drew them on the BDD - where a part
+    labelled 'coffeeMachine' reads as though the SOI were composed of its own
+    internal structure. The part must be left off and reported, not drawn.
+    """
+    session_id = _mcp_init(client)
+    pkg = _call_tool(client, session_id, "create_element",
+                     {"type": "Package", "name": "ScratchPartLeakPkg",
+                      "parentId": writable_root})
+    whole = _call_tool(client, session_id, "create_element",
+                       {"type": "Block", "name": "ScratchWhole", "parentId": pkg["id"]})
+    part = _call_tool(client, session_id, "create_part",
+                      {"name": "scratchInner", "wholeBlockId": whole["id"],
+                       "partTypeBlockId": whole["id"]})
+    result = None
+    try:
+        result = _call_tool(client, session_id, "saf_create_diagram",
+                            {"name": "ScratchPartLeakBDD",
+                             "parentId": pkg["id"],
+                             "viewpoint": "C1_SCXD"})
+        assert result["diagramType"] == "Class Diagram", \
+            f"C1_SCXD must give a BDD: {result}"
+
+        shape_ids = {s["elementId"] for s in result.get("shapes", [])}
+        assert part["id"] not in shape_ids, \
+            f"a part property must not be drawn on a BDD: {result}"
+        assert whole["id"] in shape_ids, \
+            f"the owning block should still be drawn: {result}"
+
+        skipped = {s["elementId"]: s for s in result.get("shapesSkipped", [])}
+        assert part["id"] in skipped, \
+            f"the omitted part must be reported, not silently dropped: {result}"
+        assert "IBD" in skipped[part["id"]]["reason"], \
+            f"the reason should say where a part belongs: {skipped[part['id']]}"
+    finally:
+        if result and "diagramId" in result:
+            _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+        for el in (whole, pkg):
+            _call_tool(client, session_id, "delete_element", {"elementId": el["id"]})
+
+
+def test_saf_create_diagram_ibd_is_created_under_the_owning_block(client, writable_root):
+    """An IBD is a block's internal structure, not a diagram that sits in a package.
+
+    Handing createDiagram a Package for a Composite Structure Diagram makes
+    MagicDraw invent a fresh Block to hang the diagram on. That new block owns
+    no part properties, so the diagram depicts an empty whole and the parts
+    the caller asked for float free of it. The diagram must land on the block
+    that actually owns the parts.
+    """
+    session_id = _mcp_init(client)
+    pkg = _call_tool(client, session_id, "create_element",
+                     {"type": "Package", "name": "ScratchIbdPkg",
+                      "parentId": writable_root})
+    whole = _call_tool(client, session_id, "create_element",
+                       {"type": "Block", "name": "ScratchIbdWhole", "parentId": pkg["id"]})
+    part = _call_tool(client, session_id, "create_part",
+                      {"name": "scratchInnerA", "wholeBlockId": whole["id"],
+                       "partTypeBlockId": whole["id"]})
+    result = None
+    try:
+        result = _call_tool(client, session_id, "saf_create_diagram",
+                            {"name": "ScratchIbdRehomed",
+                             "parentId": pkg["id"],
+                             "viewpoint": "C1_SCXE",
+                             "elementIds": [part["id"]]})
+        assert result["diagramType"] == "Composite Structure Diagram", \
+            f"C1_SCXE must give an IBD: {result}"
+        assert result["parentId"] == whole["id"], \
+            f"the IBD must be owned by the block holding the part: {result}"
+        assert result["reparentedOnto"] == whole["id"], \
+            f"the re-homing must be reported: {result}"
+    finally:
+        if result and "diagramId" in result:
+            _call_tool(client, session_id, "delete_element", {"elementId": result["diagramId"]})
+        for el in (whole, pkg):
             _call_tool(client, session_id, "delete_element", {"elementId": el["id"]})

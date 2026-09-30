@@ -1,29 +1,29 @@
 {
-  "note": "saf_add_association_paths renamed to saf_add_relationship_paths; the tool no longer needs to apologise in its description for what its name excludes, so the description shrank.",
+  "note": "saf_create_diagram now documents two failure modes it previously had: that auto-collection never draws a part property (a SAF context role is applied to parts as well as classifiers, so a viewpoint collect used to sweep a block's own internal structure up onto its BDD), and that an IBD must be parented on the block owning the parts rather than a package. The description was trimmed back under the 2000-char soft budget to pay for it; longest tool description is now 1650.",
   "budgets": {},
   "report": {
     "surface": "v1",
-    "generated": "2026-09-30T07:10:06Z",
+    "generated": "2026-09-30T07:33:41Z",
     "source": "groovy-scripts",
     "headline": {
       "tools": 75,
       "arguments": 172,
       "resources": 12,
       "prompts": 1,
-      "approx_description_tokens": 15516,
+      "approx_description_tokens": 15692,
       "warn": 4,
       "info": 28
     },
     "metrics": {
       "context_cost": {
-        "tool_description_chars": 35158,
-        "argument_description_chars": 20700,
+        "tool_description_chars": 35386,
+        "argument_description_chars": 21106,
         "argument_name_overhead_chars": 3614,
-        "total_description_chars": 55858,
-        "approx_tokens": 15516,
+        "total_description_chars": 56492,
+        "approx_tokens": 15692,
         "tools": 75,
         "arguments": 172,
-        "approx_tokens_per_tool": 745,
+        "approx_tokens_per_tool": 753,
         "chars_per_tool": {
           "admin_apply_profile": 338,
           "admin_close_model": 107,
@@ -66,7 +66,7 @@
           "saf_add_relationship_paths": 914,
           "saf_build_traceability_chain": 256,
           "saf_check_consistency": 339,
-          "saf_create_diagram": 1422,
+          "saf_create_diagram": 1650,
           "saf_create_element": 1490,
           "saf_create_relationship": 1375,
           "saf_export_viewpoint": 374,
@@ -107,6 +107,12 @@
         "error_above_chars": 2000,
         "over_warn": [
           {
+            "name": "saf_create_diagram",
+            "chars": 1650,
+            "file": "scripts/saf_tools.groovy",
+            "line": 2273
+          },
+          {
             "name": "saf_set_requirement_tags",
             "chars": 1506,
             "file": "scripts/saf_tools.groovy",
@@ -117,12 +123,6 @@
             "chars": 1490,
             "file": "scripts/saf_tools.groovy",
             "line": 172
-          },
-          {
-            "name": "saf_create_diagram",
-            "chars": 1422,
-            "file": "scripts/saf_tools.groovy",
-            "line": 2273
           },
           {
             "name": "saf_create_relationship",
@@ -176,7 +176,7 @@
             "name": "saf_add_relationship_paths",
             "chars": 914,
             "file": "scripts/saf_tools.groovy",
-            "line": 2489
+            "line": 2529
           },
           {
             "name": "modelcode_validation_eval",
@@ -193,7 +193,7 @@
         ],
         "over_error": [],
         "median_chars": 338,
-        "max_chars": 1506
+        "max_chars": 1650
       },
       "names": {
         "duplicate_names": [],
@@ -906,6 +906,7 @@
           "remove_stereotype",
           "saf_build_traceability_chain",
           "saf_check_consistency",
+          "saf_create_diagram",
           "saf_create_element",
           "saf_create_relationship",
           "saf_export_viewpoint",
@@ -942,7 +943,7 @@
         "counts": {
           "tools": 75,
           "without_usage_guidance": 16,
-          "without_boundary_guidance": 68,
+          "without_boundary_guidance": 69,
           "arguments_without_description": 0
         }
       }
@@ -1016,7 +1017,7 @@
       {
         "rule": "1",
         "severity": "info",
-        "message": "75 tools, 172 arguments, ~15516 description tokens (745/tool)",
+        "message": "75 tools, 172 arguments, ~15692 description tokens (753/tool)",
         "subject": null,
         "suggestion": "Tool count alone is not a target. Use it to compare surfaces, then let task success decide.",
         "evidence": {}
@@ -1048,7 +1049,7 @@
       {
         "rule": "3",
         "severity": "info",
-        "message": "68 tools give no 'do not use this when' guidance",
+        "message": "69 tools give no 'do not use this when' guidance",
         "subject": "admin_apply_profile",
         "suggestion": null,
         "evidence": {
@@ -1090,6 +1091,7 @@
             "remove_stereotype",
             "saf_build_traceability_chain",
             "saf_check_consistency",
+            "saf_create_diagram",
             "saf_create_element",
             "saf_create_relationship",
             "saf_export_viewpoint",
@@ -1167,14 +1169,6 @@
       {
         "rule": "3",
         "severity": "info",
-        "message": "description is 1422 chars",
-        "subject": "saf_create_diagram",
-        "suggestion": null,
-        "evidence": {}
-      },
-      {
-        "rule": "3",
-        "severity": "info",
         "message": "description is 1490 chars",
         "subject": "saf_create_element",
         "suggestion": null,
@@ -1185,6 +1179,14 @@
         "severity": "info",
         "message": "description is 1506 chars",
         "subject": "saf_set_requirement_tags",
+        "suggestion": null,
+        "evidence": {}
+      },
+      {
+        "rule": "3",
+        "severity": "info",
+        "message": "description is 1650 chars",
+        "subject": "saf_create_diagram",
         "suggestion": null,
         "evidence": {}
       },
