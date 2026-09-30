@@ -399,6 +399,20 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final JLabel detailLine;
         private final JTextPane logPane;
         private JButton stopButton;
+        // -- streaming render buffer -------------------------------------
+        // Every streamed delta used to be posted to the EDT on its own: one
+        // invokeLater and one insertString each. A reasoning-heavy turn emits
+        // thousands of tiny chunks, and the queue that built up took seconds to
+        // drain - 8s at 10k deltas, 54s at 30k. Stop killed the request at
+        // once and the pane then went on painting for the best part of a
+        // minute, which is indistinguishable from a model that refused to
+        // stop. Deltas are buffered here and flushed once per frame instead,
+        // which bounds the pending work at one append and makes a stop
+        // visible immediately rather than eventually.
+        private final StringBuilder pendingThinking = new StringBuilder();
+        private final StringBuilder pendingReply = new StringBuilder();
+        private boolean thinkingBlockOpen;
+        private final Timer renderTimer;
         private final JTextField input;
         private final Timer timer;
         private List<String> lastMcpToolNames = new ArrayList<>();
@@ -446,6 +460,11 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             stop.setEnabled(false);
             stop.addActionListener(e -> {
                 llm.cancel();
+                // Drop what has not been painted yet. A stop that let the
+                // backlog through would keep the pane scrolling for seconds
+                // after the model had already been stopped, which reads as the
+                // button not having worked.
+                discardPending();
                 stop.setEnabled(false);
             });
             var clear = new JButton("Clear");
@@ -478,6 +497,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             restoreConversation();
 
             refresh();
+            renderTimer = new Timer(60, e -> drainPending());
+            renderTimer.start();
             timer = new Timer(1000, e -> refresh());
             timer.start();
         }
@@ -636,11 +657,6 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             // has to stay consistent for the whole turn, and this still gives
             // the documented "takes effect on the next message" behaviour.
             final boolean showThinking = PluginConfig.flag(PluginConfig.SHOW_THINKING, false);
-            // Whether a thinking block is currently open in the pane. The
-            // callbacks arrive on the worker thread in order, and every one
-            // of them reposts to the EDT through invokeLater, which preserves
-            // that order - so plain booleans are enough here.
-            final boolean[] thinkingOpen = {false};
 
             // Stop applies to the turn that is starting, so arm it here rather
             // than polling the client.
@@ -654,27 +670,19 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     if (!showThinking) {
                         return;
                     }
-                    SwingUtilities.invokeLater(() -> {
-                        if (!thinkingOpen[0]) {
-                            thinkingOpen[0] = true;
-                            appendText("\nthinking: ", THINKING_COLOR, true);
-                        }
-                        appendText(delta, THINKING_COLOR, true);
-                    });
+                    enqueueThinking(delta);
                 }
 
                 @Override
                 public void onDelta(String delta) {
-                    SwingUtilities.invokeLater(() -> {
-                        closeThinking(thinkingOpen);
-                        appendText(delta, REPLY_COLOR);
-                    });
+                    enqueueReply(delta);
                 }
 
                 @Override
                 public void onComplete(String fullReply) {
                     SwingUtilities.invokeLater(() -> {
-                        closeThinking(thinkingOpen);
+                        drainPending();
+                        closeThinking();
                         appendText("\n", REPLY_COLOR);
                         if (stopButton != null) {
                             stopButton.setEnabled(false);
@@ -685,7 +693,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 @Override
                 public void onError(String message) {
                     SwingUtilities.invokeLater(() -> {
-                        closeThinking(thinkingOpen);
+                        drainPending();
+                        closeThinking();
                         appendLine("error: " + message, ERROR_COLOR);
                         if (stopButton != null) {
                             stopButton.setEnabled(false);
@@ -696,7 +705,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 @Override
                 public void onCancelled(String reason) {
                     SwingUtilities.invokeLater(() -> {
-                        closeThinking(thinkingOpen);
+                        drainPending();
+                        closeThinking();
                         appendLine("stopped (" + reason + ")", INFO_COLOR);
                         if (stopButton != null) {
                             stopButton.setEnabled(false);
@@ -710,7 +720,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                         return;
                     }
                     SwingUtilities.invokeLater(() -> {
-                        closeThinking(thinkingOpen);
+                        drainPending();
+                        closeThinking();
                         appendLine("  [tool] " + name + " " + truncate(argumentsJson, 300), TOOL_COLOR);
                     });
                 }
@@ -721,7 +732,8 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                         return;
                     }
                     SwingUtilities.invokeLater(() -> {
-                        closeThinking(thinkingOpen);
+                        drainPending();
+                        closeThinking();
                         appendLine("  [result] " + truncate(result, 300), TOOL_COLOR);
                     });
                 }
@@ -729,14 +741,68 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             });
         }
 
+        /** Queue streamed reasoning. Called on a worker thread, never the EDT. */
+        private void enqueueThinking(String delta) {
+            if (delta == null || delta.isEmpty()) {
+                return;
+            }
+            synchronized (this) {
+                pendingThinking.append(delta);
+            }
+        }
+
+        /** Queue streamed reply text. Called on a worker thread, never the EDT. */
+        private void enqueueReply(String delta) {
+            if (delta == null || delta.isEmpty()) {
+                return;
+            }
+            synchronized (this) {
+                pendingReply.append(delta);
+            }
+        }
+
+        /** Throw away text that has not been painted yet. */
+        private void discardPending() {
+            synchronized (this) {
+                pendingThinking.setLength(0);
+                pendingReply.setLength(0);
+            }
+        }
+
+        /**
+         * Paint everything buffered since the last frame, as one insert per
+         * style. EDT only, and the reason the queue cannot grow without bound.
+         */
+        private void drainPending() {
+            String thinking;
+            String reply;
+            synchronized (this) {
+                thinking = pendingThinking.toString();
+                reply = pendingReply.toString();
+                pendingThinking.setLength(0);
+                pendingReply.setLength(0);
+            }
+            if (!thinking.isEmpty()) {
+                if (!thinkingBlockOpen) {
+                    thinkingBlockOpen = true;
+                    appendText("\nthinking: ", THINKING_COLOR, true);
+                }
+                appendText(thinking, THINKING_COLOR, true);
+            }
+            if (!reply.isEmpty()) {
+                closeThinking();
+                appendText(reply, REPLY_COLOR);
+            }
+        }
+
         /**
          * Close an open thinking block with a blank line, so the reply that
          * follows never runs into the reasoning above it. Must be called on
          * the EDT, which is where every console mutation happens.
          */
-        private void closeThinking(boolean[] open) {
-            if (open[0]) {
-                open[0] = false;
+        private void closeThinking() {
+            if (thinkingBlockOpen) {
+                thinkingBlockOpen = false;
                 appendText("\n", THINKING_COLOR, true);
             }
         }
@@ -754,6 +820,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         }
 
         private void clearAll() {
+            discardPending();
             logPane.setText("");
             llm.reset();
             appendLine("console cleared", INFO_COLOR);
