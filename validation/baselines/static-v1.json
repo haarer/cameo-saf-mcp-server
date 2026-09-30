@@ -1,26 +1,26 @@
 {
-  "note": "saf_create_diagram now auto-selects the kind from the viewpoint and states what it does not draw; its description shrank 1876->1421 chars and its optional args 7->5, resolving two oversized-description warnings. The info count rises because the analyzer reports the longest descriptions and the diagram tools now explain their limits honestly.",
+  "note": "saf_add_association_paths renamed to saf_add_relationship_paths; the tool no longer needs to apologise in its description for what its name excludes, so the description shrank.",
   "budgets": {},
   "report": {
     "surface": "v1",
-    "generated": "2026-09-30T06:59:48Z",
+    "generated": "2026-09-30T07:10:06Z",
     "source": "groovy-scripts",
     "headline": {
       "tools": 75,
       "arguments": 172,
       "resources": 12,
       "prompts": 1,
-      "approx_description_tokens": 15526,
+      "approx_description_tokens": 15516,
       "warn": 4,
       "info": 28
     },
     "metrics": {
       "context_cost": {
-        "tool_description_chars": 35195,
-        "argument_description_chars": 20699,
+        "tool_description_chars": 35158,
+        "argument_description_chars": 20700,
         "argument_name_overhead_chars": 3614,
-        "total_description_chars": 55894,
-        "approx_tokens": 15526,
+        "total_description_chars": 55858,
+        "approx_tokens": 15516,
         "tools": 75,
         "arguments": 172,
         "approx_tokens_per_tool": 745,
@@ -39,7 +39,7 @@
           "create_connector": 589,
           "create_element": 256,
           "create_information_flow": 1343,
-          "create_part": 1052,
+          "create_part": 1053,
           "create_relationship": 650,
           "delete_element": 150,
           "diff": 946,
@@ -63,10 +63,10 @@
           "modify_element": 160,
           "plugincode_introspect": 1286,
           "remove_stereotype": 151,
-          "saf_add_association_paths": 953,
+          "saf_add_relationship_paths": 914,
           "saf_build_traceability_chain": 256,
           "saf_check_consistency": 339,
-          "saf_create_diagram": 1421,
+          "saf_create_diagram": 1422,
           "saf_create_element": 1490,
           "saf_create_relationship": 1375,
           "saf_export_viewpoint": 374,
@@ -120,7 +120,7 @@
           },
           {
             "name": "saf_create_diagram",
-            "chars": 1421,
+            "chars": 1422,
             "file": "scripts/saf_tools.groovy",
             "line": 2273
           },
@@ -144,7 +144,7 @@
           },
           {
             "name": "create_part",
-            "chars": 1052,
+            "chars": 1053,
             "file": "scripts/structural_tools.groovy",
             "line": 135
           },
@@ -167,16 +167,16 @@
             "line": 1373
           },
           {
-            "name": "saf_add_association_paths",
-            "chars": 953,
-            "file": "scripts/saf_tools.groovy",
-            "line": 2489
-          },
-          {
             "name": "diff",
             "chars": 946,
             "file": "scripts/diff_tool.groovy",
             "line": 87
+          },
+          {
+            "name": "saf_add_relationship_paths",
+            "chars": 914,
+            "file": "scripts/saf_tools.groovy",
+            "line": 2489
           },
           {
             "name": "modelcode_validation_eval",
@@ -465,7 +465,7 @@
             "optional": 2
           },
           {
-            "name": "saf_add_association_paths",
+            "name": "saf_add_relationship_paths",
             "total": 3,
             "required": 1,
             "optional": 2
@@ -1016,7 +1016,7 @@
       {
         "rule": "1",
         "severity": "info",
-        "message": "75 tools, 172 arguments, ~15526 description tokens (745/tool)",
+        "message": "75 tools, 172 arguments, ~15516 description tokens (745/tool)",
         "subject": null,
         "suggestion": "Tool count alone is not a target. Use it to compare surfaces, then let task success decide.",
         "evidence": {}
@@ -1135,7 +1135,7 @@
       {
         "rule": "3",
         "severity": "info",
-        "message": "description is 1052 chars",
+        "message": "description is 1053 chars",
         "subject": "create_part",
         "suggestion": null,
         "evidence": {}
@@ -1167,7 +1167,7 @@
       {
         "rule": "3",
         "severity": "info",
-        "message": "description is 1421 chars",
+        "message": "description is 1422 chars",
         "subject": "saf_create_diagram",
         "suggestion": null,
         "evidence": {}
@@ -1207,16 +1207,16 @@
       {
         "rule": "3",
         "severity": "info",
-        "message": "description is 946 chars",
-        "subject": "diff",
+        "message": "description is 914 chars",
+        "subject": "saf_add_relationship_paths",
         "suggestion": null,
         "evidence": {}
       },
       {
         "rule": "3",
         "severity": "info",
-        "message": "description is 953 chars",
-        "subject": "saf_add_association_paths",
+        "message": "description is 946 chars",
+        "subject": "diff",
         "suggestion": null,
         "evidence": {}
       },

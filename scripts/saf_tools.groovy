@@ -2292,7 +2292,7 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
 - Relationships are never shapes. Associations, dependencies, generalizations,
   abstractions and SysML relationships are not drawn at all by this tool, even
   when they connect two elements that both became shapes. They are listed in
-  relationshipsSkipped. Call saf_add_association_paths to draw them.
+  relationshipsSkipped. Call saf_add_relationship_paths to draw them.
 - Comments and literals are never drawn; they carry nothing to show on a
   diagram and are omitted without being listed.''')
     @McpToolArgument(name = "name", type = "string", description = "Diagram name (e.g. 'Coffee Machine System Context BDD')", required = true)
@@ -2300,7 +2300,7 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
     @McpToolArgument(name = "elementIds", type = "array", description = "List of element IDs to add shapes for. RECOMMENDED: pass the exact elements your viewpoint recipe needs. When non-empty, ONLY these exact elements become shapes - nothing is auto-collected, and the viewpoint then only decides the diagram kind and the view stereotype. For an IBD pass the part properties you want visible; for a BDD pass the classifier elements (blocks, interfaces, exchange types, functions, processes, use cases). Decide the subset based on what the diagram must communicate - do NOT add every owned element.")
     @McpToolArgument(name = "viewpoint", type = "string", description = "SAF viewpoint (name, VP_ID like C1_SCXD, or ID). Decides the diagram kind and marks the diagram with the viewpoint's view stereotype. When elementIds is omitted, also collects the owned elements that realize one of the viewpoint's exposed concepts - resolved via the viewpoint--exposes->concept--realizes->stereotype chain, never via per-element domain inference.")
     @McpToolArgument(name = "scopeElementId", type = "string", description = "LEGACY AUTO: required only when elementIds and viewpoint are omitted. If set, adds the scope element and its owned children; if omitted, adds the classifiers directly under parentId. Avoid - prefer elementIds or viewpoint for the correct subset.")
-    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_association_paths. Default: false")
+    @McpToolArgument(name = "includeConnectors", type = "boolean", description = "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_relationship_paths. Default: false")
     @McpToolArgument(name = "maxDepth", type = "integer", description = "Max recursion depth when auto-collecting owned elements. Default: 2")
     Map safCreateDiagram(Map<String, Object> args) {
         def name = args.get("name") as String
@@ -2486,15 +2486,15 @@ WHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:
         }
     }
 
-    @McpTool(name = "saf_add_association_paths", description = '''Draw relationship paths on an existing diagram, between shapes already present. Use after saf_create_diagram: that tool never draws a relationship as a shape, so a freshly created BDD shows its classifiers unconnected until you call this.
+    @McpTool(name = "saf_add_relationship_paths", description = '''Draw relationship paths on an existing diagram, between shapes already present. Use after saf_create_diagram: that tool never draws a relationship as a shape, so a freshly created BDD shows its classifiers unconnected until you call this.
 
-Despite the name it handles every relationship kind, not just Association: association, composition, aggregation, dependency, generalization, abstraction, interface realization and SysML relationships. Only a relationship is accepted; anything else passed in relationshipIds is reported under notRelationships rather than silently ignored.
+It handles every relationship kind: association, composition, aggregation, dependency, generalization, abstraction, interface realization and SysML relationships. Only a relationship is accepted; anything else passed in relationshipIds is reported under notRelationships rather than silently ignored.
 
 Given a diagram and a set of relationships (explicit relationshipIds, or every owned relationship of containerId - else the element owning the diagram), the tool finds the shape presentations of both ends already in the diagram and creates a PathElement between them. A relationship whose ends are not both present as shapes is reported as skipped, never created silently.''')
     @McpToolArgument(name = "diagramId", type = "string", description = "Element ID of the diagram to add relationship paths to", required = true)
     @McpToolArgument(name = "relationshipIds", type = "array", description = "Optional list of relationship element IDs to draw - association, dependency, generalization, abstraction, interface realization or SysML relationship. If omitted, containerId (or the element owning the diagram) is scanned for owned relationships. The relationshipsSkipped list returned by saf_create_diagram is a ready-made list of the ones worth passing here.")
     @McpToolArgument(name = "containerId", type = "string", description = "Optional element whose owned relationships are scanned when relationshipIds is omitted.")
-    Map safAddAssociationPaths(Map<String, Object> args) {
+    Map safAddRelationshipPaths(Map<String, Object> args) {
         def diagramId = args.get("diagramId") as String
         def relationshipIds = args.get("relationshipIds") as List
         def containerId = args.get("containerId") as String
@@ -2558,7 +2558,7 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
         } catch (ignored) {}
 
         def sm = SessionManager.getInstance()
-        sm.createSession(project, "saf_add_association_paths")
+        sm.createSession(project, "saf_add_relationship_paths")
         def added = []
         def skipped = []
         try {
@@ -2640,7 +2640,7 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
      * SysML relationship) is drawn as a path element, never as a shape. It is
      * reported in {@code relationshipsSkipped} so a diagram that looks
      * unconnected is visibly so, and can be finished with
-     * {@code saf_add_association_paths}.
+     * {@code saf_add_relationship_paths}.
      */
     boolean isRelationship(def elem) {
         def metatype = elem.getHumanType()?.toLowerCase() ?: ""
@@ -2675,7 +2675,7 @@ Given a diagram and a set of relationships (explicit relationshipIds, or every o
                 if (isRelationship(child)) {
                     // A Connector is the internal-structure kind and is drawn
                     // when includeConnectors asks for it. Everything else is a
-                    // path and belongs to saf_add_association_paths.
+                    // path and belongs to saf_add_relationship_paths.
                     if (child.getHumanType().toLowerCase().contains("connector")) {
                         connectors.add(child)
                     } else {

@@ -77,14 +77,14 @@ def test_saf_create_diagram_description_states_what_is_not_drawn(client):
 
     'Omitting both draws all children of parentId' was false: isNonShapeable
     Group dropped comments, literals and every relationship kind, and
-    saf_add_association_paths could only draw Association, so a dependency
+    saf_add_relationship_paths could only draw Association, so a dependency
     between two shapes had no drawing path at all. The description must now
     say so, and name the tool that does draw them.
     """
     defs = _tool_defs(client)
     desc = defs["saf_create_diagram"]["description"]
     low = desc.lower()
-    for fragment in ("relationshipsskipped", "saf_add_association_paths", "not drawn"):
+    for fragment in ("relationshipsskipped", "saf_add_relationship_paths", "not drawn"):
         assert fragment in low, f"description must mention {fragment!r}: {desc}"
 
 
@@ -112,32 +112,32 @@ def test_create_part_discloses_auto_created_companion_association(client):
     assert "companion Association" in desc, f"expected companion Association mention in: {desc}"
     assert "create_relationship" in desc, f"expected create_relationship warning in: {desc}"
     assert "duplicate" in desc.lower(), f"expected duplicate warning in: {desc}"
-    assert "saf_add_association_paths" in desc, f"expected path guidance in: {desc}"
+    assert "saf_add_relationship_paths" in desc, f"expected path guidance in: {desc}"
     agg = defs["create_part"]["inputSchema"]["properties"]["aggregation"]["description"]
     assert "duplicate" in agg.lower(), f"aggregation arg should warn about duplicates: {agg}"
 
 
-def test_saf_add_association_paths_registered_and_guides(client):
+def test_saf_add_relationship_paths_registered_and_guides(client):
     """The association-path tool must be present and must advertise non-silent behavior
     (skipped associations are reported, not swallowed) so agents can draw compositions
     on a BDD without silent failure.
     """
     defs = _tool_defs(client)
-    assert "saf_add_association_paths" in defs, "saf_add_association_paths not registered"
-    desc = defs["saf_add_association_paths"].get("description", "")
+    assert "saf_add_relationship_paths" in defs, "saf_add_relationship_paths not registered"
+    desc = defs["saf_add_relationship_paths"].get("description", "")
     assert "composition" in desc.lower(), f"expected composition mention in: {desc}"
     assert "skipped" in desc.lower(), f"expected skipped/reporting mention in: {desc}"
-    props = defs["saf_add_association_paths"]["inputSchema"]["properties"]
+    props = defs["saf_add_relationship_paths"]["inputSchema"]["properties"]
     assert "diagramId" in props, "diagramId arg missing"
     assert props["diagramId"].get("required") or True  # required flag is fine
 
 
-def test_saf_add_association_paths_errors_cleanly_on_unknown_diagram(client):
+def test_saf_add_relationship_paths_errors_cleanly_on_unknown_diagram(client):
     """Calling with a nonexistent diagram must return a structured error map, not throw."""
     _require_client_ok(client)
     session_id = _mcp_init(client)
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 100, "method": "tools/call",
-                                  "params": {"name": "saf_add_association_paths",
+                                  "params": {"name": "saf_add_relationship_paths",
                                              "arguments": {"diagramId": "nonexistent-diagram-id"}}},
                     headers={"Mcp-Session-Id": session_id})
     body = r.json()
@@ -301,7 +301,7 @@ def test_saf_create_diagram_marks_the_view_with_its_stereotype(client, writable_
 def test_saf_create_diagram_reports_undrawn_relationships(client, writable_root):
     """A dependency between two drawn shapes was silently invisible.
 
-    Relationships are never drawn as shapes, and saf_add_association_paths used
+    Relationships are never drawn as shapes, and saf_add_relationship_paths used
     to accept only mdkernel.Association, so a dependency had no drawing path at
     all. It must now be reported rather than dropped, and the path tool must
     accept it.
@@ -328,7 +328,7 @@ def test_saf_create_diagram_reports_undrawn_relationships(client, writable_root)
         assert dep["id"] in skipped_ids, \
             f"an undrawn dependency must be reported: {result}"
 
-        paths = _call_tool(client, session_id, "saf_add_association_paths",
+        paths = _call_tool(client, session_id, "saf_add_relationship_paths",
                            {"diagramId": result["diagramId"],
                             "relationshipIds": [dep["id"]]})
         assert paths["relationshipsFound"] == 1, \

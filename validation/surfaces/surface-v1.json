@@ -1,9 +1,9 @@
 {
   "version": "v1",
-  "generated": "2026-09-30T06:59:48Z",
+  "generated": "2026-09-30T07:10:06Z",
   "source": {
     "kind": "groovy-scripts",
-    "plugin_commit": "2cdc830",
+    "plugin_commit": "ece4252",
     "scripts_dir": "scripts",
     "script_files": [
       "admin_bridge.groovy",
@@ -642,7 +642,7 @@
     },
     {
       "name": "create_part",
-      "description": "Create a block-owned, TYPED part property in one call: creates a Property owned by the given whole Block/Class, sets its type to the given part Block/Class, applies the PartProperty stereotype (and optionally a SAF role stereotype), and sets the multiplicity. This is the canonical way to build an internal part structure for an IBD — unlike SAF 'composition' relationships (which create package-level association ends), create_part puts a typed part property directly on the whole's internal structure. Returns the part property's ID.\n\nIMPORTANT — auto-created companion Association: when the part's aggregation is 'composite' or 'shared', MagicDraw implicitly maintains a backing Association between the whole and the part's type (this association is what appears as the composition line on a BDD). Do NOT also call create_relationship(type='composition') for the same whole/part pair — the companion Association already exists, and adding an explicit one creates a duplicate. Use create_part alone, then draw the line with saf_add_association_paths.",
+      "description": "Create a block-owned, TYPED part property in one call: creates a Property owned by the given whole Block/Class, sets its type to the given part Block/Class, applies the PartProperty stereotype (and optionally a SAF role stereotype), and sets the multiplicity. This is the canonical way to build an internal part structure for an IBD — unlike SAF 'composition' relationships (which create package-level association ends), create_part puts a typed part property directly on the whole's internal structure. Returns the part property's ID.\n\nIMPORTANT — auto-created companion Association: when the part's aggregation is 'composite' or 'shared', MagicDraw implicitly maintains a backing Association between the whole and the part's type (this association is what appears as the composition line on a BDD). Do NOT also call create_relationship(type='composition') for the same whole/part pair — the companion Association already exists, and adding an explicit one creates a duplicate. Use create_part alone, then draw the line with saf_add_relationship_paths.",
       "arguments": [
         {
           "name": "wholeBlockId",
@@ -710,7 +710,7 @@
         "line": 135
       },
       "family": "core",
-      "description_chars": 1052,
+      "description_chars": 1053,
       "required_arguments": 3,
       "optional_arguments": 3,
       "arguments_total": 6
@@ -1578,8 +1578,8 @@
       "arguments_total": 2
     },
     {
-      "name": "saf_add_association_paths",
-      "description": "Draw relationship paths on an existing diagram, between shapes already present. Use after saf_create_diagram: that tool never draws a relationship as a shape, so a freshly created BDD shows its classifiers unconnected until you call this.\n\nDespite the name it handles every relationship kind, not just Association: association, composition, aggregation, dependency, generalization, abstraction, interface realization and SysML relationships. Only a relationship is accepted; anything else passed in relationshipIds is reported under notRelationships rather than silently ignored.\n\nGiven a diagram and a set of relationships (explicit relationshipIds, or every owned relationship of containerId - else the element owning the diagram), the tool finds the shape presentations of both ends already in the diagram and creates a PathElement between them. A relationship whose ends are not both present as shapes is reported as skipped, never created silently.",
+      "name": "saf_add_relationship_paths",
+      "description": "Draw relationship paths on an existing diagram, between shapes already present. Use after saf_create_diagram: that tool never draws a relationship as a shape, so a freshly created BDD shows its classifiers unconnected until you call this.\n\nIt handles every relationship kind: association, composition, aggregation, dependency, generalization, abstraction, interface realization and SysML relationships. Only a relationship is accepted; anything else passed in relationshipIds is reported under notRelationships rather than silently ignored.\n\nGiven a diagram and a set of relationships (explicit relationshipIds, or every owned relationship of containerId - else the element owning the diagram), the tool finds the shape presentations of both ends already in the diagram and creates a PathElement between them. A relationship whose ends are not both present as shapes is reported as skipped, never created silently.",
       "arguments": [
         {
           "name": "diagramId",
@@ -1617,7 +1617,7 @@
         "line": 2489
       },
       "family": "saf",
-      "description_chars": 953,
+      "description_chars": 914,
       "required_arguments": 1,
       "optional_arguments": 2,
       "arguments_total": 3
@@ -1694,7 +1694,7 @@
     },
     {
       "name": "saf_create_diagram",
-      "description": "Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.\n\nThe viewpoint decides the diagram kind. A SAF viewpoint specifies how it is\npresented, so a BDD is a BDD and an IBD is an IBD; passing a kind in would let\na \"conformant\" view come out in the wrong shape, so there is no kind argument.\nA viewpoint whose own presentation asks for a table or matrix has no diagram\nkind to copy, and falls back to a BDD with diagramTypeSource=fallback.\n\nPass elementIds to draw exactly the elements you chose, or a viewpoint\n(name, VP_ID like C1_SCXD, or ID) to collect the elements that viewpoint\nexposes. Passing both draws only elementIds. With neither, every classifier\ndirectly under parentId is drawn.\n\nThe diagram is marked with the viewpoint's view stereotype (SAF_<VP_ID>), so\nsaf_get_viewpoint_views and cameo://saf-views report it as a view of that\nviewpoint rather than as an unmarked diagram.\n\nWHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:\n\n- Relationships are never shapes. Associations, dependencies, generalizations,\n  abstractions and SysML relationships are not drawn at all by this tool, even\n  when they connect two elements that both became shapes. They are listed in\n  relationshipsSkipped. Call saf_add_association_paths to draw them.\n- Comments and literals are never drawn; they carry nothing to show on a\n  diagram and are omitted without being listed.",
+      "description": "Create a diagram for a SAF viewpoint. Returns the diagram ID and what was drawn.\n\nThe viewpoint decides the diagram kind. A SAF viewpoint specifies how it is\npresented, so a BDD is a BDD and an IBD is an IBD; passing a kind in would let\na \"conformant\" view come out in the wrong shape, so there is no kind argument.\nA viewpoint whose own presentation asks for a table or matrix has no diagram\nkind to copy, and falls back to a BDD with diagramTypeSource=fallback.\n\nPass elementIds to draw exactly the elements you chose, or a viewpoint\n(name, VP_ID like C1_SCXD, or ID) to collect the elements that viewpoint\nexposes. Passing both draws only elementIds. With neither, every classifier\ndirectly under parentId is drawn.\n\nThe diagram is marked with the viewpoint's view stereotype (SAF_<VP_ID>), so\nsaf_get_viewpoint_views and cameo://saf-views report it as a view of that\nviewpoint rather than as an unmarked diagram.\n\nWHAT IS NOT DRAWN, so you are not misled by a diagram that looks unconnected:\n\n- Relationships are never shapes. Associations, dependencies, generalizations,\n  abstractions and SysML relationships are not drawn at all by this tool, even\n  when they connect two elements that both became shapes. They are listed in\n  relationshipsSkipped. Call saf_add_relationship_paths to draw them.\n- Comments and literals are never drawn; they carry nothing to show on a\n  diagram and are omitted without being listed.",
       "arguments": [
         {
           "name": "name",
@@ -1750,7 +1750,7 @@
           "name": "includeConnectors",
           "type": "boolean",
           "required": false,
-          "description": "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_association_paths. Default: false",
+          "description": "If true, add connector/jump shapes for owned elements whose type contains 'connector'. Connectors are the internal-structure kind only - they do NOT cover package-level Associations, dependencies or generalizations, for which use saf_add_relationship_paths. Default: false",
           "decl": {
             "file": "scripts/saf_tools.groovy",
             "line": 2303
@@ -1772,7 +1772,7 @@
         "line": 2273
       },
       "family": "saf",
-      "description_chars": 1421,
+      "description_chars": 1422,
       "required_arguments": 2,
       "optional_arguments": 5,
       "arguments_total": 7
