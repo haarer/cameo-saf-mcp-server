@@ -38,11 +38,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.logging.Level;
@@ -208,6 +211,18 @@ public class LlmChatClient {
         /** The request failed before any complete reply; the two callbacks are mutually exclusive. */
         void onError(String message);
 
+        /**
+         * The turn was stopped by the user rather than ending on its own.
+         *
+         * <p>Mutually exclusive with {@link #onComplete} and {@link #onError}: a
+         * stopped turn reports here and nowhere else, so a console can tell
+         * "you stopped this" apart from a finished turn and from a failure.
+         * {@code reason} says what had already happened when the stop landed -
+         * a partial reply length, or that the turn never started.
+         */
+        default void onCancelled(String reason) {
+        }
+
         /** The model asked for a tool call, just before it is executed. */
         default void onToolCall(String name, String argumentsJson) {
         }
@@ -304,7 +319,7 @@ public class LlmChatClient {
 
     private final ObjectMapper mapper;
     private final HttpClient http;
-    private final ExecutorService executor;
+    private final ThreadPoolExecutor executor;
     private final List<Map<String, Object>> history = new CopyOnWriteArrayList<>();
     private final List<Tool> tools = new CopyOnWriteArrayList<>();
     // Token-usage counters, guarded by 'this' (written on the worker thread,
@@ -321,6 +336,16 @@ public class LlmChatClient {
     private volatile boolean selectorDirty = true;
     private Bm25ToolSelector toolSelector;
 
+    // -- cancellation ---------------------------------------------------
+    // Set by cancel() from the EDT, read by the worker between rounds and
+    // between tool calls. The interrupt is what actually breaks the blocking
+    // http.send() promptly: a long generation spends nearly all of its time
+    // waiting on the socket, not computing, so a flag alone would not be
+    // noticed until the round ended.
+    private volatile boolean cancelRequested;
+    // The worker thread of the turn in flight, so cancel() can interrupt it.
+    private volatile Thread activeTurn;
+
     public LlmChatClient(ObjectMapper mapper) {
         this.mapper = mapper;
         // The trust store is built once, at construction: the certificate is
@@ -332,11 +357,53 @@ public class LlmChatClient {
         this.http = hb.build();
         // Single worker: requests run FIFO, so a busy endpoint queues instead
         // of racing the conversation.
-        this.executor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "llm-console");
-            t.setDaemon(true);
-            return t;
-        });
+        this.executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(), r -> {
+                Thread t = new Thread(r, "llm-console");
+                t.setDaemon(true);
+                return t;
+            });
+    }
+
+    /**
+     * Stop the turn in flight and drop anything queued behind it.
+     *
+     * <p>Interrupting is what makes the stop prompt rather than eventual: a
+     * generation can stream for minutes, and the flag alone would only be
+     * noticed at the next round boundary. The interrupt is cleared again
+     * before each tool call, because a stray interrupt reaching MagicDraw's own
+     * model-editing code could leave a half-applied change behind. A tool that
+     * has already started is always allowed to finish, and the turn stops at
+     * the next boundary.
+     *
+     * @return how many turns were stopped: one for the running turn, plus one
+     *         for each queued turn that was dropped.
+     */
+    public int cancel() {
+        int stopped = 0;
+        cancelRequested = true;
+        Thread t = activeTurn;
+        if (t != null) {
+            t.interrupt();
+            stopped++;
+        }
+        // A turn queued behind the running one is work the user has just
+        // disowned: it never started, so dropping it costs nothing, and it
+        // stops Stop from appearing to do nothing while the queue drains.
+        List<Runnable> dropped = new ArrayList<>();
+        executor.getQueue().drainTo(dropped);
+        stopped += dropped.size();
+        for (Runnable r : dropped) {
+            if (r instanceof TurnTask queued) {
+                queued.onDropped();
+            }
+        }
+        return stopped;
+    }
+
+    /** Whether a turn is running right now; the console enables Stop on this. */
+    public boolean isTurnActive() {
+        return activeTurn != null;
     }
 
     /**
@@ -453,7 +520,38 @@ public class LlmChatClient {
      * is re-queried until it produces a plain reply (or the round cap hits).
      */
     public void send(String userText, StreamCallback callback) {
-        executor.execute(() -> {
+        executor.execute(new TurnTask(userText, callback));
+    }
+
+    /**
+     * One user turn.
+     *
+     * <p>A named type rather than a bare lambda so {@link #cancel()} can reach
+     * a turn that was dropped from the queue before it ever ran, and tell its
+     * callback, so the console does not leave its input disabled for a turn
+     * that is never going to report anything.
+     */
+    private final class TurnTask implements Runnable {
+        private final String userText;
+        private final StreamCallback callback;
+
+        TurnTask(String userText, StreamCallback callback) {
+            this.userText = userText;
+            this.callback = callback;
+        }
+
+        /** Called when this turn is removed from the queue before it runs. */
+        void onDropped() {
+            callback.onCancelled("dropped before it started");
+        }
+
+        @Override
+        public void run() {
+            // Mark this turn active so cancel() can interrupt it, and clear any
+            // cancel left over from an earlier turn: a new turn must never
+            // inherit a stop that was meant for the one before it.
+            cancelRequested = false;
+            activeTurn = Thread.currentThread();
             StringBuilder full = new StringBuilder();
             ConversationLog log = ConversationLog.open();
             try {
@@ -550,17 +648,80 @@ public class LlmChatClient {
                     selectedTools = toolsFor(selection);
                 }
             } catch (Exception e) {
+                if (cancelRequested) {
+                    // The interrupt that broke the blocking send arrives here.
+                    // It is the stop the user asked for, not a failed request,
+                    // so it must not be reported as an error.
+                    if (log != null) {
+                        log.line("--- turn stopped by user");
+                    }
+                    closeOutCancelledTurn(history, log, full, callback);
+                    return;
+                }
                 if (log != null) {
                     log.line("--- turn failed: " + e);
                 }
                 LOG.warning("LLM console request failed: " + e.getMessage());
                 callback.onError(e.getMessage() == null ? e.toString() : e.getMessage());
             } finally {
+                activeTurn = null;
+                cancelRequested = false;
                 if (log != null) {
                     log.close();
-                }
             }
-        });
+        }
+        }
+    }
+
+    /**
+     * Answer the tool calls of a cancelled round that never ran, so the
+     * conversation stays valid for the next request.
+     *
+     * <p>An assistant message carrying {@code tool_calls} has to be followed by
+     * one {@code tool} message per call; an OpenAI-compatible endpoint rejects
+     * anything else. Stopping between tool calls would otherwise leave a
+     * dangling call in the history and make every later message fail - a stop
+     * that breaks the next turn is worse than no stop at all.
+     */
+    private void closeOutToolCalls(List<ToolCall> announced, List<Map<String, Object>> history,
+                                   List<Map<String, Object>> messages) {
+        Set<String> answered = new HashSet<>();
+        for (Map<String, Object> m : history) {
+            if ("tool".equals(m.get("role")) && m.get("tool_call_id") != null) {
+                answered.add(String.valueOf(m.get("tool_call_id")));
+            }
+        }
+        for (ToolCall tc : announced) {
+            if (answered.contains(tc.id())) {
+                continue;
+            }
+            Map<String, Object> stub = toolResultMessage(tc.id(), "not run: stopped by user");
+            history.add(stub);
+            messages.add(stub);
+        }
+    }
+
+    /**
+     * Drop the unanswered user turn of a stopped generation.
+     *
+     * <p>Nothing partial is recorded for an interrupted round - the reply is
+     * only stored once it completes - so what is left behind is a user message
+     * the model never answered. Keeping it would quietly change what the model
+     * believes it was asked, and the next message would answer a question the
+     * user had already abandoned.
+     */
+    private void closeOutCancelledTurn(List<Map<String, Object>> history, ConversationLog log,
+                                       StringBuilder partial, StreamCallback callback) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            if (!"user".equals(history.get(i).get("role"))) {
+                break;
+            }
+            history.remove(i);
+        }
+        if (log != null) {
+            log.line("--- turn stopped after " + partial.length() + " characters");
+        }
+        callback.onCancelled("stopped after " + partial.length() + " characters");
     }
 
     /**

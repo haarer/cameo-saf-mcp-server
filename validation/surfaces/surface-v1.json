@@ -1,9 +1,9 @@
 {
   "version": "v1",
-  "generated": "2026-09-30T07:40:20Z",
+  "generated": "2026-09-30T07:47:04Z",
   "source": {
     "kind": "groovy-scripts",
-    "plugin_commit": "44bbf4b",
+    "plugin_commit": "1fcd33b",
     "scripts_dir": "scripts",
     "script_files": [
       "admin_bridge.groovy",

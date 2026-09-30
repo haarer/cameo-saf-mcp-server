@@ -398,6 +398,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final JLabel statusLine;
         private final JLabel detailLine;
         private final JTextPane logPane;
+        private JButton stopButton;
         private final JTextField input;
         private final Timer timer;
         private List<String> lastMcpToolNames = new ArrayList<>();
@@ -438,12 +439,23 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             menu.setMargin(new Insets(0, 8, 0, 8));
             menu.setFocusPainted(false);
             menu.addActionListener(e -> ConfigDialog.show(menu));
+            var stop = new JButton("Stop");
+            stop.setToolTipText("Stop the current turn");
+            stop.setMargin(new Insets(0, 6, 0, 6));
+            stop.setFocusPainted(false);
+            stop.setEnabled(false);
+            stop.addActionListener(e -> {
+                llm.cancel();
+                stop.setEnabled(false);
+            });
             var clear = new JButton("Clear");
             clear.addActionListener(e -> clearAll());
             var inputEast = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
             inputEast.setOpaque(false);
             inputEast.add(menu);
+            inputEast.add(stop);
             inputEast.add(clear);
+            this.stopButton = stop;
             var inputRow = new JPanel(new BorderLayout(6, 0));
             inputRow.setOpaque(false);
             inputRow.add(input, BorderLayout.CENTER);
@@ -630,6 +642,12 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             // that order - so plain booleans are enough here.
             final boolean[] thinkingOpen = {false};
 
+            // Stop applies to the turn that is starting, so arm it here rather
+            // than polling the client.
+            if (stopButton != null) {
+                stopButton.setEnabled(true);
+            }
+
             llm.send(text, new LlmChatClient.StreamCallback() {
                 @Override
                 public void onReasoning(String delta) {
@@ -658,6 +676,9 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     SwingUtilities.invokeLater(() -> {
                         closeThinking(thinkingOpen);
                         appendText("\n", REPLY_COLOR);
+                        if (stopButton != null) {
+                            stopButton.setEnabled(false);
+                        }
                     });
                 }
 
@@ -666,6 +687,20 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                     SwingUtilities.invokeLater(() -> {
                         closeThinking(thinkingOpen);
                         appendLine("error: " + message, ERROR_COLOR);
+                        if (stopButton != null) {
+                            stopButton.setEnabled(false);
+                        }
+                    });
+                }
+
+                @Override
+                public void onCancelled(String reason) {
+                    SwingUtilities.invokeLater(() -> {
+                        closeThinking(thinkingOpen);
+                        appendLine("stopped (" + reason + ")", INFO_COLOR);
+                        if (stopButton != null) {
+                            stopButton.setEnabled(false);
+                        }
                     });
                 }
 
