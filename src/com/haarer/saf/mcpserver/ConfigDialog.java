@@ -4,7 +4,6 @@ import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -30,7 +29,6 @@ import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -108,17 +106,6 @@ public final class ConfigDialog extends JDialog {
             form.add(cell, c);
         }
 
-        // The model field lists the endpoint's models, fetched in the
-        // background from the URL and key the user is editing, so the list
-        // matches whatever endpoint they point at. A daemon thread, so a slow
-        // or dead endpoint cannot hold up (the modal) dialog.
-        if (fields.get(PluginConfig.MODEL) instanceof JComboBox<?> modelCombo) {
-            // modelField always builds a JComboBox<String>, so the cast is safe.
-            @SuppressWarnings("unchecked")
-            JComboBox<String> combo = (JComboBox<String>) modelCombo;
-            loadModelList(combo);
-        }
-
         // BM25 is the only reader of the cap and the score, so with selection
         // off those rows are greyed out and react to the switch live.
         var bm25 = (JCheckBox) fields.get(PluginConfig.TOOL_BM25);
@@ -192,9 +179,6 @@ public final class ConfigDialog extends JDialog {
 
     private JComponent field(PluginConfig.Option option, Properties stored) {
         String value = PluginConfig.current(option, stored);
-        if (option.key().equals(PluginConfig.MODEL)) {
-            return modelField(value);
-        }
         if (option.type() == PluginConfig.Type.BOOL) {
             JCheckBox box = new JCheckBox("enabled", "true".equalsIgnoreCase(value));
             return box;
@@ -212,59 +196,6 @@ public final class ConfigDialog extends JDialog {
         return new JTextField(value, FIELD_COLUMNS);
     }
 
-    /**
-     * The model field is an editable dropdown: pick a model the endpoint
-     * advertises, or type a name it does not list. The list is populated in the
-     * background by {@link #loadModelList}, so a slow or unreachable endpoint
-     * never delays opening the dialog.
-     */
-    private JComboBox<String> modelField(String value) {
-        JComboBox<String> combo = new JComboBox<>();
-        combo.setEditable(true);
-        String current = (value == null || value.isBlank()) ? "" : value;
-        if (!current.isEmpty()) {
-            combo.addItem(current);
-        }
-        combo.setSelectedIndex(combo.getItemCount() - 1);
-        Dimension d = combo.getPreferredSize();
-        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, d.height));
-        return combo;
-    }
-
-    /**
-     * Populate the model dropdown with the endpoint's advertised models. The
-     * fetch runs off the EDT and the result is applied on the EDT, preserving
-     * whatever the user has already chosen — kept as an extra entry when the
-     * endpoint does not list it.
-     */
-    private void loadModelList(JComboBox<String> combo) {
-        String url = textOf(fields.get("llm.url"));
-        String key = textOf(fields.get("llm.key"));
-        Thread fetch = new Thread(() -> {
-            List<String> models = LlmChatClient.fetchModels(url, key);
-            SwingUtilities.invokeLater(() -> {
-                if (!combo.isShowing()) {
-                    return;
-                }
-                String current = String.valueOf(combo.getEditor().getItem());
-                combo.removeAllItems();
-                for (String m : models) {
-                    combo.addItem(m);
-                }
-                if (!current.isBlank() && !models.contains(current)) {
-                    combo.addItem(current);
-                }
-                if (!current.isBlank()) {
-                    combo.setSelectedItem(current);
-                } else if (combo.getItemCount() > 0) {
-                    combo.setSelectedIndex(0);
-                }
-            });
-        }, "config-model-list");
-        fetch.setDaemon(true);
-        fetch.start();
-    }
-
     /** The text currently in a field, unwrapping the scrolled text area. */
     private static String textOf(JComponent component) {
         if (component instanceof JCheckBox box) {
@@ -279,10 +210,6 @@ public final class ConfigDialog extends JDialog {
         }
         if (component instanceof JTextField field) {
             return field.getText();
-        }
-        if (component instanceof JComboBox<?> combo) {
-            Object v = combo.getEditor().getItem();
-            return v == null ? "" : String.valueOf(v);
         }
         return "";
     }

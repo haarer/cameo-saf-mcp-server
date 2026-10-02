@@ -526,40 +526,6 @@ public class LlmChatClient {
     }
 
     /**
-     * Fetch the model names an OpenAI-compatible endpoint advertises, without a
-     * configured client: the config dialog lists the models of the endpoint the
-     * user is editing, given an explicit base URL and API key. A throwaway
-     * client builds the request because the shared pool belongs to the console's
-     * own client. Run off the EDT — the call blocks. An empty list means the
-     * endpoint did not answer or listed no models.
-     */
-    public static List<String> fetchModels(String base, String apiKey) {
-        if (base == null || base.isBlank()) {
-            return List.of();
-        }
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .build();
-            HttpRequest.Builder req = HttpRequest.newBuilder()
-                    .uri(URI.create(modelsUrl(base)))
-                    .timeout(Duration.ofSeconds(10))
-                    .GET();
-            if (apiKey != null && !apiKey.isBlank()) {
-                req.header("Authorization", "Bearer " + apiKey);
-            }
-            HttpResponse<String> resp = client.send(req.build(), HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() / 100 != 2) {
-                return List.of();
-            }
-            return parseModelIds(resp.body());
-        } catch (Exception e) {
-            LOG.fine("Model listing failed: " + e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
      * Parse a {@code /models} response body into the list of model ids. Tolerant
      * of the common OpenAI shape ({@code data[].id}); anything else yields no
      * models rather than an exception.
