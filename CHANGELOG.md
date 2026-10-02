@@ -5,6 +5,10 @@ Versions refer to git tags that define release packages.
 
 ## [Unreleased]
 
+### Fixed
+
+- The plugin no longer builds against 2024x Refresh3, which is gone; 2024x now compiles and deploys against `/workspace/MSOSA2024xRef1`. Pointing at the new install alone was not enough, because Ref1 ships older APIs in two places the code touched. Its jide is 3.7.15 rather than 3.8.0, and its `WindowComponentInfo` stops at `setIndex` - `setFloatable`, `setAutohidable`, `setRearrangable` and `setMaximizable` do not exist there, so the console window is configured through those setters reflectively and keeps whatever docking behaviour 2024x gives it. Its Lucene is 9.2.0 rather than 9.12.0: 9.2 has no `storedFields()` and 9.12 has no `IndexReader.document(int)`, so the one read that exists in both, `IndexSearcher.doc(int)`, is used instead. `ci-stubs` modelled only the 2026x API, which would have let CI pass against a Lucene no shipped distribution has; the stub now mirrors the intersection of the two
+
 ## [v0.1.13] - 2026-09-30
 
 ### Added

@@ -73,6 +73,24 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
     public static final String WINDOW_ID = "com.haarer.saf.mcpserver.status";
     public static final String WINDOW_NAME = "MCP Server Status";
 
+    /**
+     * Apply a {@code WindowComponentInfo} docking hint if the running
+     * distribution has it.
+     *
+     * <p>Four of these setters exist in 2026x and not in 2024x, where the
+     * class stops at {@code setIndex}. The plugin is built once per target but
+     * from one source tree, and these hints only decide how the user may
+     * rearrange the docked frame, so a 2024x build that cannot set them simply
+     * keeps the behaviour it had rather than failing to compile.
+     */
+    private static void setDockingHint(WindowComponentInfo info, String setter) {
+        try {
+            WindowComponentInfo.class.getMethod(setter, boolean.class).invoke(info, true);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            // Not present on this distribution: the hint does not apply.
+        }
+    }
+
     private final Supplier<CameoMcpServer> serverSupplier;
     /**
      * The conversation, shared by every window for one plugin load. Supplied
@@ -129,10 +147,15 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         info.setTabTitle("MCP Status");
         info.setState(DockContext.STATE_FRAMEDOCKED);
         info.setDockable(true);
-        info.setFloatable(true);
-        info.setAutohidable(true);
-        info.setRearrangable(true);
-        info.setMaximizable(true);
+        // These four docking hints exist on WindowComponentInfo in 2026x but
+        // not in 2024x, where the class stops at setIndex. Called reflectively
+        // so one source tree builds against both distributions; they only
+        // decide how the user may rearrange the frame, so a 2024x build that
+        // cannot set them docks exactly as it did before.
+        setDockingHint(info, "setFloatable");
+        setDockingHint(info, "setAutohidable");
+        setDockingHint(info, "setRearrangable");
+        setDockingHint(info, "setMaximizable");
         info.setRemoveOnHide(false);
         // This configurator is invoked again whenever a project window is
         // created or rebuilt - which is what happens on a model load, a model

@@ -15,7 +15,7 @@ def targets = [
         internalMinVer: '202600000',
     ],
     '2024x': [
-        cameoHome:      '/workspace/MSOSA2024xRef3',
+        cameoHome:      '/workspace/MSOSA2024xRef1',
         jdkHome:        '/usr/lib/jvm/java-21-openjdk',
         release:        17,
         automatonVer:   '2024x Refresh1',
@@ -57,7 +57,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.uml2-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'com.dassault_systemes.modeler.foundation-*.jar', 'core-*.jar', 'common-*.jar', 'jide-dock-*.jar', 'jide-action-*.jar', 'jackson-*.jar', 'lucene-core-*.jar', 'lucene-analysis-common-*.jar'])
+    compileOnly fileTree(dir: "${cameoHome}/lib", include: ['com.nomagic.magicdraw.foundation-*.jar', 'com.nomagic.magicdraw.uml2-*.jar', 'com.nomagic.magicdraw.core.diagram-*.jar', 'com.nomagic.magicdraw.modeling-*.jar', 'com.nomagic.utils-*.jar', 'com.dassault_systemes.modeler.foundation-*.jar', 'core-*.jar', 'md_api*.jar', 'common-*.jar', 'jide-dock-*.jar', 'jide-action-*.jar', 'jackson-*.jar', 'lucene-core-*.jar', 'lucene-analysis-common-*.jar'])
     compileOnly fileTree(dir: "${cameoHome}/plugins/com.nomagic.magicdraw.automaton/lib", include: ['groovy-*.jar'])
 }
 

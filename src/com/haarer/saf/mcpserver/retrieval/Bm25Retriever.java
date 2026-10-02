@@ -184,7 +184,14 @@ public class Bm25Retriever implements Retriever, AutoCloseable {
         for (ScoreDoc sd : top.scoreDocs) {
             Document doc;
             try {
-                doc = s.storedFields().document(sd.doc);
+                // IndexSearcher.doc(int), not reader.storedFields().document(int)
+                // and not IndexReader.document(int): the first is the only one
+                // of the three that exists across both distributions. 2026x
+                // ships Lucene 9.12, where IndexReader.document(int) is gone
+                // and IndexSearcher only forwards to storedFields(); 2024x
+                // ships 9.2, which has no storedFields() at all. IndexSearcher
+                // itself still exposes doc(int) in both.
+                doc = s.doc(sd.doc);
             } catch (IOException e) {
                 // Snapshot reader: cannot happen in practice.
                 throw new IllegalStateException("stored field read failed", e);
