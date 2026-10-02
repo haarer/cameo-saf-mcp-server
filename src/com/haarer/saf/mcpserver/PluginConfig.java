@@ -53,6 +53,9 @@ public final class PluginConfig {
     /** Key switching BM25 tool selection off. */
     public static final String TOOL_BM25 = "llm.tool.bm25";
 
+    /** Key for the model name sent with each request. */
+    public static final String MODEL = "llm.model";
+
     private PluginConfig() {
     }
 
@@ -65,7 +68,7 @@ public final class PluginConfig {
             new Option("llm.url", "Endpoint URL", Type.TEXT,
                 "OpenAI-compatible completions base URL. /v1 and /chat/completions are added if missing.",
                 "https://api.openai.com"),
-            new Option("llm.model", "Model", Type.TEXT,
+                new Option(MODEL, "Model", Type.TEXT,
                 "Model name sent with each request. Re-read per turn.",
                 LlmChatClient.DEFAULT_MODEL),
             new Option("llm.key", "API key", Type.SECRET,
@@ -96,10 +99,10 @@ public final class PluginConfig {
             new Option("llm.tool.rounds", "Tool rounds", Type.INT,
                 "Maximum tool-execution rounds per message. One round can run several tools in parallel, so this is not a tool-call count. On reaching it the turn ends with a summary of what was built, not an error.",
                 LlmChatClient.DEFAULT_TOOL_ROUNDS),
-            new Option("llm.tool.max", "BM25 tool selection", Type.INT,
+            new Option("llm.tool.max", "Max tools sent", Type.INT,
                 "Most tools attached to one request. Above 25 registered tools, BM25 narrows the set to this many.",
                 LlmChatClient.DEFAULT_TOOL_MAX),
-            new Option(TOOL_BM25, "Max tools sent", Type.BOOL,
+            new Option(TOOL_BM25, "BM25 tool selection", Type.BOOL,
                 "Narrow the tool array by relevance. Off means every registered tool is sent on every "
                     + "round, ignoring the max-tools limit and the score threshold.",
                 true),

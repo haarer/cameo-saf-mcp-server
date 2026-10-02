@@ -7,12 +7,11 @@ Versions refer to git tags that define release packages.
 
 ### Added
 
-- A model selector on the LLM console. Until now the model could only be changed by editing the config file, and the console showed that it was talking to a model but never which one, with no way to switch. The status line now names the model right after "LLM", and a small button beside the input field opens the list of models the endpoint itself advertises at `/v1/models`. The fetch runs off the event thread so the console never hangs while the server is slow, the currently configured model is pinned to the top of the menu so it stays choosable even when the listing fails or omits it, and a manual entry stands in when the endpoint answers nothing. Choosing a name writes `llm.model`, and because the model is re-read on every turn the change takes effect on the next message without a restart.
+- A model selector on the LLM console. Until now the model could only be changed by editing the config file, and the console showed that it was talking to a model but never which one, with no way to switch. The status line now names the model right after "LLM", and a small button beside the input field opens the list of models the endpoint itself advertises at `/v1/models`. The fetch runs off the event thread so the console never hangs while the server is slow, the currently configured model is pinned to the top of the menu so it stays choosable even when the listing fails or omits it, and a manual entry stands in when the endpoint answers nothing. Choosing a name writes `llm.model`, and because the model is re-read on every turn the change takes effect on the next message without a restart. The configuration dialog's Model field is the same selection made into a widget: it is an editable combobox that lists the endpoint's models when the dialog opens, so the persistent `llm.model` value can be picked from the endpoint rather than typed.
 
 ### Changed
 
 - The configuration dialog is tighter and narrower. Each option's help text is now a tooltip on its field instead of a grey line stacked under it - that line was the tallest part of the dialog and the reason it sized itself to the longest help string rather than the values it edits. The field width is cut to the values it holds and the row insets halved, so a dozen options fit without the window running wide; hover a field for what it does.
-- The `llm.tool.max` and `llm.tool.bm25` options swap labels: the integer cap now reads "BM25 tool selection" and the on/off toggle now reads "Max tools sent".
 
 ### Fixed
 
