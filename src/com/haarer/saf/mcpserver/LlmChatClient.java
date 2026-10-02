@@ -489,6 +489,51 @@ public class LlmChatClient {
         return v != null ? v : DEFAULT_URL;
     }
 
+    /**
+     * The {@code llm.model} in force right now, re-read on every call so a
+     * config edit takes effect on the next turn without a restart.
+     */
+    public String model() {
+        return callModel();
+    }
+
+    /**
+     * The model names the endpoint advertises, from its {@code /v1/models}
+     * listing. Run this off the EDT - the call blocks. An empty list means
+     * the endpoint did not answer or did not understand the request; callers
+     * fall back to whatever model is currently configured.
+     */
+    public List<String> listModels() {
+        List<String> models = new ArrayList<>();
+        try {
+            HttpRequest.Builder req = HttpRequest.newBuilder()
+                .uri(URI.create(modelsUrl(baseUrl())))
+                .timeout(Duration.ofSeconds(10))
+                .GET();
+            String key = propertyFromFile("llm.key");
+            if (key != null) {
+                req.header("Authorization", "Bearer " + key);
+            }
+            HttpResponse<String> resp = http.send(req.build(), HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() / 100 != 2) {
+                return models;
+            }
+            JsonNode root = mapper.readTree(resp.body());
+            JsonNode data = root.path("data");
+            if (data.isArray()) {
+                for (JsonNode m : data) {
+                    JsonNode id = m.path("id");
+                    if (id.isTextual() && !id.asText().isBlank()) {
+                        models.add(id.asText());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.fine("Model listing failed: " + e.getMessage());
+        }
+        return models;
+    }
+
     /** Register a tool for model invocation; re-registering a name replaces it. */
     public void registerTool(Tool tool) {
         tools.removeIf(t -> t.name().equals(tool.name()));
@@ -1565,6 +1610,24 @@ public class LlmChatClient {
             b = b + "/v1";
         }
         return b + "/chat/completions";
+    }
+
+    /**
+     * Append {@code /v1/models} to the configured base URL, mirroring
+     * {@link #completionsUrl(String)}.
+     */
+    static String modelsUrl(String base) {
+        String b = base.trim();
+        while (b.endsWith("/")) {
+            b = b.substring(0, b.length() - 1);
+        }
+        if (b.endsWith("/chat/completions")) {
+            b = b.substring(0, b.length() - "/chat/completions".length());
+        }
+        if (!b.endsWith("/v1")) {
+            b = b + "/v1";
+        }
+        return b + "/models";
     }
 
     private static String truncate(String s, int max) {

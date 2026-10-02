@@ -96,10 +96,10 @@ public final class PluginConfig {
             new Option("llm.tool.rounds", "Tool rounds", Type.INT,
                 "Maximum tool-execution rounds per message. One round can run several tools in parallel, so this is not a tool-call count. On reaching it the turn ends with a summary of what was built, not an error.",
                 LlmChatClient.DEFAULT_TOOL_ROUNDS),
-            new Option("llm.tool.max", "Max tools sent", Type.INT,
+            new Option("llm.tool.max", "BM25 tool selection", Type.INT,
                 "Most tools attached to one request. Above 25 registered tools, BM25 narrows the set to this many.",
                 LlmChatClient.DEFAULT_TOOL_MAX),
-            new Option(TOOL_BM25, "BM25 tool selection", Type.BOOL,
+            new Option(TOOL_BM25, "Max tools sent", Type.BOOL,
                 "Narrow the tool array by relevance. Off means every registered tool is sent on every "
                     + "round, ignoring the max-tools limit and the score threshold.",
                 true),

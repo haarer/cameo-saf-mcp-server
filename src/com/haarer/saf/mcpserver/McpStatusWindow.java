@@ -45,6 +45,10 @@ import javax.swing.JDialog;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JOptionPane;
+import javax.swing.SwingWorker;
+import java.io.IOException;
 import java.awt.Window;
 
 /**
@@ -422,6 +426,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
         private final JLabel detailLine;
         private final JTextPane logPane;
         private JButton stopButton;
+        private JButton modelButton;
         // -- streaming render buffer -------------------------------------
         // Every streamed delta used to be posted to the EDT on its own: one
         // invokeLater and one insertString each. A reasoning-heavy turn emits
@@ -471,6 +476,11 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             // -- text entry + menu + clear -------------------------------
             input = new JTextField();
             input.addActionListener(e -> submit());
+            modelButton = new JButton();
+            modelButton.setToolTipText("Model selection");
+            modelButton.setFocusPainted(false);
+            modelButton.addActionListener(e -> chooseModel());
+            refreshModelButton();
             var menu = new JButton("≡");
             menu.setToolTipText("Configuration");
             menu.setMargin(new Insets(0, 8, 0, 8));
@@ -501,6 +511,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
             var inputRow = new JPanel(new BorderLayout(6, 0));
             inputRow.setOpaque(false);
             inputRow.add(input, BorderLayout.CENTER);
+            inputRow.add(modelButton, BorderLayout.WEST);
             inputRow.add(inputEast, BorderLayout.EAST);
 
             panel = new JPanel(new BorderLayout(0, 0));
@@ -652,7 +663,7 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
 
         private String llmStats() {
             LlmChatClient.UsageStats u = llm.usageStats();
-            String s = "   LLM " + llm.toolCount() + " tools / ctx "
+            String s = "   LLM " + llm.model() + "   " + llm.toolCount() + " tools / ctx "
                 + u.contextMessages + " msgs / " + human(u.contextChars) + " chars";
             return s + (u.usageReported
                 ? "   " + u.promptTokens + " tok in / " + u.completionTokens + " tok out"
@@ -667,6 +678,82 @@ public class McpStatusWindow implements ProjectWindowsConfigurator {
                 return String.format(Locale.ROOT, "%.1fk", n / 1000.0);
             }
             return String.format(Locale.ROOT, "%.1fM", n / 1_000_000.0);
+        }
+
+        /**
+         * Fetch the endpoint's model list off the EDT and offer it as a popup
+         * anchored on the model button; the currently configured model is
+         * pinned at the top so it stays selectable even when the listing
+         * fails or omits it.
+         */
+        private void chooseModel() {
+            modelButton.setEnabled(false);
+            new SwingWorker<List<String>, Void>() {
+                @Override
+                protected List<String> doInBackground() {
+                    return llm.listModels();
+                }
+
+                @Override
+                protected void done() {
+                    List<String> models;
+                    try {
+                        models = get();
+                    } catch (Exception e) {
+                        models = List.of();
+                    }
+                    showModelMenu(models);
+                }
+            }.execute();
+        }
+
+        private void showModelMenu(List<String> fetched) {
+            String current = llm.model();
+            var menu = new JPopupMenu("Model");
+            var pin = new JMenuItem(current);
+            pin.setSelected(true);
+            pin.addActionListener(e -> setModel(current));
+            menu.add(pin);
+            for (String m : fetched) {
+                if (m.equals(current)) {
+                    continue;
+                }
+                var item = new JMenuItem(m);
+                item.addActionListener(e -> setModel(m));
+                menu.add(item);
+            }
+            if (fetched.isEmpty()) {
+                var custom = new JMenuItem("Enter a model name…");
+                custom.addActionListener(e -> enterModelName(current));
+                menu.add(custom);
+            }
+            menu.show(modelButton, 0, modelButton.getHeight());
+            modelButton.setEnabled(true);
+        }
+
+        private void setModel(String value) {
+            try {
+                PluginConfig.save(Map.of("llm.model", value));
+            } catch (IOException e) {
+                appendLine("Could not save the model: " + e.getMessage(), ERROR_COLOR);
+                return;
+            }
+            refreshModelButton();
+            appendLine("Model: " + value, INFO_COLOR);
+        }
+
+        private void enterModelName(String current) {
+            String v = (String) JOptionPane.showInputDialog(panel, "Model name:", "Model",
+                JOptionPane.PLAIN_MESSAGE, null, null, current);
+            if (v != null && !v.isBlank()) {
+                setModel(v.trim());
+            }
+        }
+
+        private void refreshModelButton() {
+            String m = llm.model();
+            modelButton.setText(m.length() > 24 ? m.substring(0, 21) + "..." : m);
+            modelButton.setToolTipText("Model: " + m);
         }
 
         private void submit() {
