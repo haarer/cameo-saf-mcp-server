@@ -34,7 +34,7 @@ import java.util.Properties;
 
 /**
  * Modal editor for every key in {@link PluginConfig}: label, current value,
- * one line of help, and the property key.
+ * a help tooltip, and the property key.
  *
  * <p>Built from the catalog rather than hand-wired, so a new option becomes
  * editable by adding one line to {@link PluginConfig#options()}. Nothing is
@@ -46,13 +46,11 @@ public final class ConfigDialog extends JDialog {
     private final Map<String, JComponent> fields = new LinkedHashMap<>();
     private final Map<String, JLabel> errors = new LinkedHashMap<>();
     private final Map<String, JLabel> names = new LinkedHashMap<>();
-    private final Map<String, JLabel> helps = new LinkedHashMap<>();
     private final File file;
-    private static final java.awt.Color GRAY_TEXT = new java.awt.Color(120, 120, 120);
     private static final java.awt.Color ERROR_TEXT = new java.awt.Color(190, 30, 30);
-    private static final java.awt.Color DISABLED_TEXT = new java.awt.Color(185, 185, 185);
+    private static final int FIELD_COLUMNS = 28;
 
-    /** Help text is HTML so it wraps with its field instead of overflowing. */
+    /** Tooltip text is HTML so a long help string wraps inside the tooltip. */
     private static String escape(String text) {
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
@@ -62,16 +60,14 @@ public final class ConfigDialog extends JDialog {
         this.file = PluginConfig.file();
         Properties stored = PluginConfig.load();
 
-        // One row per option. The help line and the error line live in the
-
-        // One row per option. The help line and the error line live in the
-        // same cell as their field, stacked under it, so they cannot drift
-        // away from it: a separate block of help text is laid out on its own
-        // row heights and lines up with nothing as soon as one field is
-        // taller than the others.
+        // One row per option. The help is a tooltip on the field; the
+        // validation error line shares the field's cell, stacked under it, so
+        // it cannot drift away: a separate block of error text is laid out on
+        // its own row heights and lines up with nothing as soon as one field
+        // is taller than the others.
         var form = new JPanel(new GridBagLayout());
         var c = new GridBagConstraints();
-        c.insets = new Insets(6, 6, 6, 6);
+        c.insets = new Insets(4, 6, 4, 6);
         c.anchor = GridBagConstraints.NORTHWEST;
         c.fill = GridBagConstraints.HORIZONTAL;
 
@@ -90,15 +86,11 @@ public final class ConfigDialog extends JDialog {
 
             JComponent input = field(option, stored);
             input.setAlignmentX(LEFT_ALIGNMENT);
+            // The help text is a tooltip on the field rather than a line under
+            // it: the field keeps the width its value needs, and each row is a
+            // line shorter.
+            input.setToolTipText("<html>" + escape(option.help()) + "</html>");
             cell.add(input);
-
-            JLabel help = new JLabel("<html>" + escape(option.help()) + "</html>");
-            help.setFont(help.getFont().deriveFont(Font.PLAIN, 10f));
-            help.setForeground(GRAY_TEXT);
-            help.setAlignmentX(LEFT_ALIGNMENT);
-            help.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
-            cell.add(help);
-            helps.put(option.key(), help);
 
             JLabel err = new JLabel(" ");
             err.setForeground(ERROR_TEXT);
@@ -154,15 +146,15 @@ public final class ConfigDialog extends JDialog {
             JComponent.WHEN_IN_FOCUSED_WINDOW);
 
         pack();
-        setMinimumSize(new Dimension(Math.max(getWidth(), 640), 480));
+        setMinimumSize(new Dimension(Math.max(320, getWidth() - 40), 320));
         setLocationRelativeTo(owner);
     }
 
 
     /**
-     * Grey out the options BM25 is the only reader of. The row's name and help
-     * labels fade with the field, so the whole row reads as inactive rather
-     * than just the input.
+     * Grey out the options BM25 is the only reader of. The row's name label
+     * fades with the field, so the whole row reads as inactive rather than
+     * just the input.
      */
     private void applySelectionDependencies() {
         var bm25 = (JCheckBox) fields.get(PluginConfig.TOOL_BM25);
@@ -175,10 +167,6 @@ public final class ConfigDialog extends JDialog {
             var name = names.get(option.key());
             if (name != null) {
                 name.setEnabled(selectionOn);
-            }
-            var help = helps.get(option.key());
-            if (help != null) {
-                help.setForeground(selectionOn ? GRAY_TEXT : DISABLED_TEXT);
             }
         }
     }
@@ -196,16 +184,16 @@ public final class ConfigDialog extends JDialog {
             return box;
         }
         if (option.type() == PluginConfig.Type.MULTILINE) {
-            JTextArea area = new JTextArea(value, 3, 40);
+            JTextArea area = new JTextArea(value, 3, FIELD_COLUMNS);
             area.setLineWrap(true);
             area.setWrapStyleWord(true);
             area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
             return new JScrollPane(area);
         }
         if (option.type() == PluginConfig.Type.SECRET) {
-            return new JPasswordField(value, 40);
+            return new JPasswordField(value, FIELD_COLUMNS);
         }
-        return new JTextField(value, 40);
+        return new JTextField(value, FIELD_COLUMNS);
     }
 
     /** The text currently in a field, unwrapping the scrolled text area. */
